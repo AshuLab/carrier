@@ -46632,6 +46632,67 @@
         }
       }
     },
+    "rolesCountSet %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg role is set up"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg roles are set up"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg rol está configurado"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg roles están configurados"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "rolesDefault": {
       "extractionState": "manual",
       "localizations": {
@@ -46662,6 +46723,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cada uno tiene una identidad, una cuenta y un modelo."
+          }
+        }
+      }
+    },
+    "rolesExtraReadOnly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An extra reviewer is shown here and cannot be changed yet. It is set in agents.extraReviewers of engine.json."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un revisor extra se muestra aquí y todavía no se puede cambiar. Se define en agents.extraReviewers de engine.json."
+          }
+        }
+      }
+    },
+    "rolesExtraReviewer %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reviewer %1$lld"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisor %1$lld"
           }
         }
       }
@@ -47638,6 +47733,23 @@
         }
       }
     },
+    "rolesPurposeExtra": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reviews the same commit, in parallel"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisa el mismo commit, en paralelo"
+          }
+        }
+      }
+    },
     "rolesRailAsks": {
       "extractionState": "manual",
       "localizations": {
@@ -47651,6 +47763,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "↺ pide cambios, el autor responde"
+          }
+        }
+      }
+    },
+    "rolesRailFoot": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each reviewer is one more agent on every epic."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada revisor es un agente más en cada epic."
           }
         }
       }
@@ -47702,6 +47831,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abre el pull request"
+          }
+        }
+      }
+    },
+    "rolesRailParallel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In parallel, on the same commit · one verdict is enough"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En paralelo, sobre el mismo commit · basta un veredicto"
           }
         }
       }
@@ -47838,6 +47984,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Igual que en todas partes"
+          }
+        }
+      }
+    },
+    "rolesSameAsReviewer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Same as Reviewer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Igual que el Revisor"
           }
         }
       }
@@ -48080,6 +48243,23 @@
         }
       }
     },
+    "rolesStepsTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steps"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasos"
+          }
+        }
+      }
+    },
     "rolesSwitch": {
       "extractionState": "manual",
       "localizations": {
@@ -48110,6 +48290,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Límite de uso, límite de peticiones o servicio caído"
+          }
+        }
+      }
+    },
+    "rolesTakesReviewerSteps %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takes the Reviewer’s steps: %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usa los pasos del Revisor: %1$@"
           }
         }
       }

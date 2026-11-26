@@ -55,8 +55,8 @@ struct WatchingTabView: View {
         let rows = watchingOrder(repoRows(draft: draft, saved: saved, snapshot: snapshot))
         let chosen = place.path.first.flatMap { name in rows.first { $0.name == name } }
         let repoPage = chosen.flatMap { rolesPage(of: $0) }
-        let role = place.path.dropFirst().first.flatMap(AgentRole.init(rawValue:))
-        let roleRow = role.flatMap { role in repoPage?.rows.first { $0.role == role } }
+        let role = place.path.dropFirst().first.flatMap(RoleSlot.init(name:))
+        let roleRow = role.flatMap { role in repoPage?.rows.first { $0.slot == role } }
         SettingsPageBody {
             notices
             if let chosen, let roleRow, let page = repoPage {
@@ -201,21 +201,21 @@ struct WatchingTabView: View {
         return RepoScreen(
             row: row, status: status, project: owner?.name,
             checks: repoChecks(repo: row.name, roles: roles?.rows ?? [], doctor: doctor.state), checking: doctor.state == .running,
-            roles: page.flatMap { page in roles.map { (page: page, own: Set($0.rows.filter(\.isOwn).map(\.role))) } },
+            roles: page.flatMap { page in roles.map { (page: page, own: Set($0.rows.filter(\.isOwn).map { RoleSlot($0.role) })) } },
             icons: accountIcons(providersJSON: providersData), refusal: refusal,
             openProject: { owner.map { go(SettingsPlace(.projects, path: [$0.path])) } ?? go(SettingsPlace(.projects)) },
-            openRole: { go(SettingsPlace(.watching, path: [row.name, $0.rawValue])) }, stop: { removing = row.name }
+            openRole: { go(SettingsPlace(.watching, path: [row.name, $0.name])) }, stop: { removing = row.name }
         )
     }
 
     /// A role's screen in the repo.
     @ViewBuilder private func roleScreen(_ repo: RepoRow, _ row: RoleRow, page: RolesPage) -> some View {
-        if let mine = configData.flatMap({ repoRoles(json: $0, repo: repo.name) })?.rows.first(where: { $0.role == row.role }), let roles = configData.flatMap({ repoRoles(json: $0, repo: repo.name) }) {
+        if let role = row.role, let mine = configData.flatMap({ repoRoles(json: $0, repo: repo.name) })?.rows.first(where: { $0.role == role }), let roles = configData.flatMap({ repoRoles(json: $0, repo: repo.name) }) {
             RepoRoleScreen(
                 row: row, mine: mine, page: page, profiles: roles.profiles, accounts: declaredAccounts(providersJSON: providersData), icons: accountIcons(providersJSON: providersData),
-                save: { await saveRole($0, role: row.role, repo: repo.name) }, open: { go(SettingsPlace(.watching, path: [repo.name, $0.rawValue])) }
+                save: { await saveRole($0, role: role, repo: repo.name) }, open: { go(SettingsPlace(.watching, path: [repo.name, $0.name])) }
             )
-            .id("\(repo.name)/\(row.role.rawValue)")
+            .id("\(repo.name)/\(row.id)")
         }
     }
 

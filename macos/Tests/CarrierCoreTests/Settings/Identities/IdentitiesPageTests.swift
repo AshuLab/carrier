@@ -23,11 +23,11 @@ private func signs(_ row: IdentityRow) -> [String] { row.signsAs.map { $0.title(
 
 @Test func theListIsTheBotsOfTheRegistryInTheirOrderAndThenTheGhLogin() throws {
     let found = try page()
-    #expect(found.rows.map(\.id) == ["bot:acme-author", "bot:acme-reviewer", "bot:acme-lead", "bot:acme-spare", "gh"])
-    #expect(found.rows.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["acme-author", "acme-reviewer", "acme-lead", "acme-spare", "Your gh login"])
-    #expect(found.rows.map { $0.kind(bundle: english.bundle, locale: english.locale) } == Array(repeating: "A bot from Agent Forge", count: 4) + ["Your own account"])
+    #expect(found.rows.map(\.id) == ["bot:acme-author", "bot:acme-reviewer", "bot:acme-lead", "bot:acme-reviewer-2", "bot:acme-spare", "gh"])
+    #expect(found.rows.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["acme-author", "acme-reviewer", "acme-lead", "acme-reviewer-2", "acme-spare", "Your gh login"])
+    #expect(found.rows.map { $0.kind(bundle: english.bundle, locale: english.locale) } == Array(repeating: "A bot from Agent Forge", count: 5) + ["Your own account"])
     // the picture comes from the registry's App id: the ones that have none keep their initials
-    #expect(found.rows.map(\.appId) == ["1000001", "1000002", nil, nil, nil])
+    #expect(found.rows.map(\.appId) == ["1000001", "1000002", nil, "1000003", nil, nil])
     #expect(found.rows.first?.appLine(bundle: english.bundle, locale: english.locale) == "GitHub App 1000001")
 }
 

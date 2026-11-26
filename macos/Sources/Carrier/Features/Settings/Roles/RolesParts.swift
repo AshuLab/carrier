@@ -18,7 +18,7 @@ func roleAvatar(_ row: RoleRow, page: RolesPage, icons: [String: String], size: 
 /// The card at the top of the first screen: whether the roles of an epic are set up, and what is in the way, with a button to the role to fix.
 struct RolesStatusCard: View {
     let readiness: RolesReadiness
-    let open: (AgentRole) -> Void
+    let open: (RoleSlot) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: Tokens.Space.s14) {
@@ -41,16 +41,16 @@ struct RolesStatusCard: View {
     }
 }
 
-/// The three roles in the order an epic goes through them, joined by a rail that says what passes from one to the next: the author opens the pull
-/// request, the reviewer asks for changes and the author answers until the review passes, and then the lead reviewer. One row of the form with the
+/// The roles in the order an epic goes through them, joined by a rail that says what passes from one to the next: the author opens the pull
+/// request, the reviewers (the Reviewer and the extra ones, one step in parallel when there are extras) ask for changes and the author answers until the review passes, and then the lead reviewer. One row of the form with the
 /// rail drawn through it (separate rows would break the line at every edge). Each role is a button that opens its screen.
 struct EpicRail: View {
     let page: RolesPage
     let readiness: RolesReadiness
     let icons: [String: String]
     /// On a repo's screen: the roles the repo has its own settings for; every row then says whether it is one of them or follows Roles. nil on Roles itself.
-    var own: Set<AgentRole>?
-    let open: (AgentRole) -> Void
+    var own: Set<RoleSlot>?
+    let open: (RoleSlot) -> Void
 
     /// The title of the group the rows are in, which the search finds them by.
     static var group: String { Copy.rolesRailGroup() }
@@ -58,20 +58,41 @@ struct EpicRail: View {
 
     var body: some View {
         VStack(spacing: Tokens.Space.none) {
-            ForEach(Array(page.rows.enumerated()), id: \.element.id) { index, row in
+            // the extra reviewers are drawn with the Reviewer, in one step, and not at their place in the list
+            ForEach(Array(page.rows.filter { $0.slot.isExtra == false }.enumerated()), id: \.element.id) { index, row in
                 if index > 0 { link(into: row) }
-                RoleRailRow(
-                    row: row, needsAttention: readiness.problems.contains { $0.role == row.role }, own: own.map { $0.contains(row.role) },
-                    avatar: roleAvatar(row, page: page, icons: icons, size: 38), action: { open(row.role) }
-                )
+                if row.slot == .reviewer {
+                    reviewersStep
+                } else {
+                    railRow(row)
+                }
             }
         }
         .listRowInsets(EdgeInsets(top: 4, leading: 6, bottom: 4, trailing: 6))
     }
 
+    private func railRow(_ row: RoleRow) -> some View {
+        RoleRailRow(
+            row: row, needsAttention: readiness.problems.contains { $0.role == row.slot }, own: own.map { $0.contains(row.slot) },
+            avatar: roleAvatar(row, page: page, icons: icons, size: 38), action: { open(row.slot) }
+        )
+    }
+
+    /// The Reviewer alone, or with the extra reviewers as one step in parallel.
+    @ViewBuilder private var reviewersStep: some View {
+        let reviewers = page.rows.filter { $0.slot == .reviewer || $0.slot.isExtra }
+        if reviewers.count > 1 {
+            ParallelStep(caption: Copy.rolesRailParallel()) {
+                ForEach(reviewers) { railRow($0) }
+            }
+        } else {
+            ForEach(reviewers) { railRow($0) }
+        }
+    }
+
     /// What passes on to `next`: the line is dashed while the Lead reviewer is off.
     @ViewBuilder private func link(into next: RoleRow) -> some View {
-        if next.role == .reviewer {
+        if next.slot == .reviewer {
             RailLink(dashed: false) {
                 FlowLayout(spacing: Tokens.Space.s8) {
                     Text(Copy.rolesRailOpens())
@@ -114,7 +135,7 @@ private struct RoleRailRow: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .accessibilityElement(children: .combine)
-        .settingsAnchored(row.role.rawValue, group: EpicRail.groupID)
+        .settingsAnchored(row.id, group: EpicRail.groupID)
     }
 
     @ViewBuilder private var trailing: some View {
@@ -134,6 +155,24 @@ private struct RoleRailRow: View {
 }
 
 /// The stretch of the rail between two roles: a line through the middle of a column as wide as the avatars, and under it what goes on.
+/// Roles that run at the same time: a tinted box around their rows, under a line that says so.
+private struct ParallelStep<Content: View>: View {
+    @Environment(\.pieceTheme) private var theme
+    let caption: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tokens.Space.none) {
+            Text(caption).scaledFont(11.5, weight: .medium).foregroundStyle(theme.accent)
+                .padding(.horizontal, Tokens.Space.s8).padding(.top, Tokens.Space.s8).padding(.bottom, Tokens.Space.s2)
+            content
+        }
+        .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(theme.accent.opacity(0.07)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(caption)
+    }
+}
+
 private struct RailLink<Caption: View>: View {
     let dashed: Bool
     @ViewBuilder let caption: Caption
@@ -201,26 +240,29 @@ struct RoleHero: View {
     }
 }
 
-/// Where the role sits among the three, in a row of the form under `RoleHero`.
+/// Where the role sits among the roles of an epic, in a row of the form under `RoleHero`: every other role is a link.
 struct RoleFlowStrip: View {
-    let current: AgentRole
+    let current: RoleSlot
     let rows: [RoleRow]
-    let open: (AgentRole) -> Void
+    let open: (RoleSlot) -> Void
 
     var body: some View {
         FlowLayout(spacing: Tokens.Space.s8) {
             Text(Copy.rolesInAnEpic()).scaledFont(11.5).foregroundStyle(.secondary)
-            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                if index > 0 {
-                    Glyph(index == 1 ? .exchange : .arrowRight, size: 11).foregroundStyle(.tertiary).accessibilityHidden(true)
+            ForEach(rows) { row in
+                // the Author and the reviewers go back and forth; the reviewers are side by side and then it goes on to the lead
+                if row.slot == .reviewer {
+                    Glyph(.exchange, size: 11).foregroundStyle(.tertiary).accessibilityHidden(true)
+                } else if row.slot == .lead {
+                    Glyph(.arrowRight, size: 11).foregroundStyle(.tertiary).accessibilityHidden(true)
                 }
-                if row.role == current {
+                if row.slot == current {
                     Text(row.title()).scaledFont(12, weight: .medium).padding(.horizontal, Tokens.Space.s10).padding(.vertical, Tokens.Space.s2)
                         .background(Capsule().fill(.tint.opacity(0.18))).overlay(Capsule().strokeBorder(.tint, lineWidth: 1.5))
                         .accessibilityAddTraits(.isSelected)
                 } else {
                     // a role that is off says so in words, not only in a lighter button
-                    Button { open(row.role) } label: { Text(row.off ? Copy.rolesRoleOff(role: row.title()) : row.title()) }
+                    Button { open(row.slot) } label: { Text(row.off ? Copy.rolesRoleOff(role: row.title()) : row.title()) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
                 }
             }

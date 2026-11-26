@@ -17,7 +17,7 @@ struct RepoRoleScreen: View {
     let icons: [String: String]
     /// Writes the repo's own fields of the role, nil taking them all out.
     let save: (RoleFields?) async -> RoleSave
-    let open: (AgentRole) -> Void
+    let open: (RoleSlot) -> Void
     @State private var problem: String?
     private let catalog = ModelCatalog.shared
     private let providers = AppHealth.providers
@@ -26,7 +26,7 @@ struct RepoRoleScreen: View {
         Group {
             SettingsGroup(title: "") {
                 RoleHero(row: row, page: page, icons: icons)
-                RoleFlowStrip(current: row.role, rows: page.rows, open: open)
+                RoleFlowStrip(current: row.slot, rows: page.rows, open: open)
             }
             SettingsGroup(id: "who", title: Copy.rolesGroupWho(), footer: mine.isOwn ? nil : Copy.watchingRoleWhoFooter(role: row.title())) {
                 SettingsTabRow(title: Copy.rolesIdentity(), detail: Copy.watchingIdentityDetail(), first: true) { identityPicker }
@@ -38,13 +38,13 @@ struct RepoRoleScreen: View {
                     CommitField(label: Copy.rolesPersonaName(), text: mine.own.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: mine.inherited.persona?.name ?? Copy.rolesSameAsEverywhere()) {
                         await commit(persona: RolePersona(name: blankIsNil($0), prompt: mine.own.persona?.prompt))
                     }
-                    .id(row.role)
+                    .id(row.id)
                 }
                 SettingsStackedRow(id: "persona-prompt", title: Copy.rolesPersonaPrompt(), detail: Copy.rolesPersonaPromptDetail()) {
                     CommitEditor(label: Copy.rolesPersonaPrompt(), text: mine.own.persona?.prompt ?? "", prompt: mine.inherited.persona?.prompt ?? Copy.rolesSameAsEverywhere()) {
                         await commit(persona: RolePersona(name: mine.own.persona?.name, prompt: blankIsNil($0)))
                     }
-                    .id(row.role)
+                    .id(row.id)
                 }
             }
             if mine.isOwn {
@@ -57,7 +57,7 @@ struct RepoRoleScreen: View {
         }
         .writingToolsBehavior(.disabled)
         // a refusal belongs to the role it happened on
-        .onChange(of: row.role) { problem = nil }
+        .onChange(of: row.id) { problem = nil }
         .task { await providers.load() }
     }
 

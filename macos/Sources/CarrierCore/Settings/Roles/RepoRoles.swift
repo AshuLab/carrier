@@ -119,6 +119,7 @@ public func repoRolesPage(config: Data, providers: Data?, bots: ForgeBots, repo:
     }
     file["agents"] = agents
     guard let merged = try? JSONSerialization.data(withJSONObject: file), var page = rolesPage(config: merged, providers: providers, bots: bots, bundle: bundle, locale: locale) else { return nil }
-    page.rows.removeAll { $0.off }
+    // a repo's own list of reviewers is its own screen's, not this rail's
+    page.rows.removeAll { $0.off || $0.slot.isExtra }
     return page
 }

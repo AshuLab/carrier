@@ -13,12 +13,12 @@ struct RepoScreen: View {
     let checks: RepoChecks
     let checking: Bool
     /// The repository's roles as it has them, and the ones it has settings of its own for; nil while the file does not read.
-    let roles: (page: RolesPage, own: Set<AgentRole>)?
+    let roles: (page: RolesPage, own: Set<RoleSlot>)?
     let icons: [String: String]
     /// The doctor's refusal of the config, said under Who works here.
     let refusal: String?
     let openProject: () -> Void
-    let openRole: (AgentRole) -> Void
+    let openRole: (RoleSlot) -> Void
     let stop: () -> Void
 
     var body: some View {
@@ -70,7 +70,7 @@ struct RepoScreen: View {
         let detail = check.status == .waiting ? (checking ? Copy.watchingChecking() : Copy.watchingWaiting()) : check.status == .ok ? (check.detail ?? "") : ""
         return SettingsTabRow(title: check.title, detail: detail, first: first, problem: wrong, wrapsDetail: true, leading: AnyView(CheckMark(status: check.status, spinning: checking))) {
             if let role = check.anotherIdentity {
-                Button(Copy.watchingUseAnotherIdentity()) { openRole(role) }.controlSize(.small)
+                Button(Copy.watchingUseAnotherIdentity()) { openRole(RoleSlot(role)) }.controlSize(.small)
             }
         }
     }

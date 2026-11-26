@@ -9475,6 +9475,42 @@ public enum Copy {
         String(localized: "rolesRailPasses", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func rolesExtraReviewer(position: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesExtraReviewer \(position)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesPurposeExtra(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesPurposeExtra", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesRailParallel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRailParallel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesRailFoot(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRailFoot", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesCountSet(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesCountSet \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesSameAsReviewer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSameAsReviewer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesTakesReviewerSteps(steps: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesTakesReviewerSteps \(steps)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesStepsTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesStepsTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesExtraReadOnly(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesExtraReadOnly", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func rolesOwn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "rolesOwn", bundle: bundle ?? carrierResources, locale: locale)
     }

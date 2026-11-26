@@ -19,7 +19,7 @@ public enum FixtureError: Error, Equatable {
 /// and `send` adds the message to its events; `switchAgent` gives an idle session another listed agent and a notice that says so; anything else is an error.
 /// It owns a temporary home (`home`) holding an `engine.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents, a `projects.json` with four projects (`writeProjects`) and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
-/// The `engine.json` of the fixture home: the repos of the fixture snapshot, the profiles and the three global roles, and one repo that
+/// The `engine.json` of the fixture home: the repos of the fixture snapshot, the profiles, the three global roles and two extra reviewers (one with failover steps of its own, one without), and one repo that
 /// overrides the reviewer's model, so the Watching page shows an inherited role and a mixed one.
 public let fixtureConfig = """
 {
@@ -31,11 +31,17 @@ public let fixtureConfig = """
   "profiles": {
     "acme-author": {"kind": "forge", "agent": "acme-author"},
     "acme-reviewer": {"kind": "forge", "agent": "acme-reviewer"},
-    "acme-lead": {"kind": "forge", "agent": "acme-lead"}
+    "acme-lead": {"kind": "forge", "agent": "acme-lead"},
+    "acme-reviewer-2": {"kind": "forge", "agent": "acme-reviewer-2"},
+    "gh": {"kind": "gh"}
   },
   "agents": {
     "author": {"profile": "acme-author", "provider": "claude", "model": "claude-sonnet-5-5", "effort": "high"},
     "reviewer": {"profile": "acme-reviewer", "provider": "codex", "model": "gpt-5", "effort": "high"},
+    "extraReviewers": [
+      {"profile": "acme-reviewer-2", "provider": "claude-work", "model": "claude-sonnet-5-5", "effort": "medium", "failover": [{"provider": "codex", "model": "gpt-5"}]},
+      {"profile": "gh", "provider": "codex", "model": "gpt-5-mini", "persona": {"name": "Skeptic", "prompt": "Assume the change is wrong until the tests say it is not."}}
+    ],
     "leadReviewer": {"profile": "acme-lead", "provider": "claude", "model": "claude-opus-5"}
   },
   "failover": {
@@ -47,10 +53,10 @@ public let fixtureConfig = """
 }
 """
 
-/// The Agent Forge registry of the fixture home (`AGENT_FORGE_CONFIG` points at it under `--fixture`): the three bots of the roles and a spare one.
+/// The Agent Forge registry of the fixture home (`AGENT_FORGE_CONFIG` points at it under `--fixture`): the bots of the roles and a spare one.
 /// A key would never be in a file the app reads, so none is here either.
 public let fixtureForgeRegistry = """
-{"agents": [{"name": "acme-author", "appId": "1000001"}, {"name": "acme-reviewer", "appId": "1000002"}, {"name": "acme-lead"}, {"name": "acme-spare", "label": "A bot no role uses"}]}
+{"agents": [{"name": "acme-author", "appId": "1000001"}, {"name": "acme-reviewer", "appId": "1000002"}, {"name": "acme-lead"}, {"name": "acme-reviewer-2", "appId": "1000003"}, {"name": "acme-spare", "label": "A bot no role uses"}]}
 """
 
 /// The golden doctor output the fixture home holds, for the app to answer its doctor run with in `--fixture` mode.

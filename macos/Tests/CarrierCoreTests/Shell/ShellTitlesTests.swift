@@ -46,7 +46,7 @@ private let el = english.locale
 }
 
 @Test func theThemesTheAccentsTheTintsAndTheLineHeightsAreInSpanish() {
-    #expect(Theme.allCases.map { $0.title(bundle: b, locale: l) } == ["Carrier", "Grafito", "Océano", "Bosque", "Atardecer", "Papel", "Rosa", "Lavanda", "Medianoche"])
+    #expect(Theme.allCases.map { $0.title(bundle: b, locale: l) } == ["Carrier", "Grafito", "Océano", "Bosque", "Atardecer", "Papel", "Rosa", "Lavanda", "Medianoche", "Solarized", "Nord", "Gruvbox"])
     #expect(AccentColor.allCases.map { $0.title(bundle: b, locale: l) } == ["Azul", "Morado", "Rosa", "Rojo", "Naranja", "Verde", "Grafito"])
     #expect(AccentColor.own(RGBA(hex: 0x12ab9c)).title(bundle: b, locale: l) == "Personalizado")
     #expect(Tint.allCases.map { $0.title(bundle: b, locale: l) } == ["Apagado", "Sutil", "Intenso"])
@@ -55,7 +55,7 @@ private let el = english.locale
 
 @Test func theThemesTheAccentsTheTintsAndTheLineHeightsSayTheSameEnglishAsBefore() {
     #expect(Theme.allCases.map { $0.title(bundle: en, locale: el) } == Theme.allCases.map(\.rawValue.capitalized))
-    #expect(Theme.allCases.map(\.rawValue) == ["carrier", "graphite", "ocean", "forest", "sunset", "paper", "rose", "lavender", "midnight"])
+    #expect(Theme.allCases.map(\.rawValue) == ["carrier", "graphite", "ocean", "forest", "sunset", "paper", "rose", "lavender", "midnight", "solarized", "nord", "gruvbox"])
     #expect(AccentColor.allCases.map { $0.title(bundle: en, locale: el) } == ["Blue", "Purple", "Pink", "Red", "Orange", "Green", "Graphite"])
     #expect(AccentColor.allCases.map { $0.title(bundle: en, locale: el) } == AccentColor.allCases.map(\.rawValue.capitalized))
     #expect(AccentColor.own(RGBA(hex: 0x12ab9c)).title(bundle: en, locale: el) == "Custom")

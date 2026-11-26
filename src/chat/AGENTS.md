@@ -1,7 +1,7 @@
 # src/chat
 
 The chat host ([ADR 0013](../../docs/adr/sessions/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md)), a process of its own that holds user sessions and shares no state with the engine.
-It starts from the Carrier folder alone ([ADR 0016](../../docs/adr/config/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)) and reads no engine config, only `providers.json` at each request through `account.ts` ([ADR 0020](../../docs/adr/agents/0020-accounts-live-in-a-file-both-processes-read.md)).
+It starts from the Carrier folder alone (ADR 0016 (`docs/adr/config/`)) and reads no engine config, only `providers.json` at each request through `account.ts` ([ADR 0020](../../docs/adr/agents/0020-accounts-live-in-a-file-both-processes-read.md)).
 It keeps its state in `<folder>/chat/`, settings in `<folder>/chat.json` (paths: `config/places.ts`).
 
 Adding a request to `chat.sock`: follow the checklist in [`src/control/AGENTS.md`](../control/AGENTS.md#adding-a-request-to-a-socket).

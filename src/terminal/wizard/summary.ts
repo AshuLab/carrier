@@ -3,7 +3,8 @@ import type { Detected } from '../../doctor/detect.ts';
 import { harnessLabel, harnessNames, type HarnessName } from '../../harnesses/names.ts';
 import { localKinds, localLabel, type LocalProvider } from '../../harnesses/local.ts';
 import { sameAccount } from '../../config/resolve.ts';
-import type { AIProvider, Failover, Identity, Role } from './build-config.ts';
+import { extraSlots } from './roles.ts';
+import type { AIProvider, Extra, Failover, Identity, Role } from './build-config.ts';
 
 /** `~` for the home folder, for what is shown to a person. */
 export const tilde = (path: string) => (path.startsWith(`${homedir()}/`) ? `~${path.slice(homedir().length)}` : path);
@@ -53,6 +54,7 @@ export const summary = (
   providersPath: string,
   leadReviewer?: Role,
   orchestrator?: Identity,
+  extraReviewers: Extra[] = [],
 ) =>
   [
     ['Repos', repos.length > 0 ? repos.join(', ') : 'none yet'],
@@ -61,6 +63,7 @@ export const summary = (
     ['Accounts', Object.keys(providers).join(', ')],
     ['Author', roleLine(author, providers)],
     ['Reviewer', roleLine(reviewer, providers)],
+    ...extraReviewers.map(({ role }, i) => [extraSlots[i]!, roleLine(role, providers)]),
     ...(leadReviewer ? [['Lead reviewer', roleLine(leadReviewer, providers)]] : []),
     ...(failover?.roles && failoverLine(failover) !== '' ? [['Failover', failoverLine(failover)]] : []),
     ['Config', tilde(out)],

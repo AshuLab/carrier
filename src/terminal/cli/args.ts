@@ -3,7 +3,7 @@ import { engineConfigPathOf } from '../../config/places.ts';
 import { efforts } from '../../config/schema.ts';
 import { localKinds } from '../../harnesses/local.ts';
 import { harnessNames } from '../../harnesses/names.ts';
-import { askedSlots, roleFlagSuffixes, type AskedSlot } from '../wizard/roles.ts';
+import { roleSlots, roleFlagSuffixes, type RoleSlot } from '../wizard/roles.ts';
 
 export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'recover', 'chat', 'chat-host', 'usage', 'config'] as const;
 export type CommandName = (typeof commandNames)[number];
@@ -39,29 +39,27 @@ restart --extra-rounds K, with --from review or fix, sets how many review rounds
 init flags (each one skips its question; --yes never asks):
   --repo <owner/name>            repeat for several repos
   --orchestrator-profile <forge:<agent>|gh>   the orchestrator's GitHub profile
-  --<role>[-profile|-provider|-effort|-persona-name|-persona-prompt|-failover] <value>   for every role: ${askedSlots.join(', ')}
+  --<role>[-profile|-provider|-effort|-persona-name|-persona-prompt|-failover] <value>   for every role: ${roleSlots.join(', ')}
       --<role> <harness>:<model>              harness: ${harnessNames.join(', ')}
       --<role>-profile <forge:<agent>|gh>
       --<role>-provider <${localKinds.join('|')}>
       --<role>-effort <level>                 level: ${efforts.join(', ')}
       --<role>-persona-name <text>   --<role>-persona-prompt <text>
       --<role>-failover <account>[:<model>]   repeat for up to two steps, in order; the account is one of this Mac or providers.json
+      reviewer-2 to reviewer-4 are the extra reviewers, in order: --reviewer-3 needs --reviewer-2
   --out <path>                   default is the --config default above
   --yes                          no questions; overwrite the output file; the author and the reviewer take the first of each agent found (claude for the author and codex for the reviewer when both exist)`;
 
-/** What `--<role>`, `--<role>-profile` and the rest of a role's flags are, from the table of slots `init` asks. */
+/** What `--<role>`, `--<role>-profile` and the rest of a role's flags are, from the table of slots. `--reviewer-2` to `--reviewer-4` come from it too: strings in `restart`, where they name an option of the config. */
 const roleOptions = Object.fromEntries(
-  askedSlots.flatMap((slot) => [...roleFlagSuffixes.map((suffix) => [`${slot}${suffix}`, { type: 'string' }]), [`${slot}-failover`, { type: 'string', multiple: true }]]),
-) as { [Name in `${AskedSlot}${(typeof roleFlagSuffixes)[number]}`]: { readonly type: 'string' } } & { [Name in `${AskedSlot}-failover`]: { readonly type: 'string'; readonly multiple: true } };
+  roleSlots.flatMap((slot) => [...roleFlagSuffixes.map((suffix) => [`${slot}${suffix}`, { type: 'string' }]), [`${slot}-failover`, { type: 'string', multiple: true }]]),
+) as { [Name in `${RoleSlot}${(typeof roleFlagSuffixes)[number]}`]: { readonly type: 'string' } } & { [Name in `${RoleSlot}-failover`]: { readonly type: 'string'; readonly multiple: true } };
 
 const options = {
   ...roleOptions,
   config: { type: 'string' },
   repo: { type: 'string', multiple: true },
   'orchestrator-profile': { type: 'string' },
-  'reviewer-2': { type: 'string' },
-  'reviewer-3': { type: 'string' },
-  'reviewer-4': { type: 'string' },
   lead: { type: 'string' },
   from: { type: 'string' },
   'extra-rounds': { type: 'string' },

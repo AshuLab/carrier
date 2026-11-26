@@ -8,7 +8,7 @@ import type { LocalProvider } from '../../harnesses/local.ts';
 import { harnessNames } from '../../harnesses/names.ts';
 import { journaled } from '../prompts/journal.ts';
 import { Back, Cancelled, type Ui } from '../prompts/types.ts';
-import { buildConfig, parseIdentity, type AIProvider, type Role } from './build-config.ts';
+import { buildConfig, parseIdentity, type AIProvider, type Extra, type Role } from './build-config.ts';
 import { realDeps, type InitDeps } from './deps.ts';
 import type { InitFlags } from './flags.ts';
 import type { ForgeAgent } from './forge-registry.ts';
@@ -19,8 +19,8 @@ import { askProviders, declareFlaggedProvider, mergeAccounts } from './questions
 import { askRole } from './questions/role.ts';
 import { askOut } from './questions/out.ts';
 import { askRepos } from './questions/repos.ts';
-import { roleKey, roleName, type RoleSlot } from './roles.ts';
-import { failoverProblem, flagProblem } from './validate-flags.ts';
+import { extraSlots, roleKey, roleName, roleSlots, type RoleSlot } from './roles.ts';
+import { failoverProblem, flagProblem, named } from './validate-flags.ts';
 import { foundLines, summary, tilde } from './summary.ts';
 
 /** The accounts `providers.json` already holds, as it keeps them (a folder under the home folder with its `~`); none when the file is not there or has no `providers` key. An unreadable or invalid file stops here: writing over it would lose its accounts. */
@@ -41,15 +41,15 @@ function heldBy(deps: InitDeps, providersPath: string): Record<string, AIProvide
 /** The accounts the `--<role>` flags declare on top of `accounts` (one is reused when it matches), and the account and model each flagged role starts on. */
 function declareFlagged(flags: InitFlags, accounts: Record<string, AIProvider>) {
   let providers = accounts;
-  const flagged = (slot: 'author' | 'reviewer' | 'lead-reviewer') => {
-    const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer';
+  const roles: Partial<Record<RoleSlot, { provider: string; model: string }>> = {};
+  for (const slot of roleSlots) {
+    const key = roleKey(slot) as 'author';
     const flag = flags[key];
-    if (flag === undefined) return undefined;
+    if (flag === undefined) continue;
     const declared = declareFlaggedProvider(providers, slot, flag, flags[`${key}Provider`]);
     providers = declared.providers;
-    return { provider: declared.providerName, model: declared.model };
-  };
-  const roles = { author: flagged('author'), reviewer: flagged('reviewer'), 'lead-reviewer': flagged('lead-reviewer') };
+    roles[slot] = { provider: declared.providerName, model: declared.model };
+  }
   return { providers, roles };
 }
 
@@ -60,7 +60,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   if (wrong !== undefined) throw new Error(wrong);
   ui.intro('Carrier setup');
   const interactive = ui.interactive && !flags.yes; // --yes never asks, whatever the terminal
-  if (interactive) ui.note('Carrier works through your GitHub epics with AI agents: one writes the code, another reviews it.\nI look at this Mac first, then ask what is missing:\n  1. Your AI accounts\n  2. Who Carrier reads GitHub as (the orchestrator\'s GitHub profile)\n  3. The author, the reviewer and an optional lead reviewer, one block each: GitHub profile, account, model and effort, persona and failover\n  4. The repos to watch\n  5. Where to save it\nBefore anything is written you see the whole picture and can change it.', 'What this does');
+  if (interactive) ui.note('Carrier works through your GitHub epics with AI agents: one writes the code, another reviews it.\nI look at this Mac first, then ask what is missing:\n  1. Your AI accounts\n  2. Who Carrier reads GitHub as (the orchestrator\'s GitHub profile)\n  3. The author, the reviewer, any extra reviewers and an optional lead reviewer, one block each: GitHub profile, account, model and effort, persona and failover\n  4. The repos to watch\n  5. Where to save it\nBefore anything is written you see the whole picture and can change it.', 'What this does');
 
   const forge = { agents: [] as ForgeAgent[] };
   const readForge = () => {
@@ -160,8 +160,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       // 1. Accounts: found on this Mac and the ones already held, then the person's own
       const declared = declareFlagged(flags, accounts);
       let providers = declared.providers;
-      const { author: flaggedAuthor, reviewer: flaggedReviewer, 'lead-reviewer': flaggedLead } = declared.roles;
-      const unattended = flaggedAuthor !== undefined && flaggedReviewer !== undefined;
+      const unattended = declared.roles.author !== undefined && declared.roles.reviewer !== undefined;
       journal.at('accounts');
       if (!unattended) providers = await askProviders(ui, providers, harnesses, locals, deps, heldNames);
 
@@ -187,17 +186,28 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
 
       // 3. One closed block per role
       const context = { ui, deps, flags, interactive, unattended, providers, locals, forge, readForge, login };
-      const block = (slot: RoleSlot, start: { after?: Role; flagged?: { provider: string; model: string } }) => {
-        const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer';
-        const fromRole = from?.[key];
+      const block = (slot: RoleSlot, after?: Role, held?: Extra) => {
+        const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer'; // an extra reviewer's start is `held`, the file's entry at its place in the list
+        const fromRole = held?.role ?? from?.[key];
+        const steps = held === undefined ? from?.failover?.roles?.[key] : held.failover;
         journal.at(slot);
-        return askRole(context, slot, { ...start, ...(fromRole && { from: fromRole }), ...(from?.failover?.roles?.[key] && { steps: from.failover.roles[key] }) });
+        return askRole(context, slot, { ...(after && { after }), ...(fromRole && { from: fromRole }), ...(steps && { steps }), ...(declared.roles[slot] && { flagged: declared.roles[slot] }) });
       };
-      const author = await block('author', { flagged: flaggedAuthor });
-      const reviewer = await block('reviewer', { after: author.role, flagged: flaggedReviewer });
+      const author = await block('author');
+      const reviewer = await block('reviewer', author.role);
+      // The extra reviewers, up to three: the ones a flag names are not asked, then "add another?" until the person says no (the file's answer to start on when editing).
+      const extraReviewers: Extra[] = [];
+      for (const slot of extraSlots) {
+        const held = from?.extraReviewers?.[extraReviewers.length];
+        journal.at(slot);
+        const add = named(flags, slot) || (interactive ? await ui.confirm(held ? `Add ${slot}?` : 'Add another reviewer?', held !== undefined) : held !== undefined);
+        if (!add) break;
+        const extra = await block(slot, extraReviewers.at(-1)?.role ?? reviewer.role, held);
+        extraReviewers.push({ role: extra.role, ...(extra.failover && { failover: extra.failover }) });
+      }
       journal.at('lead-reviewer');
       const wantLead = flags.leadReviewer !== undefined || (interactive ? await ui.confirm('Add a lead reviewer?', from?.leadReviewer !== undefined) : from?.leadReviewer !== undefined);
-      const lead = wantLead ? await block('lead-reviewer', { after: reviewer.role, flagged: flaggedLead }) : undefined;
+      const lead = wantLead ? await block('lead-reviewer', extraReviewers.at(-1)?.role ?? reviewer.role) : undefined;
 
       const chosen = { author: author.failover, reviewer: reviewer.failover, leadReviewer: lead?.failover };
       const roles = Object.fromEntries(Object.entries(chosen).filter(([, steps]) => steps !== undefined));
@@ -206,7 +216,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       // 4. The repos, last: nothing about a role needs them
       journal.at('repos');
       const repos = flags.repo ?? (await askRepos(ui, deps, from?.repos));
-      return { repos, providers, ...(orchestrator && { orchestrator }), author: author.role, reviewer: reviewer.role, ...(lead && { leadReviewer: lead.role }), ...(failover && { failover }) };
+      return { repos, providers, ...(orchestrator && { orchestrator }), author: author.role, reviewer: reviewer.role, ...(extraReviewers.length > 0 && { extraReviewers }), ...(lead && { leadReviewer: lead.role }), ...(failover && { failover }) };
     };
 
     const make = (answers: Prior) => {
@@ -239,7 +249,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       throw new Cancelled(); // the first question: Esc leaves as Ctrl+C does
     }
     const file = out;
-    const recap = () => ui.note(summary(answers.repos, answers.author, answers.reviewer, answers.providers, answers.failover, file, providersPath, answers.leadReviewer, answers.orchestrator), 'This is what will be saved');
+    const recap = () => ui.note(summary(answers.repos, answers.author, answers.reviewer, answers.providers, answers.failover, file, providersPath, answers.leadReviewer, answers.orchestrator, answers.extraReviewers), 'This is what will be saved');
     recap(); // --yes asked nothing, so the recap is the only place the choices show
     if (!interactive) break;
     try {
@@ -254,12 +264,16 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       });
       if (next === 'cancel') throw new Cancelled();
       if (next === 'save') break;
+      const extras = answers.extraReviewers?.length ?? 0;
       const block = await ui.select({
         message: 'Which part do you want to change?',
         options: [
           { value: 'accounts', label: 'AI accounts' },
           { value: 'orchestrator', label: 'Orchestrator GitHub profile' },
-          ...(['author', 'reviewer', 'lead-reviewer'] as const).map((slot) => ({ value: slot as string, label: `${roleName(slot)[0]!.toUpperCase()}${roleName(slot).slice(1)}`, ...(slot === 'lead-reviewer' && answers.leadReviewer === undefined && { hint: 'none yet' }) })),
+          // The roles there are, and the next extra reviewer to add while there is room.
+          ...roleSlots
+            .filter((slot) => extraSlots.indexOf(slot) <= extras)
+            .map((slot) => ({ value: slot as string, label: `${roleName(slot)[0]!.toUpperCase()}${roleName(slot).slice(1)}`, ...((slot === 'lead-reviewer' ? answers.leadReviewer === undefined : extraSlots.indexOf(slot) === extras) && { hint: 'none yet' }) })),
           { value: 'repos', label: 'Repos to watch' },
         ],
       });

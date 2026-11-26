@@ -30,7 +30,10 @@ Then it asks, in this order:
    You are asked only for **extra** accounts, one at a time, and Enter says no: the CLI, the local server when one is running, and for Claude and Codex the config folder (the `~/.claude`, `~/.claude-*` and `~/.codex` it finds with their login state, the environment, or a typed path; Antigravity has none), then a name that must be a lowercase word and unique.
 2. **The orchestrator's GitHub profile.** A short note explains what a profile is, then you pick a bot of Agent Forge or your own `gh` login for the orchestrator, which only reads issues and PRs and changes labels.
    If there is no bot it can run `agent-forge add` for you on the spot.
-3. **One block for each role**, closed before the next one starts: the author, the reviewer, and a lead reviewer if you say yes at "Add a lead reviewer?" (Enter says no).
+3. **One block for each role**, closed before the next one starts: the author, the reviewer, any extra reviewers, and a lead reviewer if you say yes at "Add a lead reviewer?" (Enter says no).
+   After the reviewer it asks "Add another reviewer?" (Enter says no); each yes opens the same block for the next slot, `reviewer-2`, then `reviewer-3`, then `reviewer-4`, and after the third it is not asked again.
+   The extra reviewers are written to `agents.extraReviewers` in that order; one with no failover steps has no `failover` key and so uses the reviewer's.
+   The lead reviewer comes after all of them.
    Each block asks, in this order:
    - The GitHub profile the role acts as: a bot of Agent Forge or your own `gh` login.
      Picking the same one for two roles is accepted, and the recap then says the signature will show it.
@@ -61,12 +64,13 @@ While `init` runs, the log lines of the checks go to `engine/logs/orchestrator.l
 Run again on an existing config, it offers to edit it (its answers are the starting points), start over, save a new one in another file, or leave it. Editing keeps the accounts of `providers.json` and lets you add more (editing or removing one is done in the file), starts each role's model, effort, persona and lead reviewer from the file, and asks whether to keep the failover steps it has; `-` in a persona field clears it.
 Editing keeps the rest of the file: `engine.json` is written as it is, with only the keys the wizard asks replaced.
 Those are `repos` (a repo you keep keeps its entry and its per-repo overrides, a repo you leave out is dropped, a new one is `{ "name": "owner/name" }`), `profiles` (the ones you picked are set over the file's), `orchestratorProfile`, the failover of the author, the reviewer and the lead reviewer (`failover.triggers` stays), and each of those roles' `profile`, `provider`, `model`, `effort` and `persona`.
-Everything else survives: `limits`, `labels`, `skills`, `logLevel`, `pollIntervalMinutes`, `finishedWindowDays`, a role's own `skills` and `agents.extraReviewers`; a lead reviewer you decline is removed.
+`agents.extraReviewers` is owned too: each extra reviewer in the file is walked as a block starting from its values, "Add reviewer-N?" starts on Yes while the file has one more, and a No drops that reviewer and the ones after it. The list is replaced by the answers (an extra keeps the keys the wizard does not ask, such as its `skills`) and removed when there are none.
+Everything else survives: `limits`, `labels`, `skills`, `logLevel`, `pollIntervalMinutes`, `finishedWindowDays` and a role's own `skills`; a lead reviewer you decline is removed.
 "Start over", a new file and `--out` to another file are written whole from the answers.
 A config that does not validate is not edited: the wizard prints its first error (path and message) and asks whether to start over, save a new one in another file or leave it, and writes nothing until you answer. With `--yes` it replaces the file, as the flag says, and prints that first error.
 `--config` is not a flag of `init`: it exits 2 and writes nothing, because `init` writes where `--out` says.
 
-Every question has a flag (`carrier init --help`), and they all follow one pattern, with `<role>` one of `author`, `reviewer` and `lead-reviewer`:
+Every question has a flag (`carrier init --help`), and they all follow one pattern, with `<role>` one of `author`, `reviewer`, `reviewer-2`, `reviewer-3`, `reviewer-4` and `lead-reviewer`:
 
 | Flag | Answers |
 |---|---|
@@ -78,6 +82,11 @@ Every question has a flag (`carrier init --help`), and they all follow one patte
 | `--<role>-effort <level>` | `low`, `medium`, `high`, `xhigh` or `max`. |
 | `--<role>-persona-name <text>`, `--<role>-persona-prompt <text>` | The persona, within the schema's limits. |
 | `--<role>-failover <account>[:<model>]` | One failover step; repeat it, in order, for up to two. |
+
+`reviewer-2` to `reviewer-4` are the extra reviewers, and an extra exists when any flag names its slot.
+They are a list in order, so a flag for `reviewer-3` with none for `reviewer-2` is refused before anything is probed, naming the missing flag (`--reviewer-2`).
+A flagged extra is not asked again; "Add another reviewer?" is asked once after the last flagged one when there is room, and under `--yes` there is no extra unless a flag names it.
+(In `carrier restart`, `--reviewer-2` to `--reviewer-4` keep meaning an option of the config.)
 
 The failover step is split at the first colon, so `--author-failover claude:llama3:8b` is the account `claude` with the model `llama3:8b`; a step with no model uses the account's, then the harness's.
 The account must be one found on this Mac or already in `providers.json` (or one a `--<role>` flag declares).

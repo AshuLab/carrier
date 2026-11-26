@@ -144,7 +144,7 @@ See [configuration](configuration.md): the minimal file, every field with its de
 It exits 1 when none runs or when the Carrier it watches stops.
 Both show each epic's stage history (running, needing you, or ready for test), asked over the socket, and under a ready-for-test epic that has them a line such as `2 unanswered observations: pass already taken` (or `last round`; [why](troubleshooting.md#an-epic-is-ready-for-test-with-observations-nobody-answered)); on a running card, `retrying in 2m` while an `api_error` waits for its retry ([why](troubleshooting.md#an-epic-waits-before-it-retries)); a Carrier that does not list `sessions` in its hello is drawn from the snapshot alone, and an epic whose request fails is drawn without it.
 An epic with several reviewers also shows how many reviewers gave a verdict out of how many are configured, for its latest decided round: `reviewers 1 of 3 gave a verdict` in the dashboard and `reviewers: 1 of 3 gave a verdict` in the plain lines.
-Under it each reviewer that gave none has a line with its slot and why (`reviewer-2: ran out of usage`), on a running card, under an epic that needs you and, in the dashboard, under a ready-for-test epic that had fewer verdicts than reviewers, which is ready for test all the same.
+Under it each reviewer that gave none has a line with its slot (an extra reviewer's key) and why (`seguridad-api: ran out of usage`), on a running card, under an epic that needs you and, in the dashboard, under a ready-for-test epic that had fewer verdicts than reviewers, which is ready for test all the same.
 An epic with one reviewer shows nothing new, and a round still waiting for a reviewer is not counted.
 The same round is an event of the epic (`round_decided`) with the count and the reasons.
 
@@ -153,10 +153,10 @@ The panel is a dependency-free ANSI dashboard: uptime, repos watched and the nex
 ## Restart a stopped epic
 
 `carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--lead <option>] [--from <ship|review|fix>] [--extra-rounds <K>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose.
-In a terminal and without flags it asks for each role the epic has, extra reviewers and lead included, with the current option preselected and the role of the execution that failed marked; without a terminal it keeps the current options.
-`--author`, `--reviewer` and `--lead` name an option for that role, and an extra reviewer has no flag (the terminal asks about it); Carrier refuses, with the reason printed, an option the repo does not declare and a role the epic does not have.
+In a terminal and without flags it asks for each role the epic has (the author, the reviewer and the lead), with the current option preselected and the role of the execution that failed marked; without a terminal it keeps the current options.
+`--author`, `--reviewer` and `--lead` name an option for that role, and an extra reviewer has no flag and is not asked about yet: the engine takes the option of each extra reviewer by its key (`extraReviewers` in the `resumeEpic` request), and the command that sends it comes with the rest of the work on the extra reviewers; Carrier refuses, with the reason printed, an option the repo does not declare and a role the epic does not have.
 A restart that changes the option of one role keeps every other role of the epic, the extra reviewers and the lead included, and the `resumed` event records the options chosen.
-A Carrier that does not list `resumeReviewerOptions` in its hello is not asked for the extra reviewers and the lead, and the command says it is too old (restart it).
+A Carrier that does not list `resumeReviewerOptions` in its hello is not asked for the lead, and the command says it is too old (restart it).
 The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session.
 With `--from review` or `--from fix` the epic keeps its round, pull request, worktree and blockers and starts at that stage instead of ship; it still goes through the queue and takes a slot.
 Carrier refuses it, with the reason printed, when the epic has no pull request, when the pull request is not open, or, at `fix`, when its head is not the one Carrier saved, since the blockers it hands to the author belong to that head: restart it with `--from review` (which adopts the new head) or from ship then.

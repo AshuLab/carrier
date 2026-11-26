@@ -30,7 +30,9 @@ It does not count toward `maxReviews` and does not change the epic's review roun
 A resume at a stage starts it over: the lead gets its rounds again once the reviewers agree.
 _Avoid_: round (that is a review round).
 
-**Extra reviewer** - A reviewer beyond the mandatory one, up to three, held in `agents.extraReviewers` as a map from its key to its entry ([0057](../adr/review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md)). It reviews every round with the others, on the same head, and takes the Reviewer's failover steps when it declares none.
+**Extra reviewer** - A reviewer beyond the mandatory one, up to three, held in `agents.extraReviewers` as a map from its key to its entry ([0057](../adr/review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md)). It reviews every round with the others, on the same head, and one verdict among all the reviewers is enough for a round to count ([ADR 0048](../adr/review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md)).
+It takes the Reviewer's failover steps when it declares none.
+The engine, `carrier restart` and the stored executions name the place it takes in a round `reviewer-2` to `reviewer-4`, by its position in the map when the epic starts.
 Its key is a unique slug that addresses it in the file and in the engine's requests; its name is a unique text the app shows; its type is a label for what it looks at (Reviewer type).
 It signs `🤖 Reviewer [NAME] via Carrier` with its persona's name when it has one and its name otherwise.
 Removing one removes its entry and nothing else: the GitHub profile it signed with stays.

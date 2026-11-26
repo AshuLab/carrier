@@ -51,7 +51,9 @@ _Avoid_: fallback, automatic retry (an execution retry repeats the same provider
 
 **Failover step** - One entry of a role's failover chain: a provider, an account of the config, and optionally a model; without a model it is the account's, then the harness's. A role has as many as the config lists, and the app offers two.
 
-**Role** - One of the jobs of an epic: Author, Reviewer, up to three extra reviewers the user names, and Lead reviewer (optional). Each has a GitHub identity, an account, a model, an effort and an optional persona, and its own failover chain (an extra reviewer that declares none uses the Reviewer's). There are no other kinds of role; the same role can differ for one repo.
+**Role** - One of the jobs of an epic: Author, Reviewer, up to three extra reviewers the user names, and the Lead reviewer (optional).
+Each has a GitHub profile, an account, a model, an effort and an optional persona, and its own failover chain (an extra reviewer that declares none uses the Reviewer's).
+The user cannot make other kinds of job; the same role can differ for one repo.
 _Avoid_: agent (the AI that runs a role; and in Agent Forge, a bot), persona (a role's name and prompt, not the role).
 
 **Text generator** - A model that turns text into text with no tools: a server and a model, declared in `providers.json` under `textGenerators` and chosen in the Providers page.

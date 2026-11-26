@@ -9,14 +9,16 @@ export type AIProvider = Providers[string];
 export type Failover = NonNullable<Config['failover']>;
 export type Effort = NonNullable<Config['agents']['author']['effort']>;
 export type Role = { identity: Identity; provider: string; model: string; effort?: Effort; persona?: Persona };
-export type Answers = { repos: string[]; orchestrator?: Identity; author: Role; reviewer: Role; leadReviewer?: Role; failover?: Failover };
+/** An extra reviewer: a role with its own failover steps, none meaning the Reviewer's. */
+export type Extra = { role: Role; failover?: { provider: string; model?: string }[] };
+export type Answers = { repos: string[]; orchestrator?: Identity; author: Role; reviewer: Role; extraReviewers?: Extra[]; leadReviewer?: Role; failover?: Failover };
 
 /** `forge:<agent>` or `gh`, the form used by flags and by the prompts' values. */
 export function parseIdentity(text: string): Identity {
   if (text === 'gh') return { kind: 'gh' };
   const agent = /^forge:(.+)$/.exec(text)?.[1];
   if (agent !== undefined) return { kind: 'forge', agent };
-  throw new Error(`invalid identity "${text}", expected "forge:<agent>" or "gh"`);
+  throw new Error(`invalid profile "${text}", expected "forge:<agent>" or "gh"`);
 }
 
 export const identityText = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : `forge:${identity.agent}`);
@@ -38,7 +40,7 @@ export function parseProvider(text: string): LocalProvider {
 const profileName = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : identity.agent);
 
 /** The user config (what goes in the file): only what has no default, and not the accounts, which go in `providers.json`. Without an `orchestrator` answer the author's profile acts as orchestrator. */
-export function buildConfig({ repos, orchestrator, author, reviewer, leadReviewer, failover }: Answers) {
+export function buildConfig({ repos, orchestrator, author, reviewer, extraReviewers = [], leadReviewer, failover }: Answers) {
   const [a, r] = [profileName(author.identity), profileName(reviewer.identity)];
   const o = profileName(orchestrator ?? author.identity);
   const l = leadReviewer ? profileName(leadReviewer.identity) : undefined;
@@ -48,6 +50,7 @@ export function buildConfig({ repos, orchestrator, author, reviewer, leadReviewe
       [a]: author.identity,
       [r]: reviewer.identity,
       [o]: orchestrator ?? author.identity,
+      ...Object.fromEntries(extraReviewers.map(({ role }) => [profileName(role.identity), role.identity])),
       ...(l && leadReviewer ? { [l]: leadReviewer.identity } : {}),
     },
     orchestratorProfile: o,
@@ -67,6 +70,16 @@ export function buildConfig({ repos, orchestrator, author, reviewer, leadReviewe
         ...(reviewer.effort && { effort: reviewer.effort }),
         ...(reviewer.persona && { persona: reviewer.persona }),
       },
+      ...(extraReviewers.length > 0 && {
+        extraReviewers: extraReviewers.map(({ role, failover: steps }) => ({
+          profile: profileName(role.identity),
+          provider: role.provider,
+          model: role.model,
+          ...(role.effort && { effort: role.effort }),
+          ...(role.persona && { persona: role.persona }),
+          ...(steps && steps.length > 0 && { failover: steps }),
+        })),
+      }),
       ...(leadReviewer && l ? {
         leadReviewer: {
           profile: l,

@@ -3,7 +3,8 @@ import type { Detected } from '../../doctor/detect.ts';
 import { harnessLabel, harnessNames, type HarnessName } from '../../harnesses/names.ts';
 import { localKinds, localLabel, type LocalProvider } from '../../harnesses/local.ts';
 import { sameAccount } from '../../config/resolve.ts';
-import type { AIProvider, Failover, Identity, Role } from './build-config.ts';
+import { extraSlots, roleName } from './roles.ts';
+import type { AIProvider, Extra, Failover, Identity, Role } from './build-config.ts';
 
 /** `~` for the home folder, for what is shown to a person. */
 export const tilde = (path: string) => (path.startsWith(`${homedir()}/`) ? `~${path.slice(homedir().length)}` : path);
@@ -32,11 +33,14 @@ export const foundLines = ({ harnesses, accounts, servers }: Detected) => [
   ...localKinds.map((kind) => `${localLabel[kind].padEnd(12)} ${servers[kind].running ? `running · ${servers[kind].models.length} models` : 'not running'}`),
 ];
 
+/** The steps of a failover chain as one line: `claude opus → codex`. */
+export const stepsLine = (steps: { provider: string; model?: string }[]) => steps.map((step) => (step.model ? `${step.provider} ${step.model}` : step.provider)).join(' → ');
+
 /** A failover chain per role, as one line: `author: claude opus → codex`. */
 export const failoverLine = (failover: Failover) =>
   Object.entries(failover.roles ?? {})
     .filter(([_, steps]) => steps.length > 0)
-    .map(([role, steps]) => `${role}: ${steps.map((step) => (step.model ? `${step.provider} ${step.model}` : step.provider)).join(' → ')}`)
+    .map(([role, steps]) => `${role}: ${stepsLine(steps)}`)
     .join(' · ');
 
 /** What is about to be written, in one box. */
@@ -50,14 +54,22 @@ export const summary = (
   providersPath: string,
   leadReviewer?: Role,
   orchestrator?: Identity,
+  extraReviewers: Extra[] = [],
 ) =>
   [
     ['Repos', repos.length > 0 ? repos.join(', ') : 'none yet'],
-    ...(sameAccount(author.identity, reviewer.identity) ? [['Identity', 'shared: author and reviewer are the same account, and the signature in what they publish will show it']] : []),
+    ...(sameAccount(author.identity, reviewer.identity) ? [['Profile', 'shared: author and reviewer act as the same GitHub account, and the signature in what they publish will show it']] : []),
     ['Orchestrator', identityLine(orchestrator ?? author.identity)],
     ['Accounts', Object.keys(providers).join(', ')],
     ['Author', roleLine(author, providers)],
     ['Reviewer', roleLine(reviewer, providers)],
+    // An extra that declares no failover uses the Reviewer's, so its line says so when the Reviewer has any.
+    ...extraReviewers.map(({ role, failover: steps }, i) => {
+      const name = roleName(extraSlots[i]!);
+      const reviewerSteps = (failover?.roles?.reviewer ?? []).length > 0;
+      const own = steps && steps.length > 0 ? stepsLine(steps) : reviewerSteps ? "the Reviewer's" : undefined;
+      return [`${name[0]!.toUpperCase()}${name.slice(1)}`, `${roleLine(role, providers)}${own ? `\n              failover: ${own}` : ''}`];
+    }),
     ...(leadReviewer ? [['Lead reviewer', roleLine(leadReviewer, providers)]] : []),
     ...(failover?.roles && failoverLine(failover) !== '' ? [['Failover', failoverLine(failover)]] : []),
     ['Config', tilde(out)],

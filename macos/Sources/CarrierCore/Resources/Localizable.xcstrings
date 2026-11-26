@@ -10625,13 +10625,81 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Brief from the main agent"
+            "value": "Brief"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encargo del agente principal"
+            "value": "Encargo"
+          }
+        }
+      }
+    },
+    "chatSubagentBriefCollapseSpoken": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fold brief"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plegar el encargo"
+          }
+        }
+      }
+    },
+    "chatSubagentBriefExpandSpoken": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show full brief"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar todo el encargo"
+          }
+        }
+      }
+    },
+    "chatSubagentBriefShowLess": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show less"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar menos"
+          }
+        }
+      }
+    },
+    "chatSubagentBriefShowMore": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show more"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar más"
           }
         }
       }

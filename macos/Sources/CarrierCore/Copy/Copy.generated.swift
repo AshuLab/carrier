@@ -3366,6 +3366,22 @@ public enum Copy {
         String(localized: "chatSubagentBrief", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func chatSubagentBriefShowMore(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentBriefShowMore", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentBriefShowLess(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentBriefShowLess", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentBriefExpandSpoken(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentBriefExpandSpoken", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentBriefCollapseSpoken(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentBriefCollapseSpoken", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func chatSubagentReadOnly(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatSubagentReadOnly", bundle: bundle ?? carrierResources, locale: locale)
     }

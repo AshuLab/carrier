@@ -66,6 +66,12 @@ test('every flag skips its question', async () => {
   expect(providersWritten(written)).toEqual({ claude: { harness: 'claude' }, codex: { harness: 'codex' } }); // the flags name what was detected
   expect(config.agents).toEqual({ author: { profile: 'artanis-agent', provider: 'codex', model: 'm1', effort: 'high' }, reviewer: { profile: 'gh', provider: 'claude', model: 'm2', effort: 'high' } });
   expect(loadConfig(defaults, config, providersWritten(written) as never).ok).toBe(true);
+
+  // --author and --reviewer together also skip the failover question when the run is not --yes
+  const interactive = fakeDeps();
+  const { ui: talking, asked: talked } = quietUi();
+  await runInit({ repo: ['AshuLab/x'], authorProfile: 'gh', reviewerProfile: 'gh', author: 'codex:m1', reviewer: 'claude:m2', out: join(dir, 'b2.json') }, talking, interactive.deps);
+  expect(talked.some((q) => /failover/i.test(q))).toBe(false);
 });
 
 test('providers are not asked: what the detector found is shown and written switched off, with the extras asked for, and the recap says where the file goes', async () => {
@@ -203,6 +209,15 @@ test('"Start over" ignores the old answers but still replaces that file without 
   const { ui } = quietUi({ [existingKey]: 'fresh' });
   await withHome(() => runInit({}, ui, deps));
   expect(JSON.parse(written[join(dir, 'home', 'engine.json')]!).repos).toEqual([{ name: 'AshuLab/carrier' }]); // the origin suggestion, not the old repos
+});
+
+test('--author and --reviewer together keep the file\'s failover without asking about it', async () => {
+  const withFailover = { ...existing, failover: { triggers: ['usage_limit'], roles: { author: [{ provider: 'codex', model: 'gpt-test' }] } } };
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(withFailover) });
+  const { ui, asked } = quietUi({ [existingKey]: 'edit' });
+  await withHome(() => runInit({ author: 'claude:m1', reviewer: 'codex:m2', authorProfile: 'gh', reviewerProfile: 'gh', repo: ['A/b'] }, ui, deps));
+  expect(asked.some((q) => /failover/i.test(q))).toBe(false);
+  expect(JSON.parse(written[join(dir, 'home', 'engine.json')]!).failover.roles.author).toEqual([{ provider: 'codex', model: 'gpt-test' }]);
 });
 
 test('"Leave it as it is" cancels, and an unreadable config is said so instead of crashing', async () => {

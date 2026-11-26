@@ -8,6 +8,7 @@ const context = (ui: RoleContext['ui']): RoleContext => ({
   deps: fakeDeps().deps,
   flags: {},
   interactive: true,
+  unattended: false,
   providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },
   locals: {},
   forge: { agents: [{ name: 'artanis-agent' }, { name: 'tassadar-agent' }] },

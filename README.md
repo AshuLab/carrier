@@ -50,7 +50,7 @@ carrier           # starts Carrier and shows the live panel (Ctrl+C stops it)
 3. One block for each role (author, reviewer, and an optional lead reviewer): its GitHub profile, its account, whether to change the model and effort, whether to customise the persona, and its failover when you have two accounts.
 4. The repos to watch.
 
-With every default accepted a role costs two choices and two presses of Enter.
+With every default accepted a role costs its profile and its account, then Enter for the model and effort, the persona and, with two or more accounts, the failover.
 At the end it shows a recap, saves the config, runs the checks of `carrier doctor` and offers to start Carrier.
 You can run `carrier doctor` yourself at any time: it checks the config and the machine and tells you how to fix what fails.
 

@@ -87,7 +87,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       message: `A config already exists at ${tilde(fallback)}`,
       options: [
         { value: 'edit', label: 'Edit it', hint: 'its answers are the starting points' },
-        { value: 'fresh', label: 'Start over', hint: 'replaces it' },
+        { value: 'fresh', label: 'Start over', hint: 'resets the answers of engine.json, keeps your accounts' },
         { value: 'elsewhere', label: 'Save a new one in another file' },
         { value: 'cancel', label: 'Leave it as it is' },
       ],
@@ -101,7 +101,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
         choice = await ui.select({
           message: 'What do you want to do with it?',
           options: [
-            { value: 'fresh', label: 'Start over', hint: 'replaces it' },
+            { value: 'fresh', label: 'Start over', hint: 'resets the answers of engine.json, keeps your accounts' },
             { value: 'elsewhere', label: 'Save a new one in another file' },
             { value: 'cancel', label: 'Leave it as it is' },
           ],
@@ -158,7 +158,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
     const orchestrator = asking ? await askIdentity(ui, 'orchestrator', forge, readForge, login, undefined, deps, interactive, from?.orchestrator) : from?.orchestrator;
 
     // 3. One closed block per role
-    const context = { ui, deps, flags, interactive, providers, locals, forge, readForge, login };
+    const context = { ui, deps, flags, interactive, unattended, providers, locals, forge, readForge, login };
     const block = (slot: RoleSlot, start: { after?: Role; flagged?: { provider: string; model: string } }) => {
       const key = roleKey(slot) as 'author' | 'reviewer' | 'leadReviewer';
       const fromRole = from?.[key];

@@ -17,6 +17,8 @@ export type RoleContext = {
   deps: InitDeps;
   flags: InitFlags;
   interactive: boolean;
+  /** `--author` and `--reviewer` both given: the file's failover is kept and none is asked. */
+  unattended: boolean;
   providers: Providers;
   locals: Partial<Record<LocalProvider, string[]>>;
   forge: { agents: ForgeAgent[] };
@@ -57,6 +59,6 @@ export async function askRole(ctx: RoleContext, slot: RoleSlot, { from, steps, a
 
   const persona = await askPersona(ui, slot, { name: flag('PersonaName'), prompt: flag('PersonaPrompt') }, interactive, from?.persona);
   const role: Role = { identity, provider, model, ...(effort && { effort }), ...(persona && { persona }) };
-  const failover = interactive ? await askRoleFailover(ui, ctx.providers, slot, role, ctx.locals, deps, steps) : steps;
+  const failover = interactive && !ctx.unattended ? await askRoleFailover(ui, ctx.providers, slot, role, ctx.locals, deps, steps) : steps;
   return { role, ...(failover && { failover }) };
 }

@@ -4135,6 +4135,40 @@
         }
       }
     },
+    "archiveStopsMessage %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This stops %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto detiene %1$@"
+          }
+        }
+      }
+    },
+    "archiveStopsTitle %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archive “%1$@”?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Archivar «%1$@»?"
+          }
+        }
+      }
+    },
     "archiveTitle": {
       "extractionState": "manual",
       "localizations": {

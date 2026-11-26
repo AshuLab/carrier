@@ -1093,6 +1093,17 @@ private func freshPreferences() -> AppPreferences { AppPreferences(defaults: Use
     #expect(host.previewed == [["a"]])
 }
 
+@MainActor @Test func aDeleteThatStopsProcessesAsksEvenWithTheQuestionSwitchedOff() async {
+    let host = FakeHost()
+    let preferences = freshPreferences()
+    let actions = SessionActions(host: host, preferences: preferences, log: { _ in })
+    preferences.confirmDelete = false
+    var running = row("a", "Dev")
+    running.background = [BackgroundTask(id: "p", kind: "local_bash", description: "pnpm dev", agentWork: false)]
+    guard case .ask(let question) = await actions.confirmDelete(running) else { Issue.record("a delete that stops a process must ask"); return }
+    #expect(question.message.hasPrefix("This stops pnpm dev"))
+}
+
 @MainActor @Test func cancellingTheQuestionDeletesNothingBecauseOnlyTheCallerDeletes() async {
     let host = FakeHost()
     let actions = SessionActions(host: host, preferences: freshPreferences(), log: { _ in })

@@ -96,6 +96,16 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     #expect(archiveBlock(row("a"), bundle: es.bundle, locale: es.locale) == nil)
 }
 
+@Test func whatArchivingASessionWithProcessesStopsIsAskedInSpanish() {
+    let processes = ["pnpm dev", "tsc", "vitest", "build"].enumerated().map { BackgroundTask(id: "\($0.offset)", kind: "local_bash", description: $0.element, agentWork: false) }
+    var running = row("a")
+    running.background = Array(processes.prefix(1))
+    #expect(archiveStopsQuestion(running, bundle: es.bundle, locale: es.locale) == Question(title: "¿Archivar «ta»?", message: "Esto detiene pnpm dev", confirm: "Archivar"))
+    running.background = processes
+    #expect(archiveStopsQuestion(running, bundle: es.bundle, locale: es.locale)?.message == "Esto detiene pnpm dev, tsc, vitest +1 más")
+    #expect(deleteSessionQuestion(running, bundle: es.bundle, locale: es.locale).message.hasPrefix("Esto detiene pnpm dev, tsc, vitest +1 más\n"))
+}
+
 @Test func theMenuOfASessionRowIsSpanish() {
     func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.map { $0.map(\.title) } }
     #expect(titles(sessionMenu(row("a"), bundle: es.bundle, locale: es.locale)) == [["Fijar"], ["Renombrar…"], ["Abrir en Terminal", "Copiar"], ["Archivar", "Eliminar…"]])

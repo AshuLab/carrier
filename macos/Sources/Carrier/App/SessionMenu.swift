@@ -72,7 +72,7 @@ private struct SessionContextMenu: ViewModifier {
         case .regenerateTitle: refuse { await TitleRegeneration.shared.regenerate(row.id, showing: row.title) { await actions.regeneratedTitle(row.id) } }
         case .openInTerminal(let path): openInTerminal(path)
         case .filterWorkspace(let name): filterWorkspace?(name)
-        case .archive: refuse { await actions.archive(row.id) }
+        case .archive: refuse { await archiveAsking(row, actions) }
         case .restore: refuse { await actions.restore(row.id) }
         case .delete: deleteArchived(row, actions)
         case .markUnread: WindowController.shared.setUnread(row.id, true)
@@ -116,7 +116,14 @@ private struct RightClickMenu: NSViewRepresentable {
     }
 }
 
-/// Deletes an archived session after asking, unless the person switched the question off.
+/// Archives the session; one with background processes asks first what the archive stops, and one with none is archived without asking.
+/// Nil when it was archived or the person cancelled, else what the host refused.
+@MainActor func archiveAsking(_ row: SessionRow, _ actions: SessionActions) async -> String? {
+    if let question = archiveStopsQuestion(row), ask(question) == false { return nil }
+    return await actions.archive(row.id)
+}
+
+/// Deletes a session after asking, unless the person switched the question off and it stops nothing.
 @MainActor func deleteArchived(_ row: SessionRow, _ actions: SessionActions) {
     Task {
         switch await actions.confirmDelete(row) {

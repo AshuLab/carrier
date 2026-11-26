@@ -2094,6 +2094,14 @@ public enum Copy {
         String(localized: "archiveDeleteMessageWorktree", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func archiveStopsTitle(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveStopsTitle \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveStopsMessage(names: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveStopsMessage \(names)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func archiveBlockWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "archiveBlockWorking", bundle: bundle ?? carrierResources, locale: locale)
     }

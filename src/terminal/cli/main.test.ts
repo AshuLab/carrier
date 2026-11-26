@@ -636,3 +636,13 @@ test('chat and chat-host take no --config, and a chat.json that is wrong stops c
     rmSync(folder, { recursive: true, force: true });
   }
 }, 30_000);
+
+test('init refuses --config, with and without --yes, writes nothing and says init writes with --out', () => {
+  home = join(dir, 'init-config-home'); // no folder: a write would make one
+  for (const args of [['init', '--config', join(dir, 'x.json')], ['init', '--config', join(dir, 'x.json'), '--yes']]) {
+    const result = run(...args);
+    expect([result.status, result.stderr]).toEqual([2, expect.stringContaining('carrier init takes no --config: it writes the config with --out')]);
+    expect(existsSync(join(dir, 'x.json'))).toBe(false);
+    expect(existsSync(home)).toBe(false);
+  }
+});

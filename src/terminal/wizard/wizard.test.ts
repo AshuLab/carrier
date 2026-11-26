@@ -170,8 +170,9 @@ test('"Leave it as it is" cancels, and an unreadable config is said so instead o
   expect(left.written).toEqual({});
   const broken = fakeDeps({ exists: () => true, readConfig: () => ({ nope: 1 }) });
   const { ui, asked } = quietUi();
-  await withHome(() => runInit({}, ui, broken.deps));
-  expect(asked.some((q) => q.startsWith('warn:') && q.includes('is not a valid config'))).toBe(true);
+  await expect(withHome(() => runInit({}, ui, broken.deps))).rejects.toBeInstanceOf(Cancelled); // it is not replaced unless the person says so
+  expect(asked.some((q) => q.startsWith('warn:') && q.includes('does not validate, first error:'))).toBe(true);
+  expect(broken.written).toEqual({});
 });
 
 test('after good checks it shows what is waiting and offers to start; with failed checks it does neither', async () => {
@@ -445,7 +446,7 @@ test('an existing failover is kept only when the person says so; saying no asks 
   const { ui, asked } = quietUi({ [keep]: false, [notNow]: false });
   await withHome(() => runInit({}, ui, redone.deps));
   expect(asked.some((q) => q.startsWith('Turn failover on for the author'))).toBe(true);
-  expect(JSON.parse(redone.written[join(dir, 'home', 'engine.json')]!)).not.toHaveProperty('failover'); // asked again and declined
+  expect(JSON.parse(redone.written[join(dir, 'home', 'engine.json')]!).failover).toEqual({ triggers: ['usage_limit'] }); // asked again and declined: the steps go, the file's triggers stay
 });
 
 test('every wait on the machine or GitHub shows a loading line', async () => {

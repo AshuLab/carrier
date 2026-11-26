@@ -8,6 +8,7 @@
       "limits": {
         "maxConcurrentEpics": 3,
         "maxReviews": 8,
+        "maxLeadRounds": 4,
         "maxExecutionRetries": 3,
         "maxExecutionHours": "unlimited",
         "githubCallTimeoutSeconds": 30
@@ -22,6 +23,7 @@
         "logLevel": "debug",
         "limits": {
           "maxReviews": 8,
+          "maxLeadRounds": 4,
           "maxExecutionHours": "unlimited"
         }
       },

@@ -129,7 +129,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |
 | `limits.maxConcurrentEpics` | no | `3` | Epics running at the same time. |
 | `limits.maxReviews` | no | `5` | Review rounds before the epic goes to `needs-human`. |
-| `limits.maxLeadRounds` | no | `3` | A positive whole number: the reviews of the lead reviewer's exchange with the author before the epic goes to `needs-human` with the kind `lead_limit`. Zero, negatives, fractions and strings are refused. It is read when the lead's answer is decided, so a change applies at the lead's next answer, and the lead's rounds do not count toward `maxReviews`. |
+| `limits.maxLeadRounds` | no | `3` | A positive whole number: the reviews of the lead reviewer's exchange with the author before the epic goes to `needs-human` with the kind `lead_limit`. Zero, negatives, fractions and strings are refused. It is read when the lead's answer is decided, so a change applies at the lead's next answer, and the lead's rounds do not count toward `maxReviews`. The app's Behavior page sets it, beside `limits.maxReviews`. |
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |

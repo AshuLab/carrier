@@ -93,12 +93,12 @@ export function setWatchedRepos(repos: string[], file: string, folder: string): 
   return { saved: { repos: next.repos } };
 }
 
-/** The eight values Behavior edits, named as in the file; a value left out is not changed. */
+/** The values Behavior edits, named as in the file; a value left out is not changed. */
 export type BehaviorChanges = {
   pollIntervalMinutes?: number;
   logLevel?: string;
   finishedWindowDays?: number;
-  limits?: { maxConcurrentEpics?: number; maxReviews?: number; maxExecutionRetries?: number; maxExecutionHours?: number | 'unlimited'; githubCallTimeoutSeconds?: number };
+  limits?: { maxConcurrentEpics?: number; maxReviews?: number; maxLeadRounds?: number; maxExecutionRetries?: number; maxExecutionHours?: number | 'unlimited'; githubCallTimeoutSeconds?: number };
 };
 
 const logLevels = ['debug', 'info', 'warn', 'error'];
@@ -113,6 +113,7 @@ function behaviorProblem({ limits = {}, ...top }: BehaviorChanges) {
   if (top.logLevel !== undefined && logLevels.includes(top.logLevel) === false) throw refuse('logLevel', 'notOneOf', `Must be one of ${logLevels.join(', ')}`);
   whole('limits.maxConcurrentEpics', limits.maxConcurrentEpics, 1, 'Must be 1 or more');
   whole('limits.maxReviews', limits.maxReviews, 1, 'Must be 1 or more');
+  whole('limits.maxLeadRounds', limits.maxLeadRounds, 1, 'Must be 1 or more');
   whole('limits.maxExecutionRetries', limits.maxExecutionRetries, 0, 'Must be 0 or more');
   if (limits.maxExecutionHours !== 'unlimited') whole('limits.maxExecutionHours', limits.maxExecutionHours, 1, 'Must be 1 or more, or unlimited');
   whole('limits.githubCallTimeoutSeconds', limits.githubCallTimeoutSeconds, 1, 'Must be 1 or more');

@@ -262,6 +262,7 @@
   "text.app.session.folderGone": "Su carpeta se eliminó, así que no puede continuar",
   "text.config.invalid": "La configuración no es válida",
   "text.config.problem": "{problem, select, notJson {{path} no es un JSON válido, así que no se cambió} notAnObject {{path} no es un objeto JSON, así que no se cambió} notARepo {{path} debe ser propietario/nombre} providerNotDeclared {{path} nombra un proveedor que no está declarado en providers} stepRepeated {{path}: el paso repite otro paso de la lista} stepOwnRole {{path}: el paso es el proveedor y el modelo del propio rol, así que no llevaría a ninguna parte} other {Hay un problema en {path}}}",
+  "text.dismiss.notClosed": "El epic no está cerrado: solo se puede descartar uno fusionado o cancelado",
   "text.doctor.agyLoginUnknown": "no se pudo saber si agy ha iniciado sesión (no respondió ni pidió iniciar sesión a tiempo)",
   "text.doctor.agyNotRunnable": "no se pudo ejecutar agy para comprobar el inicio de sesión",
   "text.doctor.commandNotRunnable": "{command} no existe o no se ejecuta",

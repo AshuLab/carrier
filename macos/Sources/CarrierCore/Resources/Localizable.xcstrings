@@ -63217,6 +63217,23 @@
         }
       }
     },
+    "text.dismiss.notClosed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The epic is not closed: only a merged or cancelled epic can be dismissed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El epic no está cerrado: solo se puede descartar uno fusionado o cancelado"
+          }
+        }
+      }
+    },
     "text.doctor.agyLoginUnknown": {
       "extractionState": "manual",
       "localizations": {

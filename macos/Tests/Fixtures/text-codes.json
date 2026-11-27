@@ -116,6 +116,9 @@
       "problem": "notJson"
     }
   },
+  "dismiss.notClosed": {
+    "params": {}
+  },
   "doctor.agyLoginUnknown": {
     "params": {}
   },

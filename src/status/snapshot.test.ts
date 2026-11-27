@@ -176,6 +176,14 @@ test('finished lists the merged and cancelled epics inside the window, newest fi
   expect(s.done.map((d) => d.issue)).toEqual([epicStates.indexOf('ready_for_test') + 10]);
 });
 
+test('a dismissed finished epic is not listed, unless it finished again after it was dismissed', () => {
+  add(1, 'merged', { finishedAt: 50_000 });
+  add(2, 'cancelled', { finishedAt: 60_000, dismissedAt: 70_000 });
+  add(3, 'merged', { finishedAt: 80_000, dismissedAt: 80_000 }); // dismissed in the same millisecond it finished
+  add(4, 'merged', { finishedAt: 90_000, dismissedAt: 70_000 }); // dismissed, then run again and finished again
+  expect(snapshot().finished.map((f) => f.issue)).toEqual([4, 1]);
+});
+
 test('a longer window lets older finished epics in', () => {
   add(1, 'merged', { finishedAt: 0 });
   const build = (finishedWindowDays: number) => buildSnapshot(db, { now: 20 * 86_400_000, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000, labels: defaultLabels });

@@ -1,7 +1,7 @@
 import { enginePlacesOf } from '../../../config/places.ts';
 import type { PanelSnapshot } from '../../../status/types.ts';
 import type { SessionsReply } from '../../../control/replies.ts';
-import { renderDashboard } from '../../dashboard/dashboard.ts';
+import { colorWanted, renderDashboard } from '../../dashboard/dashboard.ts';
 import type { Sessions } from '../../dashboard/history.ts';
 import { connectControl, ControlRefused, ControlUnreachable, type CarrierClient } from '../control-client.ts';
 
@@ -51,7 +51,7 @@ export async function statusCommand(folder: string): Promise<number> {
     const shown = [...snapshot.epics, ...snapshot.done];
     const stages = new Map(await Promise.all(shown.map(async (e) => [`${e.repo}#${e.issue}`, await stagesOf(client, e.repo, e.issue)] as const)));
     const detail = (repo: string, issue: number) => stages.get(`${repo}#${issue}`) ?? null;
-    out(renderDashboard(snapshot, { color: tty, columns: tty ? process.stdout.columns : 100, detail }).join('\n'));
+    out(renderDashboard(snapshot, { color: tty && colorWanted(), columns: tty ? process.stdout.columns : 100, detail }).join('\n'));
     return 0;
   } catch (error) {
     if (error instanceof ControlUnreachable === false) throw error;

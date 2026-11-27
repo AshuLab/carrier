@@ -118,3 +118,17 @@ export function connectControl(path: string, { timeoutMs = 5000 }: { timeoutMs?:
     }
   });
 }
+
+/**
+ * Asks the engine to take a merged or cancelled epic out of the finished lists for good. Resolves with the refusal's words when it said no
+ * (an unknown epic, one that is not closed); rejects with a `ControlUnreachable` when the socket stops answering.
+ */
+export async function dismissEpic(client: Pick<CarrierClient, 'request'>, repo: string, issue: number): Promise<{ ok: true } | { ok: false; reason: string }> {
+  try {
+    await client.request('dismissEpic', { repo, issue });
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof ControlRefused) return { ok: false, reason: error.message };
+    throw error;
+  }
+}

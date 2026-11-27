@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { latestBlockers, latestLeadBlockers } from '../orchestration/blockers.ts';
 import { agentOfSlot, roundSlots } from '../orchestration/slots.ts';
@@ -78,7 +78,7 @@ export function buildSnapshot(
   const done = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt, unansweredObservations: epics.unansweredObservations, unansweredReason: epics.unansweredReason, startedAt: epics.startedAt, config: epics.config, reviewedSha: epics.reviewedSha, approvedSha: epics.approvedSha }).from(epics).where(eq(epics.status, 'ready_for_test')).orderBy(desc(epics.finishedAt)).limit(5).all()
     .map(({ id, labels, unansweredObservations, unansweredReason, startedAt, config, reviewedSha, approvedSha, ...rest }) => ({ ...rest, labels: labels ?? [], executionId: lastExecution(id), ...(reviewedSha !== null && { reviewedSha }), ...(approvedSha !== null && { approvedSha, ...spread('leadApproval', leadApproval(db, { id, startedAt })) }), ...(unansweredObservations !== null && unansweredReason !== null && { unansweredObservations: { count: unansweredObservations, reason: unansweredReason } }), ...spread('reviewers', reviewersOf(db, { id, startedAt, config })) }));
   const finished = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt, status: epics.status, cancelReason: epics.cancelReason }).from(epics)
-    .where(and(inArray(epics.status, ['merged', 'cancelled']), gte(epics.finishedAt, now - finishedWindowDays * 86_400_000))).orderBy(desc(epics.finishedAt)).all()
+    .where(and(inArray(epics.status, ['merged', 'cancelled']), gte(epics.finishedAt, now - finishedWindowDays * 86_400_000), or(isNull(epics.dismissedAt), lt(epics.dismissedAt, epics.finishedAt)))).orderBy(desc(epics.finishedAt)).all()
     .map(({ id, labels, finishedAt, status, cancelReason, ...rest }) => ({ ...rest, labels: labels ?? [], finishedAt: finishedAt!, status: status as 'merged' | 'cancelled', cancelReason: status === 'cancelled' ? cancelReason : null, executionId: lastExecution(id) }));
   // A restart marks the role that failed, which says more than the stage when the review had several: the slot of the execution of the attempt that failed, else the last one.
   const optionsWithFailed = (e: Parameters<typeof optionsOf>[0] & { id: number; status: string; startedAt: number | null }) => {

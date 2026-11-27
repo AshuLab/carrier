@@ -71,6 +71,8 @@ export const epics = sqliteTable(
     unansweredReason: text({ enum: unansweredReasons }),
     // When the retry of an `api_error` may start (ms since epoch); null when none waits. A due time and not a sleep: a restart of the engine finds it.
     retryAt: integer(),
+    // ms since epoch: when a person dismissed this epic from the finished lists (merged or cancelled only). It hides the epic while it is at or after `finishedAt`, so an epic that runs again and finishes again shows again.
+    dismissedAt: integer(),
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

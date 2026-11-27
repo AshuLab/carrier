@@ -4,10 +4,10 @@ import { createServer, type Server, type Socket } from 'node:net';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { EpicReply, EventsReply, FilesReply } from '../../control/replies.ts';
 import { startControlServer } from '../../control/server.ts';
-import { connectControl, ControlRefused, ControlUnreachable } from './control-client.ts';
+import { connectControl, ControlRefused, ControlUnreachable, dismissEpic } from './control-client.ts';
 
 let dir: string;
 let closers: (() => void)[];
@@ -31,7 +31,7 @@ const controls = {
   epic: (): EpicReply | null => null,
   files: (): FilesReply | null => null,
   fileDiff: () => null,
-  availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }),
+  availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), dismissEpic: () => {}, reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }),
 };
 
 async function realServer() {
@@ -63,7 +63,7 @@ test('connect returns the hello and a request resolves with the data of its repl
   await realServer();
   const client = await connectControl(path());
   closers.push(client.close);
-  expect(client.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config', 'extraReviewers'] });
+  expect(client.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'dismissEpic', 'reload', 'config', 'extraReviewers'] });
   expect(typeof client.hello.version).toBe('string');
   expect(await client.request('snapshot')).toEqual(snapshotData);
   expect(await client.request('pause')).toBeUndefined();
@@ -219,3 +219,13 @@ test('after close nothing keeps the process alive', async () => {
   // the child must end by itself: execFile kills it at the timeout, which fails the test
   await promisify(execFile)(process.execPath, ['--input-type=module', '-e', script], { timeout: 5000, killSignal: 'SIGKILL' });
 }, 10_000);
+
+test('dismissEpic sends the repo and the issue, answers ok, gives a refusal as its words, and lets an unreachable socket through', async () => {
+  const request = vi.fn<(cmd: string, fields?: Record<string, unknown>) => Promise<unknown>>().mockResolvedValueOnce(undefined);
+  expect(await dismissEpic({ request }, 'AshuLab/a', 5)).toEqual({ ok: true });
+  expect(request.mock.calls).toEqual([['dismissEpic', { repo: 'AshuLab/a', issue: 5 }]]);
+  request.mockRejectedValueOnce(new ControlRefused('not closed', 'dismiss.notClosed'));
+  expect(await dismissEpic({ request }, 'AshuLab/a', 5)).toEqual({ ok: false, reason: 'not closed' });
+  request.mockRejectedValueOnce(new ControlUnreachable('no-answer'));
+  await expect(dismissEpic({ request }, 'AshuLab/a', 5)).rejects.toBeInstanceOf(ControlUnreachable);
+});

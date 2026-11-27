@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- The terminal panel (`carrier watch` and the foreground one) resumes a stopped epic with `r`: it asks once more (a second `r` confirms) and starts it again from ship on the same agents, as the Resume button of the Mac app does.
+- The merged and cancelled epics are one `CLOSED` section in the terminal panel, folded until you open it with `enter`, `→` or `f`, and `d` on one of them hides it for good, also in the Mac app, through a new `dismissEpic` request of the control socket.
+- A running agent that has written nothing for 5 minutes is marked `▲` in yellow on its card in the terminal panel, and in red after 15.
+
+### Changed
+
+- The terminal panel fits the height of the terminal and scrolls to keep the selected epic in view; a running epic takes two lines until you select it, a line under the header counts the running, queued, stopped and ready epics, and a status bar under a rule says what a key did.
+- In the terminal panel `c` checks GitHub now (it was `r`), and the rounds of an epic are drawn as `● ● ○ ○ ○`.
+- The terminal panel paints nothing when `NO_COLOR` is set, and is drawn again at once when the terminal changes size.
+
 ## [0.21.0] - 2026-11-27
 
 Roles and Identities in Settings with extra reviewers you name, a Subagents button in the window header, eleven more themes, Send to sleep, and sessions that stop counting background processes as work.

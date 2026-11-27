@@ -22,14 +22,14 @@ The terminal gets a small set of commands and a clearer panel, and the macOS app
 
 ```
  ┃ AshuLab/carrier #41  Add the watch command
- ┃ ship ✓ 14m · review ✓ round 1, 2 blockers · [fix] 2m · round ●●○○○
+ ┃ ship ✓ 14m · review ✓ round 1, 2 blockers · [fix] 2m · round ● ● ○ ○ ○
  ┃ active 10s ago · slices 3/5
  ┃ now  Edited src/terminal/cli/commands/watch.ts
 ```
 
 One renderer draws the foreground panel and `watch`; they differ only in where the snapshot and the stage detail come from (the foreground process, or the socket). The stage detail of an epic is asked when the epic is first shown and again only when its stage, round, status, blocker count or latest execution changes in the snapshot, never once a second, so a refresh stays cheap and the panel never waits on a request that cannot have changed.
 
-**`watch` keeps the foreground panel's keys** (↑↓ to select, `enter` to open the PR, `l` for the agent's output, `r` to check GitHub, `p` to pause, `?`, `q`), because it is the same component, driven through the socket (`checkNow`, `pause`, `resume`, `tail`). Only `q` differs: in `watch` it leaves and Carrier keeps running, and the help line says so; in the foreground it stops Carrier. An engine that does not advertise the `sessions` capability still gets `status` and `watch`, with the snapshot alone and no per-stage detail.
+**`watch` keeps the foreground panel's keys** (↑↓ to select, `enter` to open the PR, `l` for the agent's output, `c` to check GitHub, `p` to pause, `?`, `q`), because it is the same component, driven through the socket (`checkNow`, `pause`, `resume`, `tail`). Only `q` differs: in `watch` it leaves and Carrier keeps running, and the help line says so; in the foreground it stops Carrier. An engine that does not advertise the `sessions` capability still gets `status` and `watch`, with the snapshot alone and no per-stage detail.
 
 **The macOS app** gains an opt-in switch, off by default, "Start Carrier when the app opens", on the Engine tab's ready card. With it on, opening the app starts Carrier once, if the first answer of the monitor is that it is stopped and the setup is complete; never with `--fixture`. The app keeps its own Swift start until `carrier start` has proven itself, then calls it and drops the duplicate, as the ADR records.
 

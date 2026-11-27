@@ -38,7 +38,7 @@ async function setup(paused = false, { capabilities = ['sessions'], epics }: { c
 test('p, r and enter go through the socket as pause or resume by the current state, checkNow and the PR to open; q only leaves', async () => {
   const { requests, hooks, press, stop, setState, refresh } = await setup();
   press('p');
-  press('r');
+  press('c');
   press('return');
   expect(requests.slice(1).filter(([cmd]) => cmd !== 'tail' && cmd !== 'sessions')).toEqual([['pause', undefined], ['checkNow', undefined]]);
   expect(hooks.open).toHaveBeenCalledWith('https://github.com/A/a/pull/9');
@@ -57,7 +57,7 @@ test('l asks the socket for the tail of the selected epic and shows the last ans
   press('l');
   await vi.waitFor(() => expect(requests.filter(([cmd]) => cmd === 'tail').length).toBeGreaterThan(0));
   expect(requests.find(([cmd]) => cmd === 'tail')![1]).toEqual({ executionId: epic.executionId, lines: 18 });
-  press('r'); // any redraw: the answer has arrived by now
+  press('c'); // any redraw: the answer has arrived by now
   expect(writes.at(-1)).toContain('▸ Bash ls');
   stop();
 });
@@ -65,11 +65,11 @@ test('l asks the socket for the tail of the selected epic and shows the last ans
 test('a socket that stops answering calls lost; a refused request does not', async () => {
   const { client, hooks, press, stop } = await setup();
   client.request.mockRejectedValueOnce(new Error('nope'));
-  press('r');
+  press('c');
   await Promise.resolve();
   expect(hooks.lost).not.toHaveBeenCalled();
   client.request.mockRejectedValueOnce(new ControlUnreachable('no-answer'));
-  press('r');
+  press('c');
   await vi.waitFor(() => expect(hooks.lost).toHaveBeenCalledTimes(1));
   stop();
 });
@@ -166,4 +166,62 @@ test('a sessions request that failed this time is asked again at the next draw, 
   draw(epic, two);
   expect(sessionsAsked.filter((issue) => issue === 1)).toEqual([1, 1]);
   expect(sessionsAsked.filter((issue) => issue === 2)).toEqual([2]); // no detail to know: asked once
+});
+
+// The key itself belongs to the panel; here, what the socket does when it is pressed.
+const dismissingPanel = (capabilities: string[], request: (cmd: string, fields?: Record<string, unknown>) => Promise<unknown>) => {
+  const hooks = { open: vi.fn(), quit: vi.fn(), lost: vi.fn() };
+  return { hooks, controls: socketPanel({ hello: { capabilities } as never, request: vi.fn(request) }, hooks).controls };
+};
+
+test('dismiss is offered only by a Carrier that lists dismissEpic, and asks it for that repo and issue', async () => {
+  expect(dismissingPanel(['sessions'], async () => null).controls.dismiss).toBeUndefined();
+  const requests: Array<[string, unknown]> = [];
+  const { controls, hooks } = dismissingPanel(['sessions', 'dismissEpic'], async (cmd, fields) => (requests.push([cmd, fields]), undefined));
+  expect(await controls.dismiss!('A/a', 4)).toEqual({ ok: true });
+  expect(requests).toEqual([['dismissEpic', { repo: 'A/a', issue: 4 }]]);
+  expect(hooks.lost).not.toHaveBeenCalled();
+});
+
+test('a dismiss the engine refuses answers with its words and does not call lost; a socket that stops answering does', async () => {
+  const refused = dismissingPanel(['dismissEpic'], async () => { throw new ControlRefused('not closed', 'dismiss.notClosed'); });
+  expect(await refused.controls.dismiss!('A/a', 4)).toEqual({ ok: false, reason: 'not closed' });
+  expect(refused.hooks.lost).not.toHaveBeenCalled();
+  const gone = dismissingPanel(['dismissEpic'], async () => { throw new ControlUnreachable('no-answer'); });
+  expect(await gone.controls.dismiss!('A/a', 4)).toMatchObject({ ok: false });
+  expect(gone.hooks.lost).toHaveBeenCalledTimes(1);
+});
+
+// A resume is answered once the epic has started again, up to 30 seconds later; this connection gives up after 5.
+const resumingPanel = (capabilities: string[], own: (cmd: string, fields?: Record<string, unknown>) => Promise<unknown>) => {
+  const hooks = { open: vi.fn(), quit: vi.fn(), lost: vi.fn() };
+  const shared = vi.fn(async () => undefined);
+  const closed = vi.fn();
+  const connect = vi.fn(async () => ({ request: vi.fn(own), close: closed }));
+  return { hooks, shared, closed, connect, controls: socketPanel({ hello: { capabilities } as never, request: shared }, { ...hooks, connect }).controls };
+};
+
+test('resume is offered only by a Carrier that lists resumeEpic, and goes on a connection of its own that is closed afterwards', async () => {
+  expect(resumingPanel(['sessions'], async () => undefined).controls.resume).toBeUndefined();
+  const requests: Array<[string, unknown]> = [];
+  const { controls, shared, closed, connect } = resumingPanel(['resumeEpic'], async (cmd, fields) => (requests.push([cmd, fields]), undefined));
+  expect(await controls.resume!('A/a', 4)).toEqual({ ok: true });
+  expect(requests).toEqual([['resumeEpic', { repo: 'A/a', issue: 4 }]]);
+  expect(connect).toHaveBeenCalledTimes(1);
+  expect(closed).toHaveBeenCalledTimes(1);
+  expect(shared).not.toHaveBeenCalledWith('resumeEpic', expect.anything()); // the panel's own socket is never kept waiting
+  // without a way to connect there is no resume either
+  expect(socketPanel({ hello: { capabilities: ['resumeEpic'] } as never, request: vi.fn() }, { open: vi.fn(), quit: vi.fn(), lost: vi.fn() }).controls.resume).toBeUndefined();
+});
+
+test('a refused resume answers with the words of the restart command, and an unanswered one does not make the panel think Carrier stopped', async () => {
+  const refused = resumingPanel(['resumeEpic'], async () => { throw new ControlRefused('not stopped', 'resume.notStopped'); });
+  expect(await refused.controls.resume!('A/a', 4)).toEqual({ ok: false, reason: 'A/a#4 is not stopped, so there is nothing to restart.' });
+  expect(refused.closed).toHaveBeenCalledTimes(1);
+  const unknown = resumingPanel(['resumeEpic'], async () => { throw new ControlRefused('something new', 'resume.somethingNew'); });
+  expect(await unknown.controls.resume!('A/a', 4)).toEqual({ ok: false, reason: 'Carrier refused: something new' });
+  const silent = resumingPanel(['resumeEpic'], async () => { throw new ControlUnreachable('no-answer'); });
+  expect(await silent.controls.resume!('A/a', 4)).toEqual({ ok: false, reason: 'Carrier does not answer' });
+  expect(silent.hooks.lost).not.toHaveBeenCalled(); // the panel's own socket is fine
+  expect(silent.closed).toHaveBeenCalledTimes(1);
 });

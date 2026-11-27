@@ -25,9 +25,12 @@ import type { QuotaReader } from '../../orchestration/quota.ts';
 import { createQuotas } from '../../usage/quotas.ts';
 import { realUsagePorts } from '../../usage/real.ts';
 import { configProblem } from '../../config/problems.ts';
+import { DismissRefused } from '../../orchestration/dismiss-refused.ts';
+import { ResumeRefused } from '../../orchestration/resume-refused.ts';
+import { refusals } from './commands/restart.ts';
 import { ReloadRefused } from '../../orchestration/reload-refused.ts';
 import { sessionDirsFrom, type SessionDirs } from '../../orchestration/retention.ts';
-import { renderDashboard } from '../dashboard/dashboard.ts';
+import { colorWanted, renderDashboard } from '../dashboard/dashboard.ts';
 import { startInteractivePanel } from '../dashboard/interactive.ts';
 import { tailExecution } from '../dashboard/logs.ts';
 import { startPanel, type PanelOutput } from '../dashboard/panel.ts';
@@ -225,6 +228,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
     availableRepos: (page: number) => deps.listRepos(page, timeoutMs()),
     resumeEpic: (repo: string, issue: number, chosen: Parameters<Controls['resumeEpic']>[2]) => engine.resumeEpic(repo, issue, chosen),
     recoverEpic: (repo: string, issue: number) => engine.recoverEpic(repo, issue),
+    dismissEpic: (repo: string, issue: number) => engine.dismissEpic(repo, issue),
     reload: reloadNow,
     setWatchedRepos: (names: string[]) => withEngine(setWatchedRepos(names, configPath, folder), reloadNow),
     editBehavior: (changes: BehaviorChanges) => withEngine(editBehavior(changes, configPath, folder), reloadNow),
@@ -243,6 +247,24 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
   // Only now: until the engine is up the terminal belongs to whoever is waiting for it (the "Starting…" spinner).
   deps.onArrived?.();
   const detail = (repo: string, issue: number) => controls.sessions(repo, issue)?.sessions ?? null;
+  const dismiss = async (repo: string, issue: number) => {
+    try {
+      controls.dismissEpic(repo, issue);
+      return { ok: true } as const;
+    } catch (error) {
+      if (error instanceof DismissRefused) return { ok: false, reason: error.reason } as const;
+      throw error;
+    }
+  };
+  const resume = async (repo: string, issue: number) => {
+    try {
+      await controls.resumeEpic(repo, issue, {});
+      return { ok: true } as const;
+    } catch (error) {
+      if (error instanceof ResumeRefused) return { ok: false, reason: refusals[error.code]?.(`${repo}#${issue}`, error.params) ?? error.reason } as const;
+      throw error;
+    }
+  };
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
   stopPanel =
     deps.panelOut.isTTY && deps.stdin?.isTTY
@@ -252,10 +274,10 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
           stdin: deps.stdin,
           intervalMs: deps.panelIntervalMs,
           now: () => deps.clock.now(),
-          controls: { ...controls, detail },
+          controls: { ...controls, detail, dismiss, resume },
         })
       // Not a terminal (a detached `carrier start` writes to start.log, and nobody watches it): a line per change, looked for every ten seconds, so a state that
       // lasts less than that does not show; a terminal still redraws every second.
-      : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs ?? (deps.panelOut.isTTY ? undefined : PLAIN_PANEL_MS), (s, columns) => renderDashboard(s, { columns, detail }));
+      : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs ?? (deps.panelOut.isTTY ? undefined : PLAIN_PANEL_MS), (s, columns) => renderDashboard(s, { columns, color: colorWanted(), detail }));
   return { engine, db, close };
 }

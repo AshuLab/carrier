@@ -262,6 +262,7 @@
   "text.app.session.folderGone": "Its folder was deleted, so it cannot go on",
   "text.config.invalid": "The configuration is not valid",
   "text.config.problem": "{problem, select, notJson {{path} is not valid JSON, so it was not changed} notAnObject {{path} is not a JSON object, so it was not changed} notARepo {{path} must be owner/name} providerNotDeclared {{path} names a provider that is not declared in providers} stepRepeated {{path}: the step repeats another step of the list} stepOwnRole {{path}: the step is the role's own provider and model, so it would move nowhere} other {There is a problem in {path}}}",
+  "text.dismiss.notClosed": "The epic is not closed: only a merged or cancelled epic can be dismissed",
   "text.doctor.agyLoginUnknown": "could not tell whether agy is logged in (it neither answered nor asked for a login in time)",
   "text.doctor.agyNotRunnable": "could not run agy to check the login",
   "text.doctor.commandNotRunnable": "{command} does not exist or does not run",

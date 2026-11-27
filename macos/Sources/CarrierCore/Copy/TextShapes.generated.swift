@@ -48,6 +48,7 @@ app.request.sessionIdInvalid||=
 app.session.folderGone||=
 config.invalid||=
 config.problem|problem|notJson=path:s|notAnObject=path:s|notARepo=path:s|providerNotDeclared=path:s|stepRepeated=path:s|stepOwnRole=path:s|other=path:s
+dismiss.notClosed||=
 doctor.agyLoginUnknown||=
 doctor.agyNotRunnable||=
 doctor.commandNotRunnable||=command:s

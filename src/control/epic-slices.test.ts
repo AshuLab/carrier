@@ -27,7 +27,7 @@ let close: () => void;
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'cs-')); // short: a socket path holds 103 bytes on macOS
   db = openDatabase(join(dir, 'carrier.db'));
-  const controls = { poll: () => {}, setPaused: () => {}, logs: () => [], sessions: () => null, events: () => null, epic: (repo: string, issue: number) => epicOf(db, repo, issue), files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }) };
+  const controls = { poll: () => {}, setPaused: () => {}, logs: () => [], sessions: () => null, events: () => null, epic: (repo: string, issue: number) => epicOf(db, repo, issue), files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), dismissEpic: () => {}, reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }) };
   close = (await startControlServer({ stateDir: dir, snapshot: () => ({}), startedAt: 1, controls, stop: async () => {} })).close;
 });
 afterEach(() => {

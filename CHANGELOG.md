@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The terminal panel fits the height of the terminal and scrolls to keep the selected epic in view; a running epic takes two lines until you select it, a line under the header counts the running, queued, stopped and ready epics, and a status bar under a rule says what a key did.
 - In the terminal panel `c` checks GitHub now (it was `r`), and the rounds of an epic are drawn as `● ● ○ ○ ○`.
 - The terminal panel paints nothing when `NO_COLOR` is set, and is drawn again at once when the terminal changes size.
+- The sidebar's foot is two icon buttons, Settings at the left and Usage at the right, instead of two rows with words; their names show as tooltips.
 
 ## [0.21.0] - 2026-11-27
 

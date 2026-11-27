@@ -74,6 +74,7 @@ struct ConversationView: View {
                     Group {
                         if let work = model.openSubagent {
                             SubagentView(work: work, backToChat: { subagents = [] })
+                                .id(subagents.last)
                         } else {
                             LoadingRow()
                         }

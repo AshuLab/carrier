@@ -312,12 +312,47 @@ private let fakeSessions = [
     shell.selection = .session(id: "a")
     let list = SubagentsList(launches: [SubagentLaunch(id: "g", items: [], startedAt: 0, endedAt: nil)])
     shell.subagentsList = list
-    shell.openSubagent("c1")
+    shell.jumpToSubagent("c1")
     #expect(shell.subagents == ["c1"])
     #expect(shell.subagentsList == list)
     shell.leaveSubagent()
     #expect(shell.subagents.isEmpty)
     #expect(shell.subagentsList == list)
+}
+
+@Test func jumpingFromTheSubagentsListInASubagentViewReplacesAtTheSameLevelAndNoOpsForTheOpenOne() {
+    let shell = WindowShell()
+    shell.selection = .session(id: "a")
+    let historyBefore = shell.history
+    let list = SubagentsList(launches: [SubagentLaunch(id: "g", items: [], startedAt: 0, endedAt: nil)])
+    shell.subagentsList = list
+    shell.jumpToSubagent("c1")
+    shell.subagentHeader = SubagentHeader(title: "First", type: "Explore", state: .running, startedAt: 0, durationMs: nil)
+    // choosing the already-open subagent leaves the view as it is
+    shell.jumpToSubagent("c1")
+    #expect(shell.subagents == ["c1"])
+    #expect(shell.subagentsList == list)
+    #expect(shell.subagentHeader?.title == "First")
+    // choosing another replaces the open one at the conversation's level, so Back leaves for the conversation
+    shell.jumpToSubagent("c2")
+    #expect(shell.subagents == ["c2"])
+    #expect(shell.subagentsList == list)
+    #expect(shell.history == historyBefore)
+    shell.leaveSubagent()
+    #expect(shell.subagents.isEmpty)
+    #expect(shell.subagentsList == list)
+    // jumping from a nested subagent view also lands at the conversation's level
+    shell.openSubagent("c1")
+    shell.openSubagent("n1")
+    shell.jumpToSubagent("c2")
+    #expect(shell.subagents == ["c2"])
+    shell.leaveSubagent()
+    #expect(shell.subagents.isEmpty)
+    // the window's back shortcut still leaves a subagent view along with the session
+    shell.jumpToSubagent("c1")
+    shell.subagentHeader = SubagentHeader(title: "First", type: "Explore", state: .running, startedAt: 0, durationMs: nil)
+    shell.perform(.back)
+    #expect(shell.selection == .home && shell.subagents.isEmpty && shell.subagentHeader == nil && shell.subagentsList == .empty)
 }
 
 @Test func backAndForwardWalkTheSelectionsVisitedAndAddNothingThemselves() {

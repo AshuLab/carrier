@@ -36,6 +36,7 @@ struct SessionRowView: View {
     /// Whether the ring stays on after the agent stops, to go round once more in green when the turn ended unread (`finished`).
     @State private var ringKept = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.textScale) private var textScale
 
     private var content: SessionRowContent {
         SessionRowContent(
@@ -53,12 +54,12 @@ struct SessionRowView: View {
 
     /// What the host refuses (a session that is working) is told in an alert, as the context menu does.
     private func archive() {
-        Task { if let refusal = await actions.archive(row.id) { tell(refusal) } }
+        Task { if let refusal = await archiveAsking(row, actions) { tell(refusal) } }
     }
 
     private func place(_ place: SessionPlace) -> Text {
         switch place {
-        case .branch(let name): Text("\(Image(inline: .gitBranch)) \(Text(name).scaledFont(11, design: .monospaced))")
+        case .branch(let name): Text("\(Image(inline: .gitBranch)) \(Text(name).font(textScale.font(11, design: .monospaced)))")
         case .baseFolder: Text("\(Image(inline: .folder)) \(Copy.sessionBaseFolder())")
         }
     }
@@ -128,7 +129,8 @@ struct SessionRowView: View {
                 HStack(spacing: Tokens.Space.s4) {
                     detail(content).sidebarFont(.detail).lineLimit(1).truncationMode(.tail)
                     Spacer(minLength: 4)
-                    // with no third line the providers sit here; with one they go down to it
+                    // the still mark of the background processes is always here, before the providers; with a third line the providers go down to it
+                    if content.processes > 0 { SessionProcessMark(count: content.processes) }
                     if third == false { ProviderMarks(names: content.providers) }
                 }
                 .frame(height: Self.detailLine)
@@ -169,12 +171,12 @@ struct SessionRowView: View {
     }
 
     /// What the row says aloud: the title, the state in words (the icon draws it), where it works, the providers and "5 minutes ago",
-    /// the parts the person switched off left out.
+    /// the background processes and the parts the person switched off left out.
     private func label(_ content: SessionRowContent) -> String {
         let state: String? = switch row.state {
         case .working: Copy.sessionStatusWorking()
         case .waiting: Copy.sessionNeedsAttention()
-        case .idle, .done: row.background.isEmpty == false ? Copy.sessionWaitingBackground() : row.status == .unread ? Copy.sessionDone() : nil
+        case .idle, .done: row.isWorking ? Copy.sessionWaitingBackground() : row.status == .unread ? Copy.sessionDone() : nil
         }
         let place: String? = switch content.place {
         case .branch(let name)?: name
@@ -183,7 +185,7 @@ struct SessionRowView: View {
         }
         let age = content.age == nil ? nil : spokenAge(row.updatedAt, now: Date())
         let work: [String?] = roomy ? [content.pullRequest?.spoken(), content.diff.map { Copy.sessionDiffSpoken(added: $0.added, removed: String($0.removed)) }] : []
-        return ([row.title, state, row.workspace, place] + work + content.providers + [age]).compactMap { $0 }.joined(separator: ", ")
+        return ([row.title, state, row.workspace, place] + work + [content.processesSpoken()] + content.providers + [age]).compactMap { $0 }.joined(separator: ", ")
     }
 }
 

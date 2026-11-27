@@ -53,6 +53,7 @@ A status that names a later record means that record changed part or all of this
 - [0032](sessions/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md) - A session changes agent by starting a new conversation, and the new agent reads the old one through the chat MCP (accepted)
 - [0033](sessions/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) - An agent delegates to another agent through child sessions, and every delegation asks the person (accepted; amended by [0036](sessions/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md))
 - [0036](sessions/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) - A session delegates in every mode, and a child runs at its parent's permission level (accepted)
+- [0056](sessions/0056-a-session-is-working-only-while-the-model-acts-and-a-background-process-does-not-hold-it.md) - A session is working only while the model acts, and a background process does not hold it (proposed)
 
 ## projects
 

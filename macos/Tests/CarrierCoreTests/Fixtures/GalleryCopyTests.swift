@@ -28,7 +28,7 @@ import Testing
     #expect(sample(.groupFooter) == "Una nota más larga sobre todo el grupo, debajo.")
     let states: [(Copy.PieceState, String)] = [
         (.normal, "Normal"), (.disabled, "Desactivado"), (.loading, "Cargando"), (.empty, "Vacío"), (.noResults, "Sin resultados"), (.withDetail, "Con detalle"), (.withoutDetail, "Sin detalle"),
-        (.withActions, "Con acciones"), (.folded, "Plegado"), (.high, "Casi lleno"), (.tool, "Marca de la herramienta"), (.byShape, "Distinguido por su forma"),
+        (.withActions, "Con acciones"), (.folded, "Plegado"), (.high, "Casi lleno"), (.tool, "Marca de la herramienta"), (.byShape, "Distinguido por su forma"), (.withLeadingCell, "Con una primera celda"),
     ]
     for (which, words) in states { #expect(state(which) == words) }
 }

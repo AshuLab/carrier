@@ -43,4 +43,10 @@ public enum PiecesGalleryData {
 
     /// Longer than a block shows before it folds.
     public static let longCode = (1...40).map { "let value\($0) = \($0)" }.joined(separator: "\n")
+
+    /// A made-up catalog for the theme gallery: the real themes over and over, each cell numbered so the names differ.
+    public static func themeCells(count: Int) -> [ThemeCell] {
+        let themes = Theme.allCases
+        return (0..<count).map { ThemeCell(id: "cell\($0)", title: "\(themes[$0 % themes.count].title()) \($0 + 1)", theme: themes[$0 % themes.count]) }
+    }
 }

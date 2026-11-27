@@ -11,7 +11,7 @@ Read this index, then open only the topic that holds the term.
 
 **config** ([glossary/config.md](glossary/config.md)): Carrier folder, Config level, Health check, Config owner
 
-**sessions** ([glossary/sessions.md](glossary/sessions.md)): Session, Chat host, Chat runner, Chat event, User session, New session draft, Preparation, Session lifecycle, Chat MCP, Toolkit, Tool access level, MCP token, Agent switch, Handoff, Child session, Delegation, Permission level
+**sessions** ([glossary/sessions.md](glossary/sessions.md)): Session, Chat host, Chat runner, Chat event, User session, New session draft, Preparation, Session lifecycle, Chat MCP, Toolkit, Tool access level, MCP token, Agent switch, Handoff, Child session, Delegation, Permission level, Turn, Background task, Agent work, Background process
 
 **projects** ([glossary/projects.md](glossary/projects.md)): Workspace, Projects folder, Project, Project action, Base folder, Session worktree, Worktree integration, In main, Start point
 

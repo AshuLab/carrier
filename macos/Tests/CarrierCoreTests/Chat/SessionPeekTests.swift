@@ -73,3 +73,23 @@ import Testing
     #expect(sessionPeek(row, now: Date(), bundle: english.bundle, locale: english.locale).diff != nil && sessionPeek(row, now: Date(), bundle: english.bundle, locale: english.locale).pullRequest == nil)
     #expect(sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "", state: .idle, updatedAt: Date()), now: Date(), bundle: english.bundle, locale: english.locale).facts.map(\.kind) == [.text])
 }
+
+@Test func aPeekSaysTheBackgroundProcessesApartFromTheStateAndNotInTheToneOfWork() {
+    let process = BackgroundTask(id: "p", kind: "local_bash", description: "pnpm dev", agentWork: false)
+    let monitor = BackgroundTask(id: "m", kind: "monitor_mcp", description: "", agentWork: false)
+    let agent = BackgroundTask(id: "a", kind: "local_agent", description: "Review the diff", agentWork: true)
+    func peek(_ state: SessionState, unread: Bool = false, _ background: [BackgroundTask]) -> SessionPeek {
+        sessionPeek(SessionRow(id: "s", title: "t", workspace: "w", agent: "claude", state: state, updatedAt: Date(), unread: unread, background: background), now: Date(), bundle: english.bundle, locale: english.locale)
+    }
+    // a session left with only processes reads as any whose turn ended: quiet, or Done while unread, never the cyan of work
+    let idle = peek(.idle, [process, monitor])
+    #expect(idle.subtitle == "Idle" && idle.tone == .quiet && idle.background.isEmpty)
+    #expect(idle.processes == [process, monitor] && idle.processes.map(\.name) == ["pnpm dev", "monitor_mcp"])
+    #expect(peek(.idle, unread: true, [process]).tone == .done)
+    // the processes have a line of their own beside the agent work's, and the model's turn is still violet
+    let both = peek(.idle, [process, agent])
+    #expect(both.tone == .background && both.background == [agent] && both.processes == [process])
+    #expect(peek(.working, [process]).tone == .working && peek(.working, [process]).processes == [process])
+    #expect(peek(.idle, []).processes.isEmpty)
+    #expect(Copy.chatPeekRunning(bundle: english.bundle, locale: english.locale) == "Running")
+}

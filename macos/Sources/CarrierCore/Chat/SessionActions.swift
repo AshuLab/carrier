@@ -74,6 +74,9 @@ public enum SessionRemovalKind: Sendable {
     /// Ends the turn that is in progress.
     public func stop(_ id: String) async -> String? { await run("stop", id) { try await $0.interrupt(id) } }
 
+    /// Sends the session to sleep: its agent closes and a message wakes it.
+    public func sleep(_ id: String) async -> String? { await run("send to sleep", id) { try await $0.close(id) } }
+
     public func rename(_ id: String, _ title: String) async -> String? { await run("rename", id) { try await $0.rename(id, title) } }
 
     /// Reads what the host can do (its hello is kept by the link, so this is cheap) for the menus drawn after it.
@@ -103,7 +106,8 @@ public enum SessionRemovalKind: Sendable {
     /// Asks the host what deleting the session would discard and builds its question; the deletion must not go ahead without it,
     /// unless the person switched the question off.
     public func confirmDelete(_ row: SessionRow) async -> Confirmation {
-        guard preferences.confirmDelete else { return .proceed }
+        // a delete that stops processes says so even when the person switched the question off
+        guard preferences.confirmDelete || processesStopped(row).isEmpty == false else { return .proceed }
         switch await preview("delete \(row.id)", [row.id]) {
         case .success(let previews): return .ask(deleteSessionQuestion(row, worktree: previews.first { $0.sessionId == row.id }?.worktree))
         case .failure(let refusal): return .refused(refusal.words)

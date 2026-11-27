@@ -99,7 +99,7 @@ Gotchas:
 ### Roles
 
 What the person sees: [settings-carrier](settings-carrier.md#roles).
-`rolesPage` (the extra reviewers are the entries of the `agents.extraReviewers` map, in its order by `jsonKeys`, `Support/OrderedJSONKeys.swift`), `rolesSearchEntries`, `rolesReadiness`, `AgentRole.stages` (`CarrierCore/Settings/Roles/RolesPage.swift`, `RolesReadiness.swift`; `RolesPageTests`, `RolesReadinessTests`, `SettingsIndexTests`); Antigravity's models are `AgyModels` (`AgyModelsTests`); views untested.
+`rolesPage` (the extra reviewers are the entries of the `agents.extraReviewers` map, in its order by `jsonKeys`, `Support/OrderedJSONKeys.swift`), `rolesSearchEntries`, `rolesReadiness`, `AgentRole.stages` (`CarrierCore/Settings/Roles/RolesPage.swift`, `RolesReadiness.swift`; `RolesPageTests`, `RolesReadinessTests`, `SettingsIndexTests`); what a role's screen sends, for an extra reviewer by its key, and what Add a reviewer offers by the engine's capability `extraReviewers` (`RoleEdits.swift`, `RoleEditsTests`); the draft of Add a reviewer (`Epics/NewExtraReviewer.swift`, `NewExtraReviewerTests`); Antigravity's models are `AgyModels` (`AgyModelsTests`); views untested.
 
 ### Identities
 

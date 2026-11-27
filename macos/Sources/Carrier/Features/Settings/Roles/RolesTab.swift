@@ -7,35 +7,44 @@ import SwiftUI
 /// Dictation pages have: the first (whether the roles are set up, and the three roles of an epic joined by a rail) and one for each role, with its
 /// Who, Persona, Skills and When it runs out of tokens groups. It reads `engine.json`, `providers.json` and the Agent Forge registry (`rolesPage`, tested
 /// in `RolesPageTests`); a role's screen sends one field of one role as it changes (`editRole` and the other requests of `EngineConfigChange`: the engine writes `engine.json`,
-/// and `carrier config` does when none answers, `src/config/role-edit.ts`). The page has no automated test.
+/// and `carrier config` does when none answers, `src/config/role-edit.ts`). The page has no automated test; what its screens send is `RoleEdits.swift` (`RoleEditsTests`).
+/// An extra reviewer's screen is the same as the Reviewer's with its name and type, and Remove: editable when the engine announces `extraReviewers` (`canEditExtras`), else shown only (`ExtraReviewerScreen`).
 struct RolesTabView: View {
     /// Where the page is: nothing for the first screen, or the path of a role (`RoleSlot.name`).
     var place = SettingsPlace(.roles)
     var go: (SettingsPlace) -> Void = { _ in }
+    /// The engine's hello lists `extraReviewers`: an extra reviewer can be added, changed and removed.
+    var canEditExtras = false
     @ObservedObject private var start = StartController.shared
     @State private var page: RolesPage?
-    /// why the last change was refused, in words; nothing was written
-    @State private var problem: String?
+    /// why the last change was refused, in words and under the group it was made in (`who`, `persona`, `tokens`, `remove`); nothing was written
+    @State var problems: [String: String] = [:]
     /// Switch automatically turned on for a role that has no first step yet: nothing is written until it has one
-    @State private var switchedOn: Set<AgentRole> = []
+    @State var switchedOn: Set<RoleSlot> = []
     /// the Lead reviewer's switch is on in the page and the file has no role yet: what is chosen waits here until the role is whole
-    @State private var turningOnLead = false
-    @State private var leadDraft = LeadReviewerDraft()
+    @State var turningOnLead = false
+    @State var leadDraft = LeadReviewerDraft()
+    /// Add a reviewer was chosen: what is chosen waits here, as the lead's does, until the reviewer has what the engine needs to write it whole. nil on any other screen.
+    @State var newReviewer: NewExtraReviewer?
+    @State var confirmingRemove = false
     /// the icon of each account by the harness it runs
-    @State private var icons: [String: String] = [:]
-    private let catalog = ModelCatalog.shared
-    private let providers = AppHealth.providers
+    @State var icons: [String: String] = [:]
+    let catalog = ModelCatalog.shared
+    let providers = AppHealth.providers
 
     private var role: RoleSlot? { place.path.first.flatMap(RoleSlot.init(name:)) }
 
     var body: some View {
         SettingsPageBody {
             if let page {
-                if let role, let row = page.rows.first(where: { $0.slot == role }) {
-                    if let agent = row.role {
-                        detail(turningOnLead && agent == .leadReviewer ? leadDraft.shown(in: row) : row, role: agent, page: page)
-                    } else {
+                if let newReviewer, place.path.first == RoleSlot.draftPlaceName {
+                    let row = newReviewer.row(in: page)
+                    detail(row, role: .draft, page: page.adding(row))
+                } else if let role, let row = page.rows.first(where: { $0.slot == role }) {
+                    if row.slot.isExtra, canEditExtras == false {
                         ExtraReviewerScreen(row: row, page: page, icons: icons, open: open)
+                    } else {
+                        detail(turningOnLead && role == .lead ? leadDraft.shown(in: row) : row, role: role, page: page)
                     }
                 } else {
                     first(page)
@@ -46,7 +55,7 @@ struct RolesTabView: View {
                     .scaledFont(12).foregroundStyle(.orange)
             }
         }
-        .id(role)
+        .id(place.path.first)
         .preference(key: SettingsTitleKey.self, value: title)
         .writingToolsBehavior(.disabled)
         .onAppear(perform: load)
@@ -55,90 +64,136 @@ struct RolesTabView: View {
         .onChange(of: start.configExists) { load() }
         // what a screen said or was waiting for (a refusal, the lead reviewer being turned on) belongs to that screen
         .onChange(of: place) {
-            problem = nil
+            problems = [:]
             turningOnLead = false
             leadDraft = LeadReviewerDraft()
+            // leaving the reviewer being added drops it
+            if place.path.first != RoleSlot.draftPlaceName { newReviewer = nil }
+        }
+        .alert(Copy.rolesRemoveAlert(name: shownRow?.title() ?? ""), isPresented: $confirmingRemove) {
+            Button(Copy.rolesRemoveCancel(), role: .cancel) {}
+            Button(Copy.rolesRemoveConfirm(), role: .destructive) { remove() }
+        } message: {
+            Text(Copy.rolesRemoveMessage())
         }
         // back from Terminal or an editor, where the config or the registry may have changed
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in load() }
     }
 
     /// What the toolbar says of a role's screen: its name and, under it, the model, the effort and who it works as.
-    private var title: SettingsTitle? {
-        guard let role, let row = page?.rows.first(where: { $0.slot == role }) else { return nil }
-        return SettingsTitle(text: row.title(), subtitle: (turningOnLead && role == .lead ? leadDraft.shown(in: row) : row).headline())
+    private var title: SettingsTitle? { shownRow.map { SettingsTitle(text: $0.title(), subtitle: $0.headline()) } }
+
+    /// The role the open screen is of, as it is shown: with what is chosen for the Lead reviewer being turned on, or the reviewer being added.
+    private var shownRow: RoleRow? {
+        guard let page else { return nil }
+        if let newReviewer, place.path.first == RoleSlot.draftPlaceName { return newReviewer.row(in: page) }
+        guard let role, let row = page.rows.first(where: { $0.slot == role }) else { return nil }
+        return turningOnLead && role == .lead ? leadDraft.shown(in: row) : row
     }
 
-    private func open(_ role: RoleSlot) { go(SettingsPlace(.roles, path: [role.name])) }
+    func open(_ role: RoleSlot) { go(SettingsPlace(.roles, path: [role.name])) }
 
     private func load() {
         let providers = try? Data(contentsOf: URL(fileURLWithPath: CarrierPlaces().providers))
-        problem = nil
+        problems = [:]
         icons = accountIcons(providersJSON: providers)
         page = currentConfig().flatMap { rolesPage(config: $0, providers: providers, bots: forgeBots(registry: currentForgeRegistry())) }
     }
 
     /// Sends the change, then reads the file back so the page shows what is there, whether it was saved or refused.
-    private func save(_ change: RoleChange, role: AgentRole) async -> RoleSave {
+    func save(_ change: RoleChange, role: RoleSlot) async {
         await save([change], role: role)
     }
 
     /// Several changes of one pick are one request: the engine writes them together or not at all.
-    private func save(_ changes: [RoleChange], role: AgentRole) async -> RoleSave {
-        if role == .leadReviewer, turningOnLead { return await fillLead(changes) }
-        let result = await saveToEngine(.role(role, changes))
-        load()
-        problem = result.problem
-        return result
+    func save(_ changes: [RoleChange], role: RoleSlot) async {
+        if role == .lead, turningOnLead { await fillLead(changes) } else if role == .draft { _ = await fillNew { draft in changes.forEach { draft.apply($0) } } } else { _ = await saveDetails(role.edit(changes), group: "who") }
     }
 
-    /// The Persona and failover groups send through here (`EngineConfigChange.persona` and `.failover`), then read the file back.
-    private func saveDetails(_ change: EngineConfigChange) async -> Bool {
+    /// The Persona and failover groups, a name, a type and Remove send through here, then read the file back; true when it was saved.
+    func saveDetails(_ change: EngineConfigChange, group: String) async -> Bool {
         let result = await saveToEngine(change)
         load()
-        problem = result.problem
+        problems = result.problem.map { [group: $0] } ?? [:]
         return result == .saved
     }
 
     /// A choice for the role being turned on: kept in the draft, and sent only when identity, provider and model are all there.
-    private func fillLead(_ changes: [RoleChange]) async -> RoleSave {
+    private func fillLead(_ changes: [RoleChange]) async {
         changes.forEach { leadDraft.apply($0) }
-        guard leadDraft.isComplete else { return .saved }
+        guard leadDraft.isComplete else { return }
         let result = await saveToEngine(.leadReviewer(leadDraft))
         if result == .saved {
             turningOnLead = false
             leadDraft = LeadReviewerDraft()
         }
         load()
-        problem = result.problem
-        return result
+        problems = result.problem.map { ["who": $0] } ?? [:]
+    }
+
+    /// A choice for the reviewer being added: kept in the draft, and sent whole only when it has a name, a type, an identity, an account and a model. Once the engine has written it the person
+    /// is on its own screen; when the engine refuses it (a name another reviewer has) the draft stays, with the engine's words.
+    func fillNew(_ change: (inout NewExtraReviewer) -> Void) async -> Bool {
+        guard var next = newReviewer else { return true }
+        change(&next)
+        newReviewer = next
+        guard let request = next.request else { return true }
+        let result = await saveToEngine(.addExtraReviewer(request))
+        load()
+        problems = result.problem.map { ["who": $0] } ?? [:]
+        if result == .saved {
+            // the engine gave it its key; its name is unique among the reviewers
+            let added = page?.rows.first { $0.name == request.name.trimmingCharacters(in: .whitespacesAndNewlines) }
+            newReviewer = nil
+            go(added.map { SettingsPlace(.roles, path: [$0.slot.name]) } ?? SettingsPlace(.roles))
+        }
+        return result == .saved
     }
 
     private func setLeadSwitch(on: Bool, row: RoleRow) {
         leadDraft = LeadReviewerDraft()
-        problem = nil
+        problems = [:]
         if on {
             turningOnLead = true
         } else if row.off {
             turningOnLead = false
         } else {
             turningOnLead = false
-            Task {
-                let result = await saveToEngine(.leadReviewer(nil))
-                load()
-                problem = result.problem
+            Task { _ = await saveDetails(.leadReviewer(nil), group: "who") }
+        }
+    }
+
+    /// Remove, once the alert said what it does: the other reviewers stay as they were and the window goes back to Roles.
+    private func remove() {
+        guard let change = role?.removal else { return }
+        Task { if await saveDetails(change, group: "remove") { go(SettingsPlace(.roles)) } }
+    }
+
+    /// Add a reviewer: the screen of a reviewer that is not in the file yet.
+    private func add() {
+        newReviewer = NewExtraReviewer()
+        problems = [:]
+        go(SettingsPlace(.roles, path: [RoleSlot.draftPlaceName]))
+    }
+
+    /// The first screen: whether the roles are set up, the roles of an epic and Add a reviewer.
+    @ViewBuilder private func first(_ page: RolesPage) -> some View {
+        let readiness = rolesReadiness(page)
+        let offer = ExtraReviewerOffer(canEdit: canEditExtras, page: page)
+        SettingsGroup(title: "") { RolesStatusCard(readiness: readiness, open: open) }
+        SettingsGroup(id: EpicRail.groupID, title: EpicRail.group, footer: page.rows.contains { $0.slot.isExtra } ? Copy.rolesRailFoot() : nil) {
+            EpicRail(page: page, readiness: readiness, icons: icons, open: open)
+            // only an engine that announces `extraReviewers` can write one
+            if offer.showsAdd {
+                SettingsTabRow(title: Copy.rolesAddReviewer(), detail: offer.addDetail()) {
+                    Button(action: add) { Label(Copy.rolesAddReviewer(), icon: .plus) }
+                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(offer.canAdd == false)
+                }
             }
         }
     }
 
-    /// The first screen: whether the roles are set up and the three roles of an epic.
-    @ViewBuilder private func first(_ page: RolesPage) -> some View {
-        let readiness = rolesReadiness(page)
-        SettingsGroup(title: "") { RolesStatusCard(readiness: readiness, open: open) }
-        SettingsGroup(id: EpicRail.groupID, title: EpicRail.group, footer: page.rows.contains { $0.slot.isExtra } ? Copy.rolesRailFoot() : nil) { EpicRail(page: page, readiness: readiness, icons: icons, open: open) }
-    }
-
-    private func detail(_ row: RoleRow, role: AgentRole, page: RolesPage) -> some View {
+    private func detail(_ row: RoleRow, role: RoleSlot, page: RolesPage) -> some View {
         // a Group and not a stack: the groups below are sections of the page's form
         Group {
             if row.hasSwitch {
@@ -154,173 +209,18 @@ struct RolesTabView: View {
                 RoleFlowStrip(current: row.slot, rows: page.rows, open: open)
             }
             Group {
-                SettingsGroup(id: "who", title: Copy.rolesGroupWho(), footer: identityFooter(row, page: page)) {
-                    SettingsTabRow(id: "identity", title: Copy.rolesIdentity(), detail: row.identityDetail(), first: true) {
-                        HStack(spacing: Tokens.Space.s8) {
-                            identityPicker(row, role: role, page: page)
-                            openIdentity(row)
-                        }
-                    }
-                    SettingsTabRow(id: "model", title: Copy.rolesModel(), detail: row.providerMissing ? Copy.rolesModelNotAccount() : Copy.rolesModelDetail()) {
-                        ModelPickerButton(
-                            provider: row.fields.provider, model: row.fields.model, effort: row.fields.effort,
-                            accounts: pickerAccounts(page: page, current: [row.fields.provider]), catalog: catalog
-                        ) { pick in
-                            switch pick {
-                            case .account(let account, let model):
-                                // the model belongs to the account's provider: written together, in one save
-                                let changes = (account != row.fields.provider ? [RoleChange.provider(account)] : []) + (model.map { [RoleChange.model($0)] } ?? [])
-                                if changes.isEmpty == false { Task { _ = await save(changes, role: role) } }
-                            case .effort(let level): Task { _ = await save(.effort(level.isEmpty ? nil : level), role: role) }
-                            case .none, .inherit: break
-                            }
-                        }
-                    }
-                    if let problem { ProblemLine(text: problem, size: 11).textSelection(.enabled).padding(.vertical, Tokens.Space.s8) }
-                }
-                SettingsGroup(id: "persona", title: Copy.rolesGroupPersona()) {
-                    SettingsTabRow(id: "persona-name", title: Copy.rolesPersonaName(), detail: Copy.rolesPersonaNameDetail(), first: true) {
-                        CommitField(label: Copy.rolesPersonaName(), text: row.fields.persona?.name ?? "", width: settingsSelectWidth, mono: false, prompt: Copy.rolesNone()) {
-                            await saveDetails(.persona(role: role, name: blankIsNil($0), prompt: row.fields.persona?.prompt))
-                        }
-                        .id(row.id)
-                    }
-                    SettingsStackedRow(id: "persona-prompt", title: Copy.rolesPersonaPrompt(), detail: Copy.rolesPersonaPromptDetail()) {
-                        CommitEditor(label: Copy.rolesPersonaPrompt(), text: row.fields.persona?.prompt ?? "", prompt: Copy.rolesNone()) {
-                            await saveDetails(.persona(role: role, name: row.fields.persona?.name, prompt: blankIsNil($0)))
-                        }
-                        .id(row.id)
-                    }
-                }
-                skills(row, role: role)
-                SettingsGroup(id: "when-it-runs-out-of-tokens", title: Copy.rolesGroupTokens()) {
-                    // the lead with no steps of its own runs the Reviewer's, which this screen shows as such; its own steps are what it declares
-                    let own = row.ownSteps ? row.steps : []
-                    let inherits = row.ownSteps == false && switchedOn.contains(role) == false
-                    let on = own.isEmpty == false || switchedOn.contains(role)
-                    if row.ownSteps == false {
-                        // "Same as Reviewer" on: no steps of its own; off: the steps below, and the first one written gives it its own
-                        SettingsTabRow(title: Copy.rolesSameAsReviewer(), detail: Copy.rolesTakesReviewerSteps(steps: row.steps.isEmpty ? Copy.rolesNone() : row.steps.map(\.text).joined(separator: ", ")), first: true) {
-                            Toggle(Copy.rolesSameAsReviewer(), isOn: Binding(get: { inherits }, set: { now in
-                                if now { switchedOn.remove(role) } else { switchedOn.insert(role) }
-                            })).labelsHidden().toggleStyle(.switch)
-                        }
-                    } else {
-                        SettingsTabRow(id: "switch-automatically", title: Copy.rolesSwitch(), detail: Copy.rolesSwitchDetail(), first: true) {
-                            Toggle(Copy.rolesSwitch(), isOn: Binding(get: { on }, set: { now in
-                                if now { switchedOn.insert(role) } else {
-                                    switchedOn.remove(role)
-                                    Task { _ = await saveDetails(.failover(role: role, first: nil, second: nil)) }
-                                }
-                            })).labelsHidden().toggleStyle(.switch)
-                        }
-                    }
-                    if on {
-                        stepRow(Copy.rolesTryFirst(), detail: Copy.rolesTryFirstDetail(), step: own.first, own: own, role: role, page: page, index: 0)
-                        stepRow(Copy.rolesThenTry(), detail: Copy.rolesOptional(), step: own.dropFirst().first, own: own, role: role, page: page, index: 1)
-                    }
-                    if own.count > 2 {
-                        Text(Copy.rolesMoreSteps(count: own.count - 2))
-                            .scaledFont(11).foregroundStyle(.secondary).padding(.vertical, Tokens.Space.s8)
-                    }
+                who(row, role: role, page: page)
+                // the reviewer being added has no persona, steps or skills until the engine has written it
+                if role != .draft {
+                    persona(row, role: role)
+                    skills(row)
+                    tokens(row, role: role, page: page)
+                    if row.slot.isExtra { removal(row) }
                 }
             }
             // while the lead reviewer is off the rest of its page is shown, dimmed and not usable
             .opacity(row.usable(turningOn: turningOnLead) ? 1 : 0.4).disabled(row.usable(turningOn: turningOnLead) == false)
         }
-    }
-
-    /// What the engine runs in each stage of the role, as the engine has it today: shown and not changeable yet (a later version of the engine reads
-    /// it from the config). `RolesReadinessTests` keeps `AgentRole.stages` equal to what `src/prompts` invokes.
-    @ViewBuilder private func skills(_ row: RoleRow, role: AgentRole) -> some View {
-        SettingsGroup(id: "skills", title: Copy.rolesGroupSkills(), footer: Copy.rolesSkillsFooter()) {
-            ForEach(role.stages()) { stage in
-                SettingsTabRow(
-                    id: stage.id, title: stage.title, detail: stage.detail,
-                    note: Copy.rolesRunsAs(invocation: skillInvocation(stage.skill, icon: row.fields.provider.flatMap { icons[$0] }))
-                ) {
-                    SkillValue(skill: stage.skill)
-                }
-            }
-        }
-    }
-
-    /// What is said under Identity where the person chooses it, not only on the first screen: that Author and Reviewer sign as one account, and why the
-    /// list of bots is empty (no registry, or one that does not read).
-    private func identityFooter(_ row: RoleRow, page: RolesPage) -> String? {
-        let shared = row.slot == .lead ? nil : page.sharedNote
-        let lines = [shared, page.bots.note].compactMap { $0 }
-        return lines.isEmpty ? nil : lines.joined(separator: "\n")
-    }
-
-    private func blankIsNil(_ text: String) -> String? {
-        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : text
-    }
-
-    /// A step of the role's failover: a provider and, optionally, a model. Then can be taken back to None; First needs a provider before anything is written.
-    private func stepRow(_ title: String, detail: String, step: FailoverStep?, own steps: [FailoverStep], role: AgentRole, page: RolesPage, index: Int) -> some View {
-        func write(_ own: FailoverStep?) {
-            let first = index == 0 ? own : steps.first
-            let second = index == 1 ? own : steps.dropFirst().first
-            Task { _ = await saveDetails(.failover(role: role, first: first, second: second)) }
-        }
-        return SettingsTabRow(title: title, detail: detail) {
-            ModelPickerButton(
-                provider: step?.provider, model: step?.model, effort: step?.effort, accounts: pickerAccounts(page: page, current: [step?.provider]), catalog: catalog,
-                effortFallback: (label: Copy.rolesAsTheRole(), detail: Copy.rolesAsTheRoleDetail()), allowsDefaultModel: true, noneTitle: index == 1 ? Copy.rolesNoSecondStep() : nil, placeholder: index == 0 ? Copy.rolesChoose() : Copy.rolesNone()
-            ) { pick in
-                switch pick {
-                case .account(let account, let model): write(FailoverStep(provider: account, model: model, effort: step?.effort))
-                case .none: write(nil)
-                case .inherit: break
-                case .effort(let level):
-                    // a level goes with a provider: with none yet there is nothing to write it on
-                    if let step { write(FailoverStep(provider: step.provider, model: step.model, effort: level.isEmpty ? nil : level)) }
-                }
-            }
-        }
-    }
-
-    /// The accounts the picker offers: the ones that can work now, and the one the role already names.
-    private func pickerAccounts(page: RolesPage, current: [String?]) -> [PickerAccount] {
-        let reply: HostProviders? = if case .reply(let reply) = providers.outcome { reply } else { nil }
-        return CarrierCore.pickerAccounts(reply, declared: page.accounts, icons: icons, current: current.compactMap { $0 })
-    }
-
-    /// The chevron of the Identity row: the identity's own screen, where it can sign and which roles sign as it; none while the role has no identity the registry knows.
-    @ViewBuilder private func openIdentity(_ row: RoleRow) -> some View {
-        if let key = row.identity.key {
-            Button { go(SettingsPlace(.identities, path: [key])) } label: { Glyph(.chevronRight, size: 13, bold: true) }
-                .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel(Copy.identitiesOpenIdentity()).help(Copy.identitiesOpenIdentity())
-        }
-    }
-
-    /// The bots of the registry and the person's own login; a profile that is no longer there stays, marked, and picking it again is a no-op.
-    private func identityPicker(_ row: RoleRow, role: AgentRole, page: RolesPage) -> some View {
-        let current: String
-        switch row.identity {
-        case .forge(let bot): current = "bot:" + bot
-        case .gh: current = "gh"
-        case .missing, .unset: current = "keep"
-        }
-        var values: [String] = [], items: [String] = []
-        if current == "keep" {
-            values.append("keep")
-            items.append(row.fields.profile.map { Copy.rolesMissingProfile(profile: $0) } ?? Copy.rolesNotSet())
-        }
-        values += page.bots.names.map { "bot:" + $0 }
-        items += page.bots.names
-        values.append("gh")
-        items.append(Copy.rolesIdentityGh())
-        let index = Binding<Int>(
-            get: { values.firstIndex(of: current) ?? 0 },
-            set: { next in
-                let choice = values[next]
-                if choice == "gh" { Task { _ = await save(.gh, role: role) } }
-                else if choice.hasPrefix("bot:") { Task { _ = await save(.bot(String(choice.dropFirst(4))), role: role) } }
-            }
-        )
-        return SelectMenu(items: items, selection: index).accessibilityLabel(Copy.rolesIdentity())
     }
 }
 

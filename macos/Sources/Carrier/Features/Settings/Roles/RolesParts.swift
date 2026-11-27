@@ -215,6 +215,7 @@ struct RoleHero: View {
                 HStack(spacing: Tokens.Space.s6) {
                     source
                     if let type = row.type { StatusChip(text: Copy.rolesExtraType(type: type), tint: .secondary) }
+                    if row.drafting { StatusChip(text: Copy.rolesNotSavedYet(), tint: .orange) }
                 }
             }
             Spacer(minLength: 8)

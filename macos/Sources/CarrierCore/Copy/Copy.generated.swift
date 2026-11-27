@@ -9562,6 +9562,85 @@ public enum Copy {
         String(localized: "rolesExtraReadOnly", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func rolesAddReviewer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesAddReviewer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesAddReviewerCan(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesAddReviewerCan \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesAddReviewerFull(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesAddReviewerFull", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesNewReviewer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNewReviewer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesNotSavedYet(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesNotSavedYet", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum RolesDraftNeeds: Sendable { case name; case type; case identity; case account; case model }
+    public static func rolesDraftNeeds(which: RolesDraftNeeds, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .name: return String(localized: "rolesDraftNeeds.name", bundle: bundle ?? carrierResources, locale: locale)
+        case .type: return String(localized: "rolesDraftNeeds.type", bundle: bundle ?? carrierResources, locale: locale)
+        case .identity: return String(localized: "rolesDraftNeeds.identity", bundle: bundle ?? carrierResources, locale: locale)
+        case .account: return String(localized: "rolesDraftNeeds.account", bundle: bundle ?? carrierResources, locale: locale)
+        case .model: return String(localized: "rolesDraftNeeds.model", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func rolesDraftHint(list: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesDraftHint \(list)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesExtraNameTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesExtraNameTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesExtraNameDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesExtraNameDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesExtraTypeTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesExtraTypeTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesExtraTypeDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesExtraTypeDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesRemoveTitle(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRemoveTitle \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesRemoveDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRemoveDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesRemoveButton(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRemoveButton", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesRemoveAlert(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRemoveAlert \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesRemoveMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRemoveMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesRemoveConfirm(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRemoveConfirm", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesRemoveCancel(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesRemoveCancel", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func rolesOwn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "rolesOwn", bundle: bundle ?? carrierResources, locale: locale)
     }

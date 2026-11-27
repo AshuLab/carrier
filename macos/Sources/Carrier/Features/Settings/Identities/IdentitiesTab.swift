@@ -16,6 +16,8 @@ struct IdentitiesTabView: View {
     /// the file and the registry as `load` read them; nil while the file does not read
     @State private var configData: Data?
     @State private var bots: ForgeBots?
+    /// `load` has read the files once: until then the page has nothing to say, not even that the engine is not configured
+    @State private var loaded = false
     private let doctor = AppHealth.doctor
 
     private var page: IdentitiesPage? {
@@ -30,7 +32,7 @@ struct IdentitiesTabView: View {
             if let page {
                 if let chosen { screen(chosen, page: page) } else { list(page) }
                 ReloadNote(ReloadStatus.shared)
-            } else {
+            } else if loaded {
                 Label(Copy.engineConfigUnreadable(), icon: .warningFilled)
                     .scaledFont(12).foregroundStyle(.orange)
             }
@@ -48,6 +50,7 @@ struct IdentitiesTabView: View {
     private func load() {
         configData = currentConfig()
         bots = forgeBots(registry: currentForgeRegistry())
+        loaded = true
     }
 
     // MARK: the list

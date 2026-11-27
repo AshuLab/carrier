@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-27
+
+Roles and Identities in Settings with extra reviewers you name, a Subagents button in the window header, eleven more themes, Send to sleep, and sessions that stop counting background processes as work.
+
 ### Added
 
 - Settings shows every role that runs on an epic, globally and for each repo: Roles lists the Author, the Reviewer, each extra reviewer by the name you gave it and the Lead reviewer, on a rail that draws the reviewers as one step in parallel.

@@ -47291,19 +47291,19 @@
         }
       }
     },
-    "rolesExtraReviewer %lld": {
+    "rolesExtraType %@": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reviewer %1$lld"
+            "value": "Type: %1$@"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Revisor %1$lld"
+            "value": "Tipo: %1$@"
           }
         }
       }

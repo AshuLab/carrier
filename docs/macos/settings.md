@@ -99,7 +99,7 @@ Gotchas:
 ### Roles
 
 What the person sees: [settings-carrier](settings-carrier.md#roles).
-`rolesPage`, `rolesReadiness`, `AgentRole.stages` (`CarrierCore/Settings/Roles/RolesPage.swift`, `RolesReadiness.swift`; `RolesPageTests`, `RolesReadinessTests`); Antigravity's models are `AgyModels` (`AgyModelsTests`); views untested.
+`rolesPage` (the extra reviewers are the entries of the `agents.extraReviewers` map, in its order by `jsonKeys`, `Support/OrderedJSONKeys.swift`), `rolesSearchEntries`, `rolesReadiness`, `AgentRole.stages` (`CarrierCore/Settings/Roles/RolesPage.swift`, `RolesReadiness.swift`; `RolesPageTests`, `RolesReadinessTests`, `SettingsIndexTests`); Antigravity's models are `AgyModels` (`AgyModelsTests`); views untested.
 
 ### Identities
 

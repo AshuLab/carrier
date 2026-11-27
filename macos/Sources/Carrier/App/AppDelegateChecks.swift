@@ -125,10 +125,11 @@ extension AppDelegate {
                     WindowController.shared.showSettings(place: SettingsPlace(.dictation, path: [screen.rawValue])); return WindowController.shared.settingsStatus
                 })
             }
-            // and the screen of each role of the Roles page
-            let roles: [(String, () -> String)] = AgentRole.allCases.map { role in
-                ("settings roles \(role.rawValue)", {
-                    WindowController.shared.showSettings(place: SettingsPlace(.roles, path: [role.rawValue])); return WindowController.shared.settingsStatus
+            // and the screen of each role of the Roles page, the extra reviewers of the file included (a fixture has two)
+            let extraKeys = (currentConfig().map { rolesSearchEntries(config: $0) } ?? []).map(\.rowID)
+            let roles: [(String, () -> String)] = (AgentRole.allCases.map(\.rawValue) + extraKeys).map { name in
+                ("settings roles \(name)", {
+                    WindowController.shared.showSettings(place: SettingsPlace(.roles, path: [name])); return WindowController.shared.settingsStatus
                 })
             }
             // and the screen of the first project and its actions, when the Carrier folder has one (a fixture does)

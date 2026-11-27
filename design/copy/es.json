@@ -2607,7 +2607,7 @@
   "rolesRailAsks": "↺ pide cambios, el autor responde",
   "rolesRailLeadOff": "El revisor líder está desactivado",
   "rolesRailPasses": "Cuando todos los revisores coinciden · hasta {rounds, plural, one {# ronda} other {# rondas}} con el autor",
-  "rolesExtraReviewer": "Revisor {position, number}",
+  "rolesExtraType": "Tipo: {type}",
   "rolesPurposeExtra": "Revisa el mismo commit, en paralelo",
   "rolesRailParallel": "En paralelo, sobre el mismo commit · basta un veredicto",
   "rolesRailFoot": "Cada revisor es un agente más en cada epic.",

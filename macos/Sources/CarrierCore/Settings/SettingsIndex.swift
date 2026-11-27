@@ -256,9 +256,8 @@ private struct IndexBuilder {
         case .roles:
             // the rows of a role's screen are the same for the three roles: the search opens the Author's, and the Lead reviewer's switch opens its own
             let role = [AgentRole.author.rawValue]
-            // the rows of the rail: the extra reviewers are listed whether or not the file has them, since the index does not read it
-            let railSlots: [RoleSlot] = [.author, .reviewer] + RoleSlot.extraPositions.map { .extra($0) } + [.lead]
-            var entries = given(.roles, "how-an-epic-runs", words("rolesRailGroup"), railSlots.map { ($0.name, $0.title(bundle: bundle, locale: locale), $0.purpose(bundle: bundle, locale: locale)) })
+            // the rows of the rail: the extra reviewers are not here, the index does not read the file (`rolesSearchEntries` lists them)
+            var entries = given(.roles, "how-an-epic-runs", words("rolesRailGroup"), AgentRole.allCases.map { (RoleSlot($0).name, $0.title(bundle: bundle, locale: locale), $0.purpose(bundle: bundle, locale: locale)) })
             entries += page(.roles, "", "", [("use-a-lead-reviewer", "rolesUseLead", "settingsIndexRolesUseALeadReviewerDetail")], path: [AgentRole.leadReviewer.rawValue])
             entries += page(.roles, "who", "rolesGroupWho", [("identity", "rolesIdentity", "settingsIndexRolesIdentityDetail"), ("model", "rolesModel", "settingsIndexRolesModelDetail")], path: role)
             entries += page(.roles, "persona", "rolesGroupPersona", [("persona-name", "rolesPersonaName", "rolesPersonaNameDetail"), ("persona-prompt", "rolesPersonaPrompt", "rolesPersonaPromptDetail")], path: role)

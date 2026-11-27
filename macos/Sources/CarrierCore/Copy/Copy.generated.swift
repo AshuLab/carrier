@@ -9526,8 +9526,8 @@ public enum Copy {
         String(localized: "rolesRailPasses \(rounds)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func rolesExtraReviewer(position: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "rolesExtraReviewer \(position)", bundle: bundle ?? carrierResources, locale: locale)
+    public static func rolesExtraType(type: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesExtraType \(type)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func rolesPurposeExtra(bundle: Bundle? = nil, locale: Locale = .current) -> String {

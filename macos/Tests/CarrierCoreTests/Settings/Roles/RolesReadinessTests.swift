@@ -152,20 +152,21 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Roles
     let json = #"""
     {"profiles": {"a": {"kind": "gh"}},
      "agents": {"author": {"profile": "a", "provider": "claude", "model": "m"}, "reviewer": {"profile": "a", "provider": "codex", "model": "m"},
-                "extraReviewers": [{"profile": "a", "provider": "codex", "model": "m"}, {"provider": "codex"}]}}
+                "extraReviewers": {"seguridad-api": {"type": "security", "name": "Seguridad API", "profile": "a", "provider": "codex", "model": "m"},
+                                   "usabilidad": {"type": "ux", "name": "Usabilidad", "provider": "codex"}}}}
     """#
     let found = try readiness(json)
-    #expect(found.tone == .attention && found.title == "One role needs attention" && found.fix == .extra(3))
-    #expect(found.problems.map(\.role) == [.extra(3), .extra(3)])
+    #expect(found.tone == .attention && found.title == "One role needs attention" && found.problems.first?.role == .extra(key: "usabilidad"))
+    #expect(found.problems.map(\.role) == [.extra(key: "usabilidad"), .extra(key: "usabilidad")])
     #expect(found.problems.map(\.text) == ["it has no identity yet.", "it has no model yet."])
-    #expect(found.notes.first == "Reviewer 3: it has no identity yet.")
+    #expect(found.notes.first == "Usabilidad: it has no identity yet.")
 }
 
 @Test func extraReviewersThatAreWholeAreSetUpAndCounted() throws {
     let json = #"""
     {"profiles": {"a": {"kind": "gh"}},
      "agents": {"author": {"profile": "a", "provider": "claude", "model": "m"}, "reviewer": {"profile": "a", "provider": "codex", "model": "m"},
-                "extraReviewers": [{"profile": "a", "provider": "codex", "model": "m"}]}}
+                "extraReviewers": {"usabilidad": {"type": "ux", "name": "Usabilidad", "profile": "a", "provider": "codex", "model": "m"}}}}
     """#
     let found = try readiness(json)
     #expect(found.tone == .ready && found.title == "3 roles are set up" && found.problems.isEmpty)

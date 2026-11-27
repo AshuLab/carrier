@@ -4,7 +4,7 @@ import { colorWanted, renderDashboard } from '../../dashboard/dashboard.ts';
 import { startInteractivePanel, type Controls } from '../../dashboard/interactive.ts';
 import { startPanel } from '../../dashboard/panel.ts';
 import { enginePlacesOf } from '../../../config/places.ts';
-import { connectControl, ControlRefused, ControlUnreachable, dismissEpic, type CarrierClient } from '../control-client.ts';
+import { connectControl, ControlRefused, ControlUnreachable, type CarrierClient } from '../control-client.ts';
 import { refusals } from './restart.ts';
 import { openUrl } from '../open-url.ts';
 import { attach, stagesOf } from './status.ts';
@@ -56,10 +56,14 @@ export function socketPanel(
     // An older Carrier would only answer "invalid request": the key is not offered.
     ...(client.hello.capabilities.includes('dismissEpic') && {
       dismiss: (repo: string, issue: number) =>
-        dismissEpic(client, repo, issue).catch((error) => {
-          if (error instanceof ControlUnreachable) lost();
-          return { ok: false as const, reason: 'Carrier does not answer' };
-        }),
+        client.request('dismissEpic', { repo, issue }).then(
+          () => ({ ok: true as const }),
+          (error) => {
+            if (error instanceof ControlRefused) return { ok: false as const, reason: (error.code === undefined ? undefined : refusals[error.code]?.(`${repo}#${issue}`, error.params)) ?? `Carrier refused: ${error.message}` };
+            if (error instanceof ControlUnreachable) lost();
+            return { ok: false as const, reason: 'Carrier does not answer' };
+          },
+        ),
     }),
     // The engine answers a resume once the epic has started again, up to 30 seconds later, and this connection gives up on a request after 5:
     // the resume goes on a connection of its own, so a slow answer cannot read as a Carrier that stopped answering.
@@ -127,7 +131,7 @@ export async function watchCommand(folder: string): Promise<number> {
         stop =
           stdout.isTTY && stdin.isTTY
             ? startInteractivePanel({ snapshot: panel.snapshot, out: stdout, stdin, controls: panel.controls, quit: 'leave' })
-            : startPanel(panel.snapshot, stdout, REFRESH_MS, (s, columns) => renderDashboard(s, { columns, color: colorWanted(), quit: 'leave', detail: panel.controls.detail }));
+            : startPanel(panel.snapshot, stdout, REFRESH_MS, (s, columns, rows) => renderDashboard(s, { columns, rows, color: colorWanted(), quit: 'leave', detail: panel.controls.detail }));
         let asking = false;
         timer = setInterval(() => {
           if (asking) return;

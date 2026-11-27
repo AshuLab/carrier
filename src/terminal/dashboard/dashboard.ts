@@ -13,7 +13,15 @@ export const colorWanted = (env: Record<string, string | undefined> = process.en
 
 // eslint-disable-next-line no-control-regex
 const ansi = /\x1b\[[0-9;]*m/g;
-export const visibleLength = (text: string) => text.replace(ansi, '').length;
+/** Columns a character takes: two for emoji and East Asian wide characters (common in issue titles), none for joiners and combining marks, one for the rest. */
+function columnsOf(point: number): number {
+  if ((point >= 0x300 && point <= 0x36f) || (point >= 0x200b && point <= 0x200f) || point === 0xfe0f) return 0;
+  const wide =
+    (point >= 0x1100 && point <= 0x115f) || (point >= 0x2e80 && point <= 0xa4cf) || (point >= 0xac00 && point <= 0xd7a3) || (point >= 0xf900 && point <= 0xfaff) ||
+    (point >= 0xfe30 && point <= 0xfe6f) || (point >= 0xff00 && point <= 0xff60) || (point >= 0xffe0 && point <= 0xffe6) || (point >= 0x1f300 && point <= 0x1faff) || (point >= 0x20000 && point <= 0x3fffd);
+  return wide ? 2 : 1;
+}
+export const visibleLength = (text: string) => [...text.replace(ansi, '')].reduce((sum, ch) => sum + columnsOf(ch.codePointAt(0)!), 0);
 
 /** Cuts a styled line to `columns` visible characters (a wrapped line would break the cursor-up count of the redraw). */
 export function fit(line: string, columns: number): string {
@@ -26,9 +34,13 @@ export function fit(line: string, columns: number): string {
       out += part;
       open = part !== '\x1b[0m';
     } else {
-      const room = columns - shown;
-      out += part.slice(0, Math.max(0, room));
-      shown += Math.min(part.length, Math.max(0, room));
+      // By code point, so a surrogate pair is never cut in two.
+      for (const ch of part) {
+        const size = columnsOf(ch.codePointAt(0)!);
+        if (shown + size > columns) break;
+        out += ch;
+        shown += size;
+      }
     }
   }
   return open ? `${out}\x1b[0m` : out;
@@ -77,9 +89,10 @@ export type DashboardOptions = {
  * With `ui` (the panel takes keys) an unselected running card is two lines and the closed epics are one section that starts folded;
  * without it (`carrier status`, a pipe) every card is whole and the closed ones are listed.
  */
-export function renderDashboard(s: PanelSnapshot, { columns = 80, rows, color = true, ui, dismiss = false, resume = false, logLines = [], activity, detail, quit = 'stop' }: DashboardOptions = {}): string[] {
+export function renderDashboard(s: PanelSnapshot, { columns = 80, rows: rowsGiven, color = true, ui, dismiss = false, resume = false, logLines = [], activity, detail, quit = 'stop' }: DashboardOptions = {}): string[] {
   const paint = (text: string, ...styles: Style[]) => (color && styles.length > 0 ? `\x1b[${styles.map((x) => codes[x]).join(';')}m${text}\x1b[0m` : text);
   const width = Math.min(Math.max(columns, 50), 80) - 2;
+  const height = rowsGiven !== undefined && rowsGiven > 0 ? rowsGiven : undefined;
   const ago = (at: number | null) => (at === null ? 'a while' : `${formatDuration(Math.max(0, s.now - at))} ago`);
 
   const running = s.epics.filter((e) => e.status === 'running');
@@ -168,9 +181,13 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, rows, color = 
    */
   const screen = (focus: [number, number] | 'end' | null, pinned: number) => {
     const foot = footer();
-    const top = lines.slice(0, pinned);
     const body = lines.slice(pinned);
-    const available = rows === undefined ? Infinity : Math.max(3, rows - 1 - top.length - foot.length); // below about twelve rows the screen gives up the last row before the window
+    // The rows left for everything above the foot. A height of 0 is a terminal that does not know its size: drawn whole.
+    const room0 = height === undefined ? Infinity : height - 1 - foot.length;
+    // Too short for the header and three body lines, the header gives up its lines (all but the title) before the window or the foot does.
+    const keep = lines.slice(0, pinned).length + body.length <= room0 || room0 - pinned >= 3 ? pinned : Math.max(1, Math.min(pinned, room0 - 3));
+    const top = lines.slice(0, keep);
+    const available = height === undefined ? Infinity : Math.max(3, room0 - top.length);
     if (body.length <= available) return [...top, ...body, ...foot].map((line) => fit(line, width + 2));
     const [first, last] = focus === 'end' ? [body.length - 1, body.length - 1] : (focus ?? [pinned, pinned]).map((i) => i - pinned);
     // How many body lines fit when the window starts at `start`: one less for each "more" line it needs.
@@ -194,9 +211,9 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, rows, color = 
     const below = body.length - (start + shown.length);
     return [
       ...top,
-      ...(start > 0 ? [`   ${paint(`↑ ${start} more lines`, 'dim')}`] : []),
+      ...(start > 0 ? [`   ${paint(`↑ ${start} more line${start === 1 ? '' : 's'}`, 'dim')}`] : []),
       ...shown,
-      ...(below > 0 ? [`   ${paint(`↓ ${below} more lines`, 'dim')}`] : []),
+      ...(below > 0 ? [`   ${paint(`↓ ${below} more line${below === 1 ? '' : 's'}`, 'dim')}`] : []),
       ...foot,
     ].map((line) => fit(line, width + 2));
   };
@@ -204,7 +221,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, rows, color = 
   if (ui?.mode === 'help') {
     lines.length = 0;
     section('KEYS');
-    const keys = [['↑ ↓ j k', 'select an epic'], ['enter', 'open its PR (or issue) in the browser'], ['l', 'agent output of the selected epic'], ['c', 'check GitHub now'], ['p', 'pause or unpause taking new epics'], ['f', 'show or hide the closed epics (merged, cancelled)'], ['← →', 'fold or open CLOSED when selected (enter does too)'], ...(dismiss ? [['d', 'dismiss the selected closed epic: hide it for good']] : []), ...(resume ? [['r', 'resume the selected stopped epic (asks first; same agents, from ship)']] : []), ['?', 'this help'], ['esc', 'back'], ['q', quit === 'stop' ? 'stop Carrier (same as Ctrl+C)' : 'leave (Carrier keeps running)']];
+    const keys = [['↑ ↓ j k', 'select an epic'], ['enter', 'open its PR (or issue) in the browser'], ['l', 'agent output of the selected epic'], ...(resume ? [['r', 'resume the selected stopped epic (asks first)']] : []), ...(dismiss ? [['d', 'dismiss the selected closed epic for good']] : []), ['c', 'check GitHub now'], ['p', 'pause or unpause taking new epics'], ['f', 'show or hide the closed epics'], ['← →', 'fold or open CLOSED (enter does too)'], ['?', 'this help'], ['esc', 'back'], ['q', quit === 'stop' ? 'stop Carrier (same as Ctrl+C)' : 'leave (Carrier keeps running)']];
     for (const [key, what] of keys) add(`   ${paint(key!.padEnd(9), 'bold', 'cyan')} ${what}`);
     return screen(null, 0);
   }

@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
-import { initialUi, itemsOf, onKey, settle, type Key, type UiState } from './ui-state.ts';
+import { confirmFor, initialUi, itemsOf, onKey, settle, type Key, type UiState } from './ui-state.ts';
 
 const now = 1_000_000;
 const epic = (over: Partial<PanelEpic> = {}): PanelEpic => ({
@@ -215,7 +215,9 @@ test('any other key withdraws the first r, and the key still does what it does',
 });
 
 test('r does nothing without the control, and on a row that is not stopped it says what can be resumed', () => {
-  expect(R(stopped, snap(), {})).toEqual({ ui: stopped });
+  const old = R(stopped, snap(), {});
+  expect(old.action).toBeUndefined();
+  expect(old.ui.toast?.text).toBe('Resume needs a newer Carrier · c checks GitHub now'); // not silence for the hand that learned r as check now
   const running = R({ ...initialUi, selected: 'A/a#1' });
   expect(running.action).toBeUndefined();
   expect(running.ui.toast?.text).toBe('Only a stopped epic (NEEDS YOU) can be resumed · c checks GitHub now');
@@ -228,8 +230,28 @@ test('a stopped row says whether it stopped on its quota, and settle drops a con
   expect(itemsOf(snap(), false).find((i) => i.key === 'A/a#2')).toMatchObject({ stopped: true });
   expect(itemsOf(snap(), false).find((i) => i.key === 'A/a#2')?.usage).toBeUndefined();
   expect(itemsOf(snap(), false).find((i) => i.key === 'A/a#1')?.stopped).toBeUndefined();
-  const asked = { ...stopped, confirm: 'A/a#2' };
+  const asked = { ...stopped, confirm: 'A/a#2', confirmUntil: now + 1000 };
   expect(settle(asked, snap(), now).confirm).toBe('A/a#2');
   expect(settle({ ...asked, selected: 'A/a#1' }, snap(), now).confirm).toBeUndefined(); // the selection left
   expect(settle(asked, snap({ epics: [epic()] }), now).confirm).toBeUndefined(); // it started again
+  expect(settle(asked, snap(), now + 1000).confirm).toBeUndefined(); // it waited too long
+});
+
+test('a first r goes stale: a second one long after only asks again', () => {
+  const asked = R(stopped).ui;
+  expect(asked.confirmUntil).toBe(now + confirmFor);
+  expect(onKey(asked, { name: 'r', sequence: 'r' }, snap(), now + confirmFor - 1, { canResume: true }).action).toEqual({ type: 'resume', repo: 'A/a', issue: 2 });
+  const late = onKey(asked, { name: 'r', sequence: 'r' }, snap(), now + confirmFor, { canResume: true });
+  expect(late.action).toBeUndefined();
+  expect(late.ui.confirmUntil).toBe(now + 2 * confirmFor);
+});
+
+test('a stop on usageLimitWakeRefused is not a stop on the quota', () => {
+  const s = snap({ epics: [epic({ issue: 2, status: 'needs_human', needsHumanCode: 'epic.stop.usageLimitWakeRefused', executionId: null })] });
+  expect(itemsOf(s, false).find((i) => i.key === 'A/a#2')).toMatchObject({ stopped: true });
+  expect(itemsOf(s, false).find((i) => i.key === 'A/a#2')?.usage).toBeUndefined();
+});
+
+test('settle folds CLOSED again when nothing is closed any more', () => {
+  expect(settle({ ...initialUi, closedOpen: true }, snap({ finished: [] }), now).closedOpen).toBe(false);
 });

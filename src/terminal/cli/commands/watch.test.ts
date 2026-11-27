@@ -185,7 +185,7 @@ test('dismiss is offered only by a Carrier that lists dismissEpic, and asks it f
 
 test('a dismiss the engine refuses answers with its words and does not call lost; a socket that stops answering does', async () => {
   const refused = dismissingPanel(['dismissEpic'], async () => { throw new ControlRefused('not closed', 'dismiss.notClosed'); });
-  expect(await refused.controls.dismiss!('A/a', 4)).toEqual({ ok: false, reason: 'not closed' });
+  expect(await refused.controls.dismiss!('A/a', 4)).toEqual({ ok: false, reason: 'A/a#4 is not closed: only a merged or cancelled epic can be dismissed.' });
   expect(refused.hooks.lost).not.toHaveBeenCalled();
   const gone = dismissingPanel(['dismissEpic'], async () => { throw new ControlUnreachable('no-answer'); });
   expect(await gone.controls.dismiss!('A/a', 4)).toMatchObject({ ok: false });

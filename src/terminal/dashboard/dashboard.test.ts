@@ -720,3 +720,31 @@ test('color is on unless NO_COLOR has any value or the terminal is dumb', () => 
   expect(colorWanted({ TERM: 'xterm-256color' })).toBe(true);
   expect(colorWanted({ TERM: 'dumb' })).toBe(false);
 });
+
+test('a terminal too short for the header gives up the header before the selected row and the keys, and a height of 0 is no height', () => {
+  const s = busy(null);
+  for (const rows of [9, 10, 11]) {
+    for (const selected of keysOf(s, false)) {
+      const lines = withKeys(s, { rows, ui: { selected } });
+      const name = selected.replace('AshuLab/', '').replace('#', ' #');
+      expect(lines.length, `${rows} rows, ${selected}`).toBeLessThanOrEqual(rows - 1);
+      expect(lines.join('\n'), `${rows} rows: ${selected} is in view`).toContain(name);
+      expect(lines.join('\n'), `${rows} rows: the keys stay`).toContain('q quit');
+    }
+  }
+  expect(withKeys(s, { rows: 0, ui: { selected: 'AshuLab/web#30' } })).toEqual(withKeys(s, { ui: { selected: 'AshuLab/web#30' } }));
+});
+
+test('a title with emoji or wide characters is measured and cut by columns, never inside a surrogate pair', () => {
+  expect(visibleLength('a😀b')).toBe(4);
+  expect(visibleLength('日本語')).toBe(6);
+  expect(fit('ab😀😀😀cd', 5)).toBe('ab😀');
+  expect(fit('ab😀😀😀cd', 3)).toBe('ab');
+});
+
+test('the help lists the keys that need a newer Carrier first, where a short screen does not cut them, and a singular line is not "lines"', () => {
+  const help = withKeys(busy(null), { rows: 12, resume: true, dismiss: true, ui: { mode: 'help' } }).join('\n');
+  expect(help).toContain('resume the selected stopped epic');
+  expect(help).toContain('dismiss the selected closed epic');
+  expect(help).not.toMatch(/\b1 more lines\b/);
+});

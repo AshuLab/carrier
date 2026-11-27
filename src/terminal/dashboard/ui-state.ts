@@ -37,7 +37,7 @@ export function itemsOf(s: PanelSnapshot, closedOpen: boolean): Item[] {
   return [
     ...running.map((e) => item(e, e.prUrl ?? e.issueUrl, e.executionId)),
     ...s.queue.slice(0, maxListed).map((q) => item(q, issueUrl(q.repo, q.issue), null)),
-    ...needsYou.map((e) => ({ ...item(e, e.prUrl ?? e.issueUrl, e.executionId), stopped: true as const, ...(e.needsHumanCode?.startsWith('epic.stop.usageLimit') && { usage: true as const }) })),
+    ...needsYou.map((e) => ({ ...item(e, e.prUrl ?? e.issueUrl, e.executionId), stopped: true as const, ...(e.needsHumanCode === 'epic.stop.usageLimit' && { usage: true as const }) })),
     ...s.done.map((d) => item(d, prUrl(d), d.executionId)),
     ...(closedCount(s) > 0 ? [{ key: closedKey, repo: '', issue: 0, url: '', executionId: null, closed: false, header: true } satisfies Item] : []),
     ...(closedOpen ? finishedSections(s).flatMap((x) => x.rows).map((d) => item(d, prUrl(d), d.executionId, true)) : []),
@@ -53,6 +53,8 @@ export type UiState = {
   closedOpen: boolean;
   /** `owner/name#issue` of the stopped epic whose resume waits for a second R: a request that spends credits asks once more. Absent: nothing waits. */
   confirm?: string;
+  /** When that second R stops counting: a panel left alone does not resume on a key pressed hours later. */
+  confirmUntil?: number;
 };
 
 export const initialUi: UiState = { selected: null, mode: 'dashboard', toast: null, closedOpen: false };
@@ -67,6 +69,8 @@ export type Action =
   | { type: 'quit' };
 
 export const toastFor = 3000;
+/** How long a first R waits for its second one. */
+export const confirmFor = 30_000;
 /** The engine answers a resume when the epic has started again, up to 30 seconds later: the toast that says it is under way stays that long. */
 export const resumeToastFor = 35_000;
 
@@ -79,7 +83,7 @@ export function onKey(ui: UiState, key: Key, s: PanelSnapshot, now: number, { ca
 
   // r twice resumes; any other key between them withdraws the first.
   if (name !== 'r' && ui.confirm !== undefined) {
-    const { confirm: _asked, ...rest } = ui;
+    const { confirm: _asked, confirmUntil: _until, ...rest } = ui;
     ui = rest;
   }
 
@@ -93,10 +97,10 @@ export function onKey(ui: UiState, key: Key, s: PanelSnapshot, now: number, { ca
   const at = items.findIndex((i) => i.key === ui.selected);
   const current = at === -1 ? undefined : items[at];
   if (name === 'r') {
-    if (!canResume) return { ui };
+    if (!canResume) return { ui: say('Resume needs a newer Carrier · c checks GitHub now') };
     if (!current?.stopped) return { ui: say('Only a stopped epic (NEEDS YOU) can be resumed · c checks GitHub now') };
-    if (ui.confirm !== current.key) return { ui: { ...ui, confirm: current.key } };
-    const { confirm: _asked, ...rest } = ui;
+    if (ui.confirm !== current.key || (ui.confirmUntil ?? 0) <= now) return { ui: { ...ui, confirm: current.key, confirmUntil: now + confirmFor } };
+    const { confirm: _asked, confirmUntil: _until, ...rest } = ui;
     return { ui: { ...rest, toast: { text: `Resuming ${current.key}…`, until: now + resumeToastFor } }, action: { type: 'resume', repo: current.repo, issue: current.issue } };
   }
   switch (name) {
@@ -143,12 +147,13 @@ export function settle(ui: UiState, s: PanelSnapshot, now: number): UiState {
   const current = items.find((i) => i.key === ui.selected);
   const gone = ui.mode === 'logs' && !current?.executionId; // logs of nothing
   // A resume that waits for its second R only waits on the row it was asked for, and only while that row is still stopped.
-  const { confirm: asked, ...rest } = ui;
+  const { confirm: asked, confirmUntil: until, ...rest } = ui;
   return {
     ...rest,
-    ...(asked !== undefined && current?.stopped && current.key === asked && { confirm: asked }),
+    ...(asked !== undefined && current?.stopped && current.key === asked && (until ?? 0) > now && { confirm: asked, confirmUntil: until }),
     selected: current ? ui.selected : (items[0]?.key ?? null), // something is always selected, so the keys always act on a visible row
     mode: gone ? 'dashboard' : ui.mode,
+    closedOpen: closedCount(s) > 0 && ui.closedOpen, // with nothing closed the section starts folded again for the next one
     toast: ui.toast && ui.toast.until > now ? ui.toast : null,
   };
 }

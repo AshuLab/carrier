@@ -80,4 +80,4 @@ Testing seams. The engine behaviour (stories 6 to 8) goes through `src/orchestra
 
 ## Out of scope
 
-What a requeue keeps or drops: the epic starts from ship with the rounds starting over, as it does today when the label goes back by hand; changing that is another decision. Resuming a cancelled or finished epic. Resuming from the menu bar, the sidebar or the Overview. A way to resume several epics at once. Telling the person what to fix (the words say what kind of failure it was, not how to repair it). Colouring the rest of the app by the attention colours, which is its own pending work.
+What a requeue keeps or drops: the epic starts from ship with the rounds starting over, as it does today when the label goes back by hand; changing that is another decision. Resuming a cancelled or finished epic. Resuming from the menu bar, the sidebar or the Overview. (The terminal panel resumes with `r`, after asking once more: see [the CLI](../cli.md).) A way to resume several epics at once. Telling the person what to fix (the words say what kind of failure it was, not how to repair it). Colouring the rest of the app by the attention colours, which is its own pending work.

@@ -18,6 +18,7 @@ type Flags = Partial<Record<(typeof flagRoles)[number], string>> & { extraReview
 // What each refusal code means for the person, and what to do next; `params` are the engine's.
 export const refusals: Record<string, (target: string, params?: TextParams) => string> = {
   'epic.unknown': (target) => `Carrier does not know ${target}. Use the owner/repo#issue that carrier status shows.`,
+  'dismiss.notClosed': (target) => `${target} is not closed: only a merged or cancelled epic can be dismissed.`,
   'resume.notStopped': (target) => `${target} is not stopped, so there is nothing to restart.`,
   'github.unavailable': () => 'GitHub did not answer, so nothing changed. Try again in a moment.',
   'resume.didNotRestart': () => 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.',

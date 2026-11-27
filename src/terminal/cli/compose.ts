@@ -252,7 +252,8 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
       controls.dismissEpic(repo, issue);
       return { ok: true } as const;
     } catch (error) {
-      if (error instanceof DismissRefused) return { ok: false, reason: error.reason } as const;
+      if (error instanceof DismissRefused) return { ok: false, reason: refusals[error.code]?.(`${repo}#${issue}`, error.params) ?? error.reason } as const;
+      createScopedLogger('cli').error('dismiss from the panel failed', error);
       throw error;
     }
   };
@@ -262,6 +263,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
       return { ok: true } as const;
     } catch (error) {
       if (error instanceof ResumeRefused) return { ok: false, reason: refusals[error.code]?.(`${repo}#${issue}`, error.params) ?? error.reason } as const;
+      createScopedLogger('cli').error('resume from the panel failed', error);
       throw error;
     }
   };
@@ -278,6 +280,6 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
         })
       // Not a terminal (a detached `carrier start` writes to start.log, and nobody watches it): a line per change, looked for every ten seconds, so a state that
       // lasts less than that does not show; a terminal still redraws every second.
-      : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs ?? (deps.panelOut.isTTY ? undefined : PLAIN_PANEL_MS), (s, columns) => renderDashboard(s, { columns, color: colorWanted(), detail }));
+      : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs ?? (deps.panelOut.isTTY ? undefined : PLAIN_PANEL_MS), (s, columns, rows) => renderDashboard(s, { columns, rows, color: colorWanted(), detail }));
   return { engine, db, close };
 }

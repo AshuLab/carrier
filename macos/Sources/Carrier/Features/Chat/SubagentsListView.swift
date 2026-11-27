@@ -2,32 +2,52 @@ import CarrierCore
 import CarrierUI
 import SwiftUI
 
-/// The list opened by the header's Subagents button: every subagent of the session as 30 pt rows, in the order the model gives,
-/// closing the list and opening that subagent's view when a row is tapped.
+/// The list opened by the header's Subagents button: running launches first and finished launches below, most recent first,
+/// each under a time bar on the session's timeline (except a lone running launch, which shows no bar above it), with nested
+/// subagents indented under their launcher with a guide. Every launch stays open and the list scrolls within the window.
 struct SubagentsListPopover: View {
     let list: SubagentsList
-    /// The time the timers read instead of the clock; a test sets it.
+    /// The time the timers and launch age labels read instead of the clock; a test sets it.
     var clock: Date?
+    /// Explicit height cap when passed by the toolbar or a test; otherwise bounded by `maxHeight` and `windowSize`.
+    var maxHeight: CGFloat?
     let select: (String) -> Void
     @State private var contentHeight: CGFloat = 0
+    @Environment(\.windowSize) private var windowSize
 
     static let width: CGFloat = 520
     static let maxHeight: CGFloat = 400
 
-    private var items: [Subagent] { list.allSubagents }
+    /// Maximum popover height that fits inside `windowHeight` without overflowing the window.
+    static func allowedHeight(windowHeight: CGFloat) -> CGFloat {
+        min(maxHeight, max(120, windowHeight - 120))
+    }
+
+    private var heightCap: CGFloat {
+        min(maxHeight ?? Self.maxHeight, Self.allowedHeight(windowHeight: windowSize.height))
+    }
 
     private var estimatedHeight: CGFloat {
-        let rows = CGFloat(items.count) * 30
-        let gaps = CGFloat(max(0, items.count - 1)) * Tokens.Space.s2
-        return rows + gaps + Tokens.Space.s8 * 2
+        let rows = CGFloat(list.allSubagents.count) * 30
+        let rowGaps = CGFloat(list.launches.reduce(0) { $0 + max(0, $1.totalCount - 1) }) * Tokens.Space.s2
+        let bars = CGFloat(list.launches.filter { list.showsBar(for: $0) }.count) * 22
+        let launchGaps = CGFloat(max(0, list.launches.count - 1)) * Tokens.Space.s10
+        return rows + rowGaps + bars + launchGaps + Tokens.Space.s8 * 2
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Tokens.Space.s2) {
-                ForEach(items) { subagent in
-                    SubagentsListRow(subagent: subagent, clock: clock) {
-                        select(subagent.id)
+            VStack(alignment: .leading, spacing: Tokens.Space.s10) {
+                ForEach(list.launches) { launch in
+                    VStack(alignment: .leading, spacing: Tokens.Space.s2) {
+                        if list.showsBar(for: launch) {
+                            LaunchTimeBar(launch: launch, sessionStart: list.sessionStartedAt, clock: clock)
+                        }
+                        ForEach(launch.displayRows) { row in
+                            SubagentsListRow(subagent: row.subagent, guides: row.guides, clock: clock) {
+                                select(row.id)
+                            }
+                        }
                     }
                 }
             }
@@ -36,15 +56,84 @@ struct SubagentsListPopover: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(width: Self.width)
-        .frame(height: min(contentHeight > 0 ? contentHeight : estimatedHeight, Self.maxHeight))
+        .frame(height: min(contentHeight > 0 ? contentHeight : estimatedHeight, heightCap))
         .accessibilityLabel(Copy.chatSubagentsListSpoken())
     }
 }
 
-/// One row of the Subagents list: 30 pt high with the shared line content, spinner while running, dimmed with no tick when finished,
+/// The time bar above a launch: spans when the launch ran on the session's timeline (open at the end while running)
+/// beside when it ended and its subagent count, updated each minute while the list stays open.
+struct LaunchTimeBar: View {
+    let launch: SubagentLaunch
+    let sessionStart: Int
+    /// Overrides the clock for deterministic tests.
+    var clock: Date?
+
+    private static let trackWidth: CGFloat = 160
+    private static let trackHeight: CGFloat = 5
+    private static let minSegmentWidth: CGFloat = 4
+
+    var body: some View {
+        TickingTimeline(every: 60) { context in
+            let now = Int((clock ?? context.date).timeIntervalSince1970 * 1000)
+            let span = launch.timelineSpan(sessionStart: sessionStart, now: now)
+            HStack(spacing: Tokens.Space.s10) {
+                track(span)
+                Text(launch.barLabel(now: now))
+                    .scaledFont(11.5, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .padding(.horizontal, Tokens.Space.s10)
+            .padding(.top, Tokens.Space.s4)
+            .padding(.bottom, Tokens.Space.s2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(launch.barSpoken(now: now))
+        }
+    }
+
+    private func track(_ span: LaunchTimelineSpan) -> some View {
+        let shape: AnyShape = span.isOpen
+            ? AnyShape(UnevenRoundedRectangle(topLeadingRadius: Tokens.Radius.hair, bottomLeadingRadius: Tokens.Radius.hair, bottomTrailingRadius: .zero, topTrailingRadius: .zero))
+            : AnyShape(Capsule())
+        let rawWidth = Self.trackWidth * (span.end - span.start)
+        let segWidth = max(Self.minSegmentWidth, rawWidth)
+        let offset = span.isOpen
+            ? min(Self.trackWidth - segWidth, Self.trackWidth * span.start)
+            : min(Self.trackWidth - segWidth, Self.trackWidth * span.start)
+        let fillWidth = span.isOpen ? max(Self.minSegmentWidth, Self.trackWidth - offset) : segWidth
+        return ZStack(alignment: .leading) {
+            shape.fill(Color.primary.opacity(0.10))
+            if span.isOpen {
+                UnevenRoundedRectangle(
+                    topLeadingRadius: Tokens.Radius.hair,
+                    bottomLeadingRadius: Tokens.Radius.hair,
+                    bottomTrailingRadius: .zero,
+                    topTrailingRadius: .zero
+                )
+                .fill(LinearGradient(colors: [Color.thought, Color.thought.opacity(0.45)], startPoint: .leading, endPoint: .trailing))
+                .frame(width: fillWidth, height: Self.trackHeight)
+                .offset(x: offset)
+            } else {
+                Capsule()
+                    .fill(Color.primary.opacity(0.35))
+                    .frame(width: fillWidth, height: Self.trackHeight)
+                    .offset(x: offset)
+            }
+        }
+        .frame(width: Self.trackWidth, height: Self.trackHeight)
+        .clipShape(shape)
+    }
+}
+
+/// One row of the Subagents list: 30 pt high with optional nesting guides and indent, spinner while running, dimmed with no tick when finished,
 /// a red dot (or state mark when states are told apart by shape) when failed, and dimmed saying Stopped when stopped.
 struct SubagentsListRow: View {
     let subagent: Subagent
+    var guides: [Bool] = []
     var clock: Date?
     let action: () -> Void
     @Environment(\.pieceTheme) private var theme
@@ -54,12 +143,17 @@ struct SubagentsListRow: View {
     }
 
     var body: some View {
-        HoverRow(action: action) { _ in
-            SubagentLine(subagent: subagent, clock: clock, showsChevron: true, dimmed: isDimmed) {
-                lead
+        HStack(spacing: Tokens.Space.none) {
+            ForEach(Array(guides.enumerated()), id: \.offset) { index, continues in
+                NestGuide(isBranch: index == guides.count - 1, continues: continues)
             }
+            HoverRow(action: action) { _ in
+                SubagentLine(subagent: subagent, clock: clock, showsChevron: true, dimmed: isDimmed) {
+                    lead
+                }
+            }
+            .accessibilityHint(Copy.chatSubagentOpensHint())
         }
-        .accessibilityHint(Copy.chatSubagentOpensHint())
     }
 
     @ViewBuilder private var lead: some View {
@@ -77,5 +171,35 @@ struct SubagentsListRow: View {
         case .stopped:
             Glyph(.stopFilled, size: 8).foregroundStyle(.secondary)
         }
+    }
+}
+
+/// One 22 × 30 pt tree-guide column aligned under the parent row's lead mark.
+private struct NestGuide: View {
+    let isBranch: Bool
+    let continues: Bool
+
+    private static let width: CGFloat = 22
+    private static let rowHeight: CGFloat = 30
+    private static let lineX: CGFloat = 18
+
+    var body: some View {
+        Canvas { context, size in
+            let stroke = Path { path in
+                if isBranch {
+                    let midY = size.height / 2
+                    path.move(to: CGPoint(x: Self.lineX, y: 0))
+                    path.addLine(to: CGPoint(x: Self.lineX, y: continues ? size.height : midY))
+                    path.move(to: CGPoint(x: Self.lineX, y: midY))
+                    path.addLine(to: CGPoint(x: size.width, y: midY))
+                } else if continues {
+                    path.move(to: CGPoint(x: Self.lineX, y: 0))
+                    path.addLine(to: CGPoint(x: Self.lineX, y: size.height))
+                }
+            }
+            context.stroke(stroke, with: .color(Color.primary.opacity(0.16)), lineWidth: 1)
+        }
+        .frame(width: Self.width, height: Self.rowHeight)
+        .accessibilityHidden(true)
     }
 }

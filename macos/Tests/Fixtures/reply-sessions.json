@@ -202,14 +202,14 @@
       "executionId": "6d3c7a21-8e4b-4c19-b0f2-5a9d1e3c7b84",
       "stage": "review",
       "role": "reviewer",
-      "reviewer": "reviewer-2",
+      "reviewer": "seguridad-api",
       "round": 1,
       "agent": {
         "harness": "claude",
         "model": "claude-sonnet-5-5",
         "provider": null
       },
-      "profile": "acme-reviewer-2",
+      "profile": "acme-seguridad-api",
       "status": "finished",
       "startedAt": 39100,
       "finishedAt": 44000,

@@ -99,6 +99,8 @@ public struct SessionRowContent: Equatable {
     /// has not read them). The row has a third line when it has either; with neither it has two.
     public var pullRequest: SessionPullRequest?
     public var diff: SessionDiff?
+    /// How many background processes the session has: the still mark at the right of the second line, none when it has none.
+    public var processes: Int
 
     public var hasThirdLine: Bool { pullRequest != nil || diff != nil }
 
@@ -110,6 +112,12 @@ public struct SessionRowContent: Equatable {
         providers = parts.providers ? row.providers : []
         pullRequest = parts.pullRequest ? row.pullRequest : nil
         diff = parts.diff ? row.diff : nil
+        processes = row.processes.count
+    }
+
+    /// "2 background processes" for VoiceOver; nil with none.
+    public func processesSpoken(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        processes > 0 ? Copy.sessionProcessesSpoken(count: processes, bundle: bundle, locale: locale) : nil
     }
 }
 

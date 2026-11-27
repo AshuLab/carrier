@@ -208,7 +208,7 @@ public final class FixtureServer {
             longChat = try JSONSerialization.jsonObject(with: JSONEncoder().encode(longChatEvents(rounds: 500))) as? [[String: Any]]
         }
         self.data = data
-        let names = ["sessions", "events", "epic", "files", "fileDiff", "availableRepos", "availableReposPaged", "resumeEpic", "resumeFromStage", "resumeReviewerOptions", "recoverEpic", "reload", "config"].map { "\"\($0)\"" }.joined(separator: ",")
+        let names = ["sessions", "events", "epic", "files", "fileDiff", "availableRepos", "availableReposPaged", "resumeEpic", "resumeFromStage", "resumeReviewerOptions", "recoverEpic", "reload", "config", "extraReviewers"].map { "\"\($0)\"" }.joined(separator: ",")
         hello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":\(getpid()),\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\(names)]}\n".utf8)
 
         // /tmp, not the default temp folder: a socket path holds 103 bytes and that folder takes about 70

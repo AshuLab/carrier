@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -165,12 +165,68 @@ test('an unknown command or flag exits 2 with the usage', () => {
   }
 });
 
-test.skipIf(!hasInitTools)('init without a terminal names the question a flag has to answer', () => {
-  const result = run('init', '--yes', '--out', join(dir, 'never.json')); // cwd is not a git repo: no repo to suggest
-  expect(result.status).toBe(1);
-  expect(result.stderr).toContain('Repos to watch');
-  expect(result.stderr).toContain('pass it as a flag');
+test('init --yes with no --repo exits 1 saying --repo, and a wrong flag is named before anything is looked at or written', () => {
+  home = join(dir, 'init-flag-home'); // no folder: a write would make one
+  for (const [args, flag] of [[['--yes', '--out', join(dir, 'never.json')], '--repo'], [['--repo', 'AshuLab/carrier', '--author-effort', 'turbo'], '--author-effort "turbo"'], [['--repo', 'nope'], '--repo "nope"'], [['--repo', 'A/b', '--reviewer-failover', 'codex:'], '--reviewer-failover "codex:"']] as const) {
+    const result = run('init', ...args);
+    expect([result.status, result.stderr]).toEqual([1, expect.stringContaining(flag)]);
+    expect(result.stdout).not.toContain('Looking at this Mac');
+    expect(existsSync(home)).toBe(false);
+  }
 });
+
+// Stand-ins for the CLIs `init` looks at, so these tests need no real tool: claude is signed in and its plugin list is unreadable (the doctor's skill check logs a warning), the rest answer a version.
+const stubs = join(dir, 'init-bin');
+mkdirSync(stubs);
+writeFileSync(
+  join(stubs, 'stub.js'),
+  `#!/usr/bin/env node
+const name = require('node:path').basename(process.argv[1]);
+const args = process.argv.slice(2).join(' ');
+if (name === 'claude' && args.startsWith('auth status')) process.stdout.write('{"loggedIn":true}');
+else if (name === 'claude' && args.startsWith('plugin list')) process.stdout.write('[{}]');
+else if (name === 'gh' && args.startsWith('api user')) process.stdout.write('someone\\n');
+else process.stdout.write('1.0.0\\n');
+`,
+  { mode: 0o755 },
+);
+for (const tool of ['claude', 'codex', 'git', 'gh']) symlinkSync(join(stubs, 'stub.js'), join(stubs, tool));
+const runInitWithStubs = (folder: string, ...args: string[]) =>
+  spawnSync(process.execPath, [main, 'init', '--repo', 'AshuLab/carrier', '--author-profile', 'gh', '--reviewer-profile', 'gh', '--author', 'claude:sonnet', '--reviewer', 'codex:gpt-test', ...args], {
+    cwd: dir,
+    encoding: 'utf8',
+    env: { ...process.env, CARRIER_HOME: folder, PATH: `${stubs}:${dirname(process.execPath)}:/usr/bin:/bin` },
+  });
+
+test('init --yes puts no JSON log line on the screen: the checks log to the Carrier folder instead', () => {
+  const folder = join(dir, 'init-logs');
+  const result = runInitWithStubs(folder, '--yes', '--out', join(dir, 'init-logs.json'));
+  const lines = `${result.stdout}\n${result.stderr}`.split('\n');
+  expect(lines.filter((line) => line.trimStart().startsWith('{'))).toEqual([]);
+  expect(result.stdout).toContain('This is what will be saved'); // it did run the checks, and printed what it chose before
+  expect(readFileSync(join(folder, 'engine', 'logs', 'orchestrator.log'), 'utf8')).toContain('could not read everywhere Claude Code looks for a skill');
+}, 30_000);
+
+test('init that stops before Save, on a flag the machine refuses or a tool it lacks, leaves no Carrier folder behind: the log starts with the checks', () => {
+  const refused = join(dir, 'init-refused');
+  const result = runInitWithStubs(refused, '--yes', '--out', join(dir, 'refused.json'), '--author-failover', 'nosuch');
+  expect([result.status, result.stderr]).toEqual([1, expect.stringContaining('--author-failover "nosuch"')]);
+  expect(existsSync(refused)).toBe(false);
+
+  const lacking = join(dir, 'init-lacking');
+  const bare = spawnSync(process.execPath, [main, 'init', '--repo', 'AshuLab/carrier', '--yes', '--out', join(dir, 'lacking.json')], { cwd: dir, encoding: 'utf8', env: { ...process.env, CARRIER_HOME: lacking, PATH: dirname(process.execPath) } });
+  expect([bare.status, bare.stderr]).toEqual([1, expect.stringContaining('Carrier needs these before it can run')]);
+  expect(existsSync(lacking)).toBe(false);
+}, 30_000);
+
+test('init with no terminal and no --yes on a file that is already there exits 1 and says to use --yes or --out', () => {
+  const folder = join(dir, 'init-there');
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, 'engine.json'), '{}');
+  const result = runInitWithStubs(folder);
+  expect([result.status, result.stderr]).toEqual([1, expect.stringContaining('already exists: pass --yes to replace it, or --out to write another file')]);
+  expect(readFileSync(join(folder, 'engine.json'), 'utf8')).toBe('{}');
+}, 30_000);
 
 test.skipIf(!hasInitTools)('init with --lead-reviewer flags forwards them and configures the lead reviewer', () => {
   const out = join(dir, 'init-lead.json');
@@ -194,6 +250,7 @@ test.skipIf(!hasInitTools)('init with --lead-reviewer flags forwards them and co
     profile: 'gh',
     provider: 'claude',
     model: 'opus',
+    effort: 'high',
     persona: { name: 'Architect', prompt: 'Be rigorous.' },
   });
 }, 30_000);
@@ -636,3 +693,13 @@ test('chat and chat-host take no --config, and a chat.json that is wrong stops c
     rmSync(folder, { recursive: true, force: true });
   }
 }, 30_000);
+
+test('init refuses --config, with and without --yes, writes nothing and says init writes with --out', () => {
+  home = join(dir, 'init-config-home'); // no folder: a write would make one
+  for (const args of [['init', '--config', join(dir, 'x.json')], ['init', '--config', join(dir, 'x.json'), '--yes']]) {
+    const result = run(...args);
+    expect([result.status, result.stderr]).toEqual([2, expect.stringContaining('carrier init takes no --config: it writes the config with --out')]);
+    expect(existsSync(join(dir, 'x.json'))).toBe(false);
+    expect(existsSync(home)).toBe(false);
+  }
+});

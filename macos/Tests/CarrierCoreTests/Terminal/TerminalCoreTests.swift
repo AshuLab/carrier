@@ -370,7 +370,7 @@ struct TerminalCoreTests {
         }
     }
 
-    @Test func allNineThemesMaintainHighContrastInLightAndDarkSchemes() {
+    @Test func allThemesMaintainHighContrastInLightAndDarkSchemes() {
         for theme in Theme.allCases {
             for scheme in ThemeScheme.allCases {
                 let profile = TerminalAppearanceProfile(

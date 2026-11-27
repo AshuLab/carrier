@@ -17,13 +17,16 @@
     "setTextGenerator"
   ],
   "engine": [
+    "addExtraReviewer",
     "editBehavior",
     "editFailover",
     "editPersona",
     "editRepoRole",
     "editRole",
+    "removeExtraReviewer",
     "setLeadReviewer",
     "setOrchestratorProfile",
+    "setRepoExtraReviewers",
     "setWatchedRepos"
   ]
 }

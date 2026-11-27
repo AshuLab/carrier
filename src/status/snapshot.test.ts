@@ -216,6 +216,23 @@ test('a restart is offered every account the epic declares, and no deadline come
   expect(options).toEqual({ names: ['claude', 'codex', 'spare'], author: 'claude', reviewer: 'codex' });
 });
 
+test('the options of the extra reviewers are given by key, and the stopped epic names the key of the one that stopped it', () => {
+  const providers = { claude: { harness: 'claude' as const }, codex: { harness: 'codex' as const } };
+  const withOptions = { ...severalConfig, providers, agents: { ...severalConfig.agents, extraReviewers: severalConfig.agents.extraReviewers!.map((extra, i) => ({ ...extra, option: ['codex', 'claude'][i] })) } } as never;
+  expect(optionsOf({ config: withOptions, authorOption: 'claude', reviewerOption: 'codex' })).toEqual({ names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', extraReviewers: { 'seguridad-api': 'codex', usabilidad: 'claude' } });
+  const { id } = add(1, 'needs_human', { stage: 'review', startedAt: 500, finishedAt: 900, config: withOptions });
+  run(id, 'b', 2_000, { reviewer: 'seguridad-api', status: 'failed', failureKind: 'usage_limit' });
+  expect(snapshot().epics[0]!.options).toMatchObject({ extraReviewers: { 'seguridad-api': 'codex', usabilidad: 'claude' }, failed: 'seguridad-api' });
+});
+
+test('an epic saved before the names still builds, giving its extra reviewers without key, name or type and no options by key', () => {
+  const saved = { name: 'acme/web', providers: { claude: { harness: 'claude' as const } }, agents: { author: agentOf('claude', 'opus'), reviewer: agentOf('codex', 'gpt'), extraReviewers: [agentOf('agy', 'flash'), agentOf('claude', 'sonnet')] } } as never;
+  add(1, 'running', { config: saved });
+  const [epic] = snapshot().epics;
+  expect(epic!.agents!.extraReviewers).toEqual([{ harness: 'agy', model: 'flash', provider: null }, { harness: 'claude', model: 'sonnet', provider: null }]);
+  expect(epic!.options).not.toHaveProperty('extraReviewers');
+});
+
 test('the snapshot reads the executions of an epic by index and never walks the whole table', () => {
   // a few dozen epics of every state, each with several executions: what a snapshot asks per epic must not grow with all of them
   for (let issue = 1; issue <= 30; issue++) {
@@ -241,7 +258,7 @@ test('the execution the snapshot names for an epic is the newest of the author o
     db.insert(executions).values({ executionId, epicId: id, stage: 'review', status: 'finished', resultPath: '/r.json', startedAt, ...extra }).run();
   run('ship', 1_000, { stage: 'ship' });
   run('main', 2_000, { reviewer: 'reviewer' });
-  run('extra', 3_000, { reviewer: 'reviewer-2' }); // the newest, of another slot
+  run('extra', 3_000, { reviewer: 'seguridad-api' }); // the newest, of another slot
   run('lead', 4_000, { reviewer: 'lead' });
   expect(snapshot().epics[0]).toMatchObject({ issue: 1, executionId: 'main' });
 
@@ -251,16 +268,16 @@ test('the execution the snapshot names for an epic is the newest of the author o
 
 test('the session of a running extra reviewer reads its agent from the epic\'s saved configuration', () => {
   const agent = { profile: 'p', harness: 'claude' as const, model: 'opus' };
-  const config = { name: 'acme/web', agents: { author: agent, reviewer: { ...agent, harness: 'codex' as const, model: 'gpt' }, extraReviewers: [{ ...agent, harness: 'agy' as const, model: 'flash' }] } } as NonNullable<(typeof epics.$inferInsert)['config']>;
+  const config = { name: 'acme/web', agents: { author: agent, reviewer: { ...agent, harness: 'codex' as const, model: 'gpt' }, extraReviewers: [{ ...agent, key: 'seguridad-api', name: 'Seguridad API', type: 'security', harness: 'agy' as const, model: 'flash' }] } } as NonNullable<(typeof epics.$inferInsert)['config']>;
   const { id } = add(1, 'running', { stage: 'review', config });
-  db.insert(executions).values({ executionId: 'x', epicId: id, stage: 'review', reviewer: 'reviewer-2', status: 'running', resultPath: '/r.json', startedAt: 1_000 }).run();
+  db.insert(executions).values({ executionId: 'x', epicId: id, stage: 'review', reviewer: 'seguridad-api', status: 'running', resultPath: '/r.json', startedAt: 1_000 }).run();
   expect(snapshot().sessions).toMatchObject([{ executionId: 'x', stage: 'review', harness: 'agy', model: 'flash' }]);
 });
 
 // --- a round of several reviewers, and a session for each running execution of an epic ---
 
 const agentOf = (harness: 'claude' | 'codex' | 'agy', model: string) => ({ profile: `${harness}-p`, harness, model });
-const severalConfig = { name: 'acme/web', agents: { author: agentOf('claude', 'opus'), reviewer: agentOf('codex', 'gpt'), extraReviewers: [agentOf('agy', 'flash'), { ...agentOf('claude', 'sonnet'), provider: 'ollama' as const }] } } as unknown as NonNullable<(typeof epics.$inferInsert)['config']>;
+const severalConfig = { name: 'acme/web', agents: { author: agentOf('claude', 'opus'), reviewer: agentOf('codex', 'gpt'), extraReviewers: [{ ...agentOf('agy', 'flash'), key: 'seguridad-api', name: 'Seguridad API', type: 'security' }, { ...agentOf('claude', 'sonnet'), key: 'usabilidad', name: 'Usabilidad', type: 'ux', provider: 'ollama' as const }] } } as unknown as NonNullable<(typeof epics.$inferInsert)['config']>;
 const run = (epicId: number, executionId: string, startedAt: number, extra: Partial<typeof executions.$inferInsert> = {}) =>
   db.insert(executions).values({ executionId, epicId, stage: 'review', status: 'finished', resultPath: '/r.json', startedAt, ...extra }).run();
 const verdict = (executionId: string, outcome: 'completed' | 'changes_requested' | 'needs_human') => db.insert(callerResults).values({ executionId, outcome, result: JSON.stringify({ outcome, blockers: [] }) }).run();
@@ -271,14 +288,14 @@ test('the snapshot lists a session for each running execution of an epic, with t
   const { id } = add(1, 'running', { stage: 'review', round: 1, startedAt: 500, config: severalConfig });
   run(id, 'author', 1_000, { stage: 'ship' });
   run(id, 'main', 2_000, { reviewer: 'reviewer', status: 'running', harness: 'codex', model: 'gpt' });
-  run(id, 'second', 2_100, { reviewer: 'reviewer-2', status: 'running', harness: 'claude', model: 'opus-failover' }); // a failover left the saved agent (agy, flash)
-  run(id, 'third', 2_200, { reviewer: 'reviewer-3', status: 'running' }); // no record of its own: the saved agent
-  run(id, 'done', 2_300, { reviewer: 'reviewer-2', status: 'finished', harness: 'agy', model: 'flash' });
+  run(id, 'second', 2_100, { reviewer: 'seguridad-api', status: 'running', harness: 'claude', model: 'opus-failover' }); // a failover left the saved agent (agy, flash)
+  run(id, 'third', 2_200, { reviewer: 'usabilidad', status: 'running' }); // no record of its own: the saved agent
+  run(id, 'done', 2_300, { reviewer: 'seguridad-api', status: 'finished', harness: 'agy', model: 'flash' });
 
   expect(snapshot().sessions).toEqual([
     { executionId: 'main', repo: 'acme/web', issue: 1, stage: 'review', round: 1, harness: 'codex', model: 'gpt', startedAt: 2_000, last: null, reviewer: 'reviewer' },
-    { executionId: 'second', repo: 'acme/web', issue: 1, stage: 'review', round: 1, harness: 'claude', model: 'opus-failover', startedAt: 2_100, last: null, reviewer: 'reviewer-2' },
-    { executionId: 'third', repo: 'acme/web', issue: 1, stage: 'review', round: 1, harness: 'claude', model: 'sonnet', startedAt: 2_200, last: null, reviewer: 'reviewer-3' },
+    { executionId: 'second', repo: 'acme/web', issue: 1, stage: 'review', round: 1, harness: 'claude', model: 'opus-failover', startedAt: 2_100, last: null, reviewer: 'seguridad-api' },
+    { executionId: 'third', repo: 'acme/web', issue: 1, stage: 'review', round: 1, harness: 'claude', model: 'sonnet', startedAt: 2_200, last: null, reviewer: 'usabilidad' },
   ]);
 });
 
@@ -293,24 +310,24 @@ test('a session of the author names no reviewer slot, and an epic with a single 
 
 test('an epic with several reviewers carries how many gave a verdict out of how many were configured, and why each other gave none, for its latest decided round', () => {
   const { id } = add(1, 'running', { stage: 'fix', round: 1, startedAt: 500, prHeadSha: 'H1', reviewedSha: 'H1', config: severalConfig });
-  for (const [slot, at] of [['reviewer', 1_000], ['reviewer-2', 1_100], ['reviewer-3', 1_200]] as const) run(id, slot, at, { reviewer: slot, round: 1, headSha: 'H1' });
+  for (const [slot, at] of [['reviewer', 1_000], ['seguridad-api', 1_100], ['usabilidad', 1_200]] as const) run(id, slot, at, { reviewer: slot, round: 1, headSha: 'H1' });
   verdict('reviewer', 'changes_requested');
-  verdict('reviewer-3', 'completed');
-  verdict('reviewer-2', 'needs_human');
-  none(id, 1, 'H1', 'reviewer-2', 'cannot verify the migration');
+  verdict('usabilidad', 'completed');
+  verdict('seguridad-api', 'needs_human');
+  none(id, 1, 'H1', 'seguridad-api', 'cannot verify the migration');
 
-  expect(snapshot().epics[0]).toMatchObject({ reviewers: { given: 2, of: 3, none: [{ slot: 'reviewer-2', why: 'cannot verify the migration' }] }, reviewedSha: 'H1' });
+  expect(snapshot().epics[0]).toMatchObject({ reviewers: { given: 2, of: 3, none: [{ slot: 'seguridad-api', why: 'cannot verify the migration' }] }, reviewedSha: 'H1' });
 });
 
 test('the count is of the latest round that was decided, not of one still waiting for a reviewer, and not of a head a moved pull request set aside', () => {
-  const { id } = add(1, 'running', { stage: 'review', round: 2, startedAt: 500, config: { ...severalConfig, agents: { ...severalConfig.agents, extraReviewers: [agentOf('agy', 'flash')] } } as never });
+  const { id } = add(1, 'running', { stage: 'review', round: 2, startedAt: 500, config: { ...severalConfig, agents: { ...severalConfig.agents, extraReviewers: [{ ...agentOf('agy', 'flash'), key: 'seguridad-api', name: 'Seguridad API', type: 'security' }] } } as never });
   run(id, 'a1', 1_000, { reviewer: 'reviewer', round: 1, headSha: 'H1' });
-  run(id, 'b1', 1_100, { reviewer: 'reviewer-2', round: 1, headSha: 'H1' });
+  run(id, 'b1', 1_100, { reviewer: 'seguridad-api', round: 1, headSha: 'H1' });
   verdict('a1', 'completed');
   verdict('b1', 'completed');
-  run(id, 'a2', 2_000, { reviewer: 'reviewer', round: 2, headSha: 'H2' }); // round 2 waits for reviewer-2
+  run(id, 'a2', 2_000, { reviewer: 'reviewer', round: 2, headSha: 'H2' }); // round 2 waits for seguridad-api
   verdict('a2', 'completed');
-  run(id, 'b2', 2_100, { reviewer: 'reviewer-2', round: 2, headSha: 'H2', status: 'running' });
+  run(id, 'b2', 2_100, { reviewer: 'seguridad-api', round: 2, headSha: 'H2', status: 'running' });
 
   expect(snapshot().epics[0]!.reviewers).toEqual({ given: 2, of: 2, none: [] }); // round 1's
 
@@ -334,17 +351,17 @@ test('a ready-for-test epic with fewer verdicts than reviewers carries the count
   const { id } = add(1, 'ready_for_test', { round: 1, startedAt: 500, finishedAt: 5_000, reviewedSha: 'H1', config: severalConfig });
   run(id, 'a', 1_000, { reviewer: 'reviewer', round: 1, headSha: 'H1' });
   verdict('a', 'completed');
-  none(id, 1, 'H1', 'reviewer-2', 'ran out of usage');
-  none(id, 1, 'H1', 'reviewer-3', 'the skill mine is not installed');
+  none(id, 1, 'H1', 'seguridad-api', 'ran out of usage');
+  none(id, 1, 'H1', 'usabilidad', 'the skill mine is not installed');
 
-  expect(snapshot().done[0]!.reviewers).toEqual({ given: 1, of: 3, none: [{ slot: 'reviewer-2', why: 'ran out of usage' }, { slot: 'reviewer-3', why: 'the skill mine is not installed' }] });
+  expect(snapshot().done[0]!.reviewers).toEqual({ given: 1, of: 3, none: [{ slot: 'seguridad-api', why: 'ran out of usage' }, { slot: 'usabilidad', why: 'the skill mine is not installed' }] });
 });
 
 test('the agents of the extra reviewers come with the epic, and an epic with none has no such field', () => {
   add(1, 'running', { config: severalConfig });
   add(2, 'running', { config: { name: 'acme/web', agents: { author: agentOf('claude', 'opus'), reviewer: agentOf('codex', 'gpt') } } as never });
   const [several, single] = snapshot().epics;
-  expect(several!.agents).toEqual({ author: { harness: 'claude', model: 'opus', provider: null }, reviewer: { harness: 'codex', model: 'gpt', provider: null }, extraReviewers: [{ harness: 'agy', model: 'flash', provider: null }, { harness: 'claude', model: 'sonnet', provider: 'ollama' }] });
+  expect(several!.agents).toEqual({ author: { harness: 'claude', model: 'opus', provider: null }, reviewer: { harness: 'codex', model: 'gpt', provider: null }, extraReviewers: [{ harness: 'agy', model: 'flash', provider: null, key: 'seguridad-api', name: 'Seguridad API', type: 'security' }, { harness: 'claude', model: 'sonnet', provider: 'ollama', key: 'usabilidad', name: 'Usabilidad', type: 'ux' }] });
   expect(single!.agents).toEqual({ author: { harness: 'claude', model: 'opus', provider: null }, reviewer: { harness: 'codex', model: 'gpt', provider: null } });
 });
 

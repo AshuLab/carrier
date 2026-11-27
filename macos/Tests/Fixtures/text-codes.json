@@ -391,6 +391,7 @@
     "params": {
       "cause": "serverError",
       "detail": "example",
+      "flag": "example",
       "issue": "example",
       "option": "example",
       "ranOut": "example",
@@ -629,6 +630,11 @@
   "resume.didNotRestart": {
     "params": {}
   },
+  "resume.extraReviewerUnknown": {
+    "params": {
+      "key": "example"
+    }
+  },
   "resume.extraRoundsNeedReviewLimit": {
     "params": {}
   },
@@ -648,6 +654,9 @@
     "params": {}
   },
   "resume.pullRequestNotOpen": {
+    "params": {}
+  },
+  "resume.reviewersWithoutKey": {
     "params": {}
   },
   "resume.roleUnknown": {

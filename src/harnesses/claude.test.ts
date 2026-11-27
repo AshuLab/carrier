@@ -56,6 +56,11 @@ test('a configDir sets CLAUDE_CONFIG_DIR; without one the inherited environment 
   expect(buildClaudeCommand(task, ctx).env).not.toHaveProperty('CLAUDE_CONFIG_DIR');
 });
 
+test('the run waits for its background work with no ceiling, unless the operator set one', () => {
+  expect(buildClaudeCommand(task, ctx).env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS).toBe('0');
+  expect(buildClaudeCommand(task, { ...ctx, baseEnv: { ...ctx.baseEnv, CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: '1800000' } }).env.CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS).toBe('1800000');
+});
+
 test('the GitHub token goes only in the child env, replacing an inherited one', () => {
   const command = buildClaudeCommand(task, ctx);
   expect(command.env).toMatchObject({ PATH: '/bin', HOME: '/h', GH_TOKEN: 'ghs_secret', GITHUB_TOKEN: 'ghs_secret', CARRIER_RESULT_PATH: task.resultPath });

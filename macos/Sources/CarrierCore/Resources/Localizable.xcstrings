@@ -2381,6 +2381,40 @@
         }
       }
     },
+    "archiveStopsMessage %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This stops %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto detiene %1$@"
+          }
+        }
+      }
+    },
+    "archiveStopsTitle %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archive “%1$@”?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Archivar «%1$@»?"
+          }
+        }
+      }
+    },
     "archiveTitle": {
       "extractionState": "manual",
       "localizations": {
@@ -6732,6 +6766,23 @@
         }
       }
     },
+    "chatPeekRunning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En ejecución"
+          }
+        }
+      }
+    },
     "chatPeekTurns": {
       "extractionState": "manual",
       "localizations": {
@@ -7323,6 +7374,196 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudo leer esta sesión"
+          }
+        }
+      }
+    },
+    "chatProcessesCollapsed": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapsed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contraído"
+          }
+        }
+      }
+    },
+    "chatProcessesExpanded": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expanded"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expandido"
+          }
+        }
+      }
+    },
+    "chatProcessesHintHide": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hides the processes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oculta los procesos"
+          }
+        }
+      }
+    },
+    "chatProcessesHintShow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows the processes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muestra los procesos"
+          }
+        }
+      }
+    },
+    "chatProcessesStopHelp %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "Stop the process"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "Stop all the processes"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "Detener el proceso"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "Detener todos los procesos"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "chatProcessesTitle %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg process still running"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg processes still running"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg proceso sigue en marcha"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg procesos siguen en marcha"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -10923,6 +11164,23 @@
         }
       }
     },
+    "choiceThemeAyu": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayu"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayu"
+          }
+        }
+      }
+    },
     "choiceThemeCarrier": {
       "extractionState": "manual",
       "localizations": {
@@ -10936,6 +11194,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carrier"
+          }
+        }
+      }
+    },
+    "choiceThemeCatppuccin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catppuccin"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catppuccin"
+          }
+        }
+      }
+    },
+    "choiceThemeDracula": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dracula"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dracula"
+          }
+        }
+      }
+    },
+    "choiceThemeEverforest": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everforest"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everforest"
           }
         }
       }
@@ -10974,6 +11283,23 @@
         }
       }
     },
+    "choiceThemeGruvbox": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruvbox"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruvbox"
+          }
+        }
+      }
+    },
     "choiceThemeLavender": {
       "extractionState": "manual",
       "localizations": {
@@ -11008,6 +11334,40 @@
         }
       }
     },
+    "choiceThemeMonokai": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokai"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokai"
+          }
+        }
+      }
+    },
+    "choiceThemeNord": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nord"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nord"
+          }
+        }
+      }
+    },
     "choiceThemeOcean": {
       "extractionState": "manual",
       "localizations": {
@@ -11021,6 +11381,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Océano"
+          }
+        }
+      }
+    },
+    "choiceThemeOneDark": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One Dark"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One Dark"
           }
         }
       }
@@ -11059,6 +11436,40 @@
         }
       }
     },
+    "choiceThemeRosePine": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rosé Pine"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rosé Pine"
+          }
+        }
+      }
+    },
+    "choiceThemeSolarized": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solarized"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solarized"
+          }
+        }
+      }
+    },
     "choiceThemeSunset": {
       "extractionState": "manual",
       "localizations": {
@@ -11072,6 +11483,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Atardecer"
+          }
+        }
+      }
+    },
+    "choiceThemeTokyoNight": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tokyo Night"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tokyo Night"
           }
         }
       }
@@ -34400,6 +34828,23 @@
         }
       }
     },
+    "noticesGalleryCaptionProcesses": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Background processes the agent left running"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Procesos en segundo plano que dejó el agente"
+          }
+        }
+      }
+    },
     "noticesGalleryCaptionQuestion": {
       "extractionState": "manual",
       "localizations": {
@@ -36953,6 +37398,23 @@
         }
       }
     },
+    "pieceState.atEnd": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At the end"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al final"
+          }
+        }
+      }
+    },
     "pieceState.bold": {
       "extractionState": "manual",
       "localizations": {
@@ -37255,6 +37717,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Iniciales"
+          }
+        }
+      }
+    },
+    "pieceState.inline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inline"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En línea"
           }
         }
       }
@@ -37650,6 +38129,23 @@
         }
       }
     },
+    "pieceState.withLeadingCell": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With a leading cell"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con una primera celda"
+          }
+        }
+      }
+    },
     "pieceState.withLink": {
       "extractionState": "manual",
       "localizations": {
@@ -37697,6 +38193,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trabajando"
+          }
+        }
+      }
+    },
+    "pieceThemes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Themes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temas"
+          }
+        }
+      }
+    },
+    "pieceThemesEarlier": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show earlier themes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar temas anteriores"
+          }
+        }
+      }
+    },
+    "pieceThemesMore": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show more themes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar más temas"
           }
         }
       }
@@ -49693,6 +50240,23 @@
         }
       }
     },
+    "sessionMenuSleep": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send to sleep"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mandar a dormir"
+          }
+        }
+      }
+    },
     "sessionMenuStop": {
       "extractionState": "manual",
       "localizations": {
@@ -50521,6 +51085,67 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pull request %1$@, abierto"
+          }
+        }
+      }
+    },
+    "sessionProcessesSpoken %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg background process"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg background processes"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg proceso en segundo plano"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg procesos en segundo plano"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -52392,13 +53017,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nine themes, each in light and dark"
+            "value": "Themes, each in light and dark"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nueve temas, cada uno en claro y oscuro"
+            "value": "Temas, cada uno en claro y oscuro"
           }
         }
       }
@@ -62555,7 +63180,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%#@runs@the %2$@ execution ran out of usage on option %3$@ · carrier restart %4$@#%5$@ --%6$@ <option> · it will not resume by itself: %8$@ · %7$@"
+            "value": "%#@runs@the %2$@ execution ran out of usage on option %3$@ · carrier restart %4$@#%5$@ %6$@ · it will not resume by itself: %8$@ · %7$@"
           },
           "substitutions": {
             "runs": {
@@ -62583,7 +63208,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%#@runs@la ejecución de %2$@ se quedó sin uso en la opción %3$@ · carrier restart %4$@#%5$@ --%6$@ <option> · no se reanudará solo: %8$@ · %7$@"
+            "value": "%#@runs@la ejecución de %2$@ se quedó sin uso en la opción %3$@ · carrier restart %4$@#%5$@ %6$@ · no se reanudará solo: %8$@ · %7$@"
           },
           "substitutions": {
             "runs": {
@@ -62616,7 +63241,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%#@runs@the provider answered the %2$@ execution on option %3$@ with a server error, not a usage limit · wait and resume the epic, or carrier restart %4$@#%5$@ --%6$@ <option> · %7$@ · it will not resume by itself: %8$@"
+            "value": "%#@runs@the provider answered the %2$@ execution on option %3$@ with a server error, not a usage limit · wait and resume the epic, or carrier restart %4$@#%5$@ %6$@ · %7$@ · it will not resume by itself: %8$@"
           },
           "substitutions": {
             "runs": {
@@ -62644,7 +63269,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%#@runs@el proveedor respondió a la ejecución de %2$@ en la opción %3$@ con un error de servidor, no con un límite de uso · espera y reanuda el epic, o carrier restart %4$@#%5$@ --%6$@ <option> · %7$@ · no se reanudará solo: %8$@"
+            "value": "%#@runs@el proveedor respondió a la ejecución de %2$@ en la opción %3$@ con un error de servidor, no con un límite de uso · espera y reanuda el epic, o carrier restart %4$@#%5$@ %6$@ · %7$@ · no se reanudará solo: %8$@"
           },
           "substitutions": {
             "runs": {
@@ -63747,6 +64372,23 @@
         }
       }
     },
+    "text.resume.extraReviewerUnknown %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The epic does not have an extra reviewer with the key %1$@. Name only the keys its configuration has."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El epic no tiene un revisor extra con la clave %1$@. Nombra solo las claves que tiene su configuración."
+          }
+        }
+      }
+    },
     "text.resume.extraRoundsNeedReviewLimit": {
       "extractionState": "manual",
       "localizations": {
@@ -63862,6 +64504,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "La pull request del epic ya no está abierta, así que no se cambió nada. Reinícialo desde ship, o reabre la pull request."
+          }
+        }
+      }
+    },
+    "text.resume.reviewersWithoutKey": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The epic was saved before its extra reviewers had names, so it cannot be restarted. Start it again from its issue."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El epic se guardó antes de que sus revisores extra tuvieran nombre, así que no se puede reiniciar. Empiézalo de nuevo desde su issue."
           }
         }
       }

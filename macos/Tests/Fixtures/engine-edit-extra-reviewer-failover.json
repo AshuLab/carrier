@@ -1,0 +1,45 @@
+{
+  "request": {
+    "cmd": "editFailover",
+    "role": {
+      "extraReviewer": "seguridad-api"
+    },
+    "first": {
+      "provider": "agy",
+      "model": "gemini",
+      "effort": "low"
+    },
+    "second": null
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "agents": {
+          "extraReviewers": {
+            "seguridad-api": {
+              "type": "security",
+              "name": "Seguridad API",
+              "profile": "author-bot",
+              "provider": "claude",
+              "model": "sonnet",
+              "effort": "high",
+              "persona": {
+                "name": "Sentinel",
+                "prompt": "Busca fallas de seguridad."
+              },
+              "failover": [
+                {
+                  "provider": "agy",
+                  "model": "gemini",
+                  "effort": "low"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "engine": "applied"
+    }
+  }
+}

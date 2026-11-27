@@ -27,6 +27,7 @@ test('ship prompt', () => {
     Apply the repo's own rules (its docs, agent instructions and conventions) to choose and evaluate tests, CI and blockers. Do not assume commands from other repos.
     Invoke /ship for epic #3 and tell it to worktree this epic, whatever mode the repo's solve.md has: the epic must live in its own git worktree. Leave the final integration PR open.
     Never merge the final PR: a person tests it and decides the merge.
+    Do not end your turn while a subagent or a background task of yours is still running: wait for it in the foreground. The run ends with your turn, and anything still running is stopped with it.
     The epic's design artifacts (spec, ADRs, glossary) must already be on the remote, on the epic branch or the base branch. Do not look for uncommitted files in other directories of this machine. If the epic refers to a spec or ADR that is not there, return needs_human naming what is missing.
     Before finishing, write exactly one JSON object to /r/exec-1.json. That path is also in the environment variable CARRIER_RESULT_PATH: write to "$CARRIER_RESULT_PATH" instead of retyping it, because a path with one segment missing is a result nobody reads. Repeat executionId, repo, epic and stage as given. Allowed outputs:
     \`\`\`json
@@ -266,12 +267,29 @@ test.each(['ship', 'review', 'fix'] as const)('the %s persona goes after the rol
 });
 
 test('the intro and the signature tell the slot of a review apart: a reviewer by its slot, the lead as the lead', () => {
-  const slotted = (reviewer: NonNullable<AgentTask['reviewer']>) => ({ ...task('review'), reviewer, sharedIdentity: true, persona: { name: 'Atlas' } });
+  const slotted = (reviewer: NonNullable<AgentTask['reviewer']>) => ({ ...task('review'), reviewer, ...(reviewer === 'seguridad-api' && { reviewerName: 'Seguridad API' }), sharedIdentity: true, persona: { name: 'Atlas' } });
   expect(buildPrompt({ ...task('review'), reviewer: 'reviewer' })).toBe(buildPrompt(task('review')));
-  expect(buildPrompt(slotted('reviewer-2')).split('\n')[0]).toContain('You are the reviewer-2 of the final integration PR');
-  expect(buildPrompt(slotted('reviewer-2'))).toContain('🤖 Reviewer [Atlas] via Carrier');
+  expect(buildPrompt(slotted('seguridad-api')).split('\n')[0]).toContain('You are the reviewer Seguridad API of the final integration PR'); // an extra reviewer by its name, not its key
+  expect(buildPrompt(slotted('seguridad-api'))).toContain('🤖 Reviewer [Atlas] via Carrier');
   expect(buildPrompt(slotted('lead')).split('\n')[0]).toContain('You are the lead reviewer of the final integration PR');
   expect(buildPrompt(slotted('lead'))).toContain('🤖 Lead reviewer [Atlas] via Carrier');
+});
+
+test('an extra reviewer signs with its persona name, else with its own name; the author, reviewer and lead keep their persona name or none', () => {
+  const extra = (persona?: AgentTask['persona']) => buildPrompt({ ...task('review'), reviewer: 'seguridad-api', reviewerName: 'Seguridad API', sharedIdentity: true, ...(persona && { persona }) });
+  expect(extra({ name: 'Atlas' })).toContain('🤖 Reviewer [Atlas] via Carrier');
+  expect(extra({ name: 'Atlas' })).not.toContain('[Seguridad API]');
+  expect(extra()).toContain('🤖 Reviewer [Seguridad API] via Carrier');
+  expect(extra({ prompt: 'Only a prompt.' })).toContain('🤖 Reviewer [Seguridad API] via Carrier');
+  expect(extra()).not.toContain('Your name is'); // the sentence that tells it its name stays the persona's alone
+  expect(extra({ name: 'Atlas' })).toContain('Your name is Atlas.');
+  const base = { sharedIdentity: true, reviewerName: undefined };
+  expect(buildPrompt({ ...task('ship'), ...base })).toContain('🤖 Author via Carrier');
+  expect(buildPrompt({ ...task('review'), ...base })).toContain('🤖 Reviewer via Carrier');
+  expect(buildPrompt({ ...leadTask(), ...base })).toContain('🤖 Lead reviewer via Carrier');
+  expect(buildPrompt({ ...task('ship'), ...base, persona: { name: 'Ada' } })).toContain('🤖 Author [Ada] via Carrier');
+  expect(buildPrompt({ ...task('review'), ...base, persona: { name: 'Ada' } })).toContain('🤖 Reviewer [Ada] via Carrier');
+  expect(buildPrompt({ ...leadTask(), ...base, persona: { name: 'Ada' } })).toContain('🤖 Lead reviewer [Ada] via Carrier');
 });
 
 test('signatureOf names the role and the persona, and leaves no brackets without a name', () => {
@@ -303,6 +321,7 @@ test('a configured ship skill is invoked and only the contract sentences are sai
     [
       "Invoke /build for epic #3. The epic must live in its own git worktree, and the body of the final integration PR must close the epic (Closes #3). Leave the final integration PR open.",
       "Never merge the final PR: a person tests it and decides the merge.",
+      "Do not end your turn while a subagent or a background task of yours is still running: wait for it in the foreground. The run ends with your turn, and anything still running is stopped with it.",
     ]
   `);
   expect(buildPrompt(withSkills(task('ship', {}, 'codex'), named))).toContain('Invoke $build for epic #3.');
@@ -352,32 +371,32 @@ test('the Solve-only sentences of ship are said only with the default ship skill
 });
 
 test('with several reviewers the fix prompt shows each finding under its reviewer and the review prompt names its slot and says others publish too', () => {
-  const fix = buildPrompt(task('fix', { round: 1, blockers: [{ id: 'B1', title: 'one', reviewer: 'reviewer' }, { id: 'B1', title: 'two', reviewer: 'reviewer-2' }, { title: 'three', reviewer: 'reviewer-3' }] }));
-  expect(fix).toContain('- reviewer:B1: one\n- reviewer-2:B1: two\n- reviewer-3: three');
+  const fix = buildPrompt(task('fix', { round: 1, blockers: [{ id: 'B1', title: 'one', reviewer: 'reviewer' }, { id: 'B1', title: 'two', reviewer: 'seguridad-api' }, { title: 'three', reviewer: 'usabilidad' }] }));
+  expect(fix).toContain('- reviewer:B1: one\n- seguridad-api:B1: two\n- usabilidad: three');
   expect(fix).toContain('contradict');
   expect(buildPrompt(task('fix', { round: 1, blockers: [{ id: 'B1', title: 'one' }] }))).not.toContain('contradict');
-  const review = buildPrompt({ ...task('review', { round: 1, severalReviewers: true }), reviewer: 'reviewer-2' });
-  expect(review).toContain('You are the reviewer-2 of the final integration PR');
+  const review = buildPrompt({ ...task('review', { round: 1, severalReviewers: true }), reviewer: 'seguridad-api', reviewerName: 'Seguridad API' });
+  expect(review).toContain('You are the reviewer Seguridad API of the final integration PR');
   expect(review).toContain('Other reviewers publish on this pull request too');
   expect(buildPrompt(task('review', { round: 1 }))).not.toContain('Other reviewers publish');
 });
 
 test('the fix of an epic with several reviewers tells the author that it decides when two reviewers contradict each other, and says so in its summary', () => {
-  expect(stageLines(task('fix', { round: 1, blockers: [{ id: 'B1', title: 'use a map', reviewer: 'reviewer' }, { id: 'B1', title: 'use a list', reviewer: 'reviewer-2' }, { title: 'no id', reviewer: 'reviewer-2' }] }))).toMatchInlineSnapshot(`
+  expect(stageLines(task('fix', { round: 1, blockers: [{ id: 'B1', title: 'use a map', reviewer: 'reviewer' }, { id: 'B1', title: 'use a list', reviewer: 'seguridad-api' }, { title: 'no id', reviewer: 'seguridad-api' }] }))).toMatchInlineSnapshot(`
     [
       "Invoke /code-resolve on PR #7, answering every finding of the last review and fixing what applies.",
       "Never merge the final PR. Leave the blockers open: the reviewer verifies them, you do not resolve them.",
       "Blockers of the last review:",
       "- reviewer:B1: use a map",
-      "- reviewer-2:B1: use a list",
-      "- reviewer-2: no id",
+      "- seguridad-api:B1: use a list",
+      "- seguridad-api: no id",
       "When the blockers of two reviewers contradict each other, you decide: say in your summary which one you did not follow and why, because the reviewers read your summary in their next round.",
     ]
   `);
 });
 
 test('the review of an epic with several reviewers tells the reviewer to judge only the blockers it is given by id and to leave the threads it did not open; one reviewer is told nothing of it', () => {
-  expect(stageLines({ ...task('review', { round: 2, severalReviewers: true, blockers: [{ id: 'B1', title: 'use a map' }, { title: 'no id' }] }), reviewer: 'reviewer-2' })).toMatchInlineSnapshot(`
+  expect(stageLines({ ...task('review', { round: 2, severalReviewers: true, blockers: [{ id: 'B1', title: 'use a map' }, { title: 'no id' }] }), reviewer: 'seguridad-api' })).toMatchInlineSnapshot(`
     [
       "Review PR #7, round 2. First confirm the PR head is aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; if it is not, return needs_human.",
       "Invoke /code-review against the epic's spec and tickets, checking that earlier findings were fixed and nothing regressed, then publish the findings with /code-post.",
@@ -398,7 +417,7 @@ test('the review of an epic with several reviewers tells the reviewer to judge o
 // --- the lead reviewer's prompt ---
 
 const leadTask = (context: Partial<AgentTask['context']> = {}, over: Partial<AgentTask> = {}): AgentTask => ({ ...task('lead', context), reviewer: 'lead', ...over });
-const summaries = [{ reviewer: 'reviewer' as const, summary: 'All the tickets are covered.' }, { reviewer: 'reviewer-2' as const, summary: 'The migration is reversible.' }];
+const summaries = [{ reviewer: 'reviewer' as const, summary: 'All the tickets are covered.' }, { reviewer: 'seguridad-api' as const, summary: 'The migration is reversible.' }];
 
 test('lead prompt', () => {
   expect(buildPrompt(leadTask({ round: 2, reviewerSummaries: summaries }))).toMatchInlineSnapshot(`
@@ -408,7 +427,7 @@ test('lead prompt', () => {
     Review PR #7 as the final reviewer: the reviewers of this epic agreed on it, and nobody reviews after you. First confirm the PR head is aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; if it is not, return needs_human.
     What the reviewers concluded, by reviewer:
     - reviewer: All the tickets are covered.
-    - reviewer-2: The migration is reversible.
+    - seguridad-api: The migration is reversible.
     Invoke /code-review against the epic's spec and tickets, taking what the reviewers concluded into account and checking that nothing regressed, then publish the findings with /code-post.
     When you find no blocker, give the pull request its formal approval with your own identity (gh pr review 7 --approve), and say in "approval" of the result whether you submitted it, with the link of the review when you have one.
     The approval is not required: when you cannot give it, return "approval" with "submitted" false and the epic goes on all the same.
@@ -489,7 +508,7 @@ test('the lead is told it is the final reviewer, is given the summaries of the r
   expect(lines[0]).toContain('as the final reviewer');
   expect(lines).toContain('What the reviewers concluded, by reviewer:');
   expect(lines).toContain('- reviewer: All the tickets are covered.');
-  expect(lines).toContain('- reviewer-2: The migration is reversible.');
+  expect(lines).toContain('- seguridad-api: The migration is reversible.');
   expect(lines.join('\n')).toContain('formal approval with your own identity');
   expect(lines.join('\n')).toContain('"approval"');
   expect(stageLines(leadTask()).join('\n')).not.toContain('What the reviewers concluded');

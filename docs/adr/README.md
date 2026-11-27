@@ -23,7 +23,8 @@ A status that names a later record means that record changed part or all of this
 
 - [0009](review/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md) - A review that leaves observations triggers one resolve pass by the author before the epic is ready for test (accepted)
 - [0047](review/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md) - A review is tied to the head it was given, and a moved head is reviewed again (accepted)
-- [0048](review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md) - A review round has several reviewers in parallel, and a lead reviewer closes it (accepted)
+- [0048](review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md) - A review round has several reviewers in parallel, and a lead reviewer closes it (accepted; the shape of `extraReviewers` is amended by [0057](review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md))
+- [0057](review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md) - An extra reviewer is an entry of a map with a key, a name and a type (proposed; amends [0048](review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md))
 
 ## agents
 
@@ -52,6 +53,7 @@ A status that names a later record means that record changed part or all of this
 - [0032](sessions/0032-a-session-changes-agent-by-starting-a-new-conversation-and-the-new-agent-reads-the-old-one-through-the-chat-mcp.md) - A session changes agent by starting a new conversation, and the new agent reads the old one through the chat MCP (accepted)
 - [0033](sessions/0033-an-agent-delegates-to-another-agent-through-child-sessions-and-every-delegation-asks-the-person.md) - An agent delegates to another agent through child sessions, and every delegation asks the person (accepted; amended by [0036](sessions/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md))
 - [0036](sessions/0036-a-session-delegates-in-every-mode-and-a-child-runs-at-its-parents-permission-level.md) - A session delegates in every mode, and a child runs at its parent's permission level (accepted)
+- [0056](sessions/0056-a-session-is-working-only-while-the-model-acts-and-a-background-process-does-not-hold-it.md) - A session is working only while the model acts, and a background process does not hold it (proposed)
 
 ## projects
 
@@ -88,7 +90,7 @@ A status that names a later record means that record changed part or all of this
 - [0007](app/0007-continue-in-terminal-through-a-validated-descriptor.md) - Continue in Terminal: the engine sends a descriptor, the app builds and launches the command (accepted; epic execution is superseded by [0028](app/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md))
 - [0027](app/0027-embedded-terminal-runs-in-process-with-ghosttykit.md) - The embedded terminal runs in-process with GhosttyKit and restores layout across launches (accepted; owner types and epic integration updated in [0028](app/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md))
 - [0028](app/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md) - Epic Continue in Terminal runs inside an ephemeral embedded Ghostty drawer (accepted)
-- [0056](app/0056-settings-splits-roles-from-identities-and-a-role-holds-everything-it-runs-with.md) - Settings splits roles from identities, and a role holds everything it runs with (proposed)
+- [0058](app/0058-settings-splits-roles-from-identities-and-a-role-holds-everything-it-runs-with.md) - Settings splits roles from identities, and a role holds everything it runs with (proposed)
 
 ## design
 

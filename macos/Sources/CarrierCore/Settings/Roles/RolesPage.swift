@@ -88,11 +88,11 @@ public struct FailoverStep: Equatable, Sendable {
     public var text: String { [provider, model, effort].compactMap { $0 }.joined(separator: " · ") }
 }
 
-/// A role of an epic as the page names it: the engine's slot (ADR 0048). The extra reviewers are `extra(2)` to `extra(4)`, by their position in
-/// `agents.extraReviewers` plus 2.
+/// A role of an epic as the page names it: the engine's slot (ADR 0048). An extra reviewer is its key in `agents.extraReviewers` (ADR 0057), never
+/// the word of another role.
 public enum RoleSlot: Hashable, Sendable {
     case author, reviewer, lead
-    case extra(Int)
+    case extra(key: String)
 
     public init(_ role: AgentRole) {
         switch role {
@@ -114,33 +114,40 @@ public enum RoleSlot: Hashable, Sendable {
 
     public var isExtra: Bool { if case .extra = self { true } else { false } }
 
-    /// The last element of the role's settings place (`SettingsPlace(.roles, path: [name])`): the fixed roles keep the names they had, an extra reviewer is `reviewer-N`.
+    /// The last element of the role's settings place (`SettingsPlace(.roles, path: [name])`): the fixed roles keep the names they had, an extra reviewer is its key.
     public var name: String {
-        if case .extra(let position) = self { return "reviewer-\(position)" }
+        if case .extra(let key) = self { return key }
         return agentRole?.rawValue ?? ""
     }
 
+    /// A place's name is a slot when it is a fixed role's or looks like a key; whether the file has that key is for the page to say (`RolesPage.rows`).
     public init?(name: String) {
         if let role = AgentRole(rawValue: name) {
             self.init(role)
-        } else if name.hasPrefix("reviewer-"), let position = Int(name.dropFirst("reviewer-".count)), RoleSlot.extraPositions.contains(position), name == "reviewer-\(position)" {
-            self = .extra(position)
+        } else if RoleSlot.isExtraKey(name) {
+            self = .extra(key: name)
         } else {
             return nil
         }
     }
 
-    /// The positions an extra reviewer can have: at most three extra reviewers.
-    public static let extraPositions = 2...4
-
-    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        if case .extra(let position) = self { return Copy.rolesExtraReviewer(position: position, bundle: bundle, locale: locale) }
-        return agentRole?.title(bundle: bundle, locale: locale) ?? ""
+    /// The engine's rule for a key (`slugPattern` and `reservedKeys` of `src/config/extra-reviewer-key.ts`): 1 to 40 lowercase letters, digits and hyphens, starting with a letter, and not a role's word.
+    static func isExtraKey(_ name: String) -> Bool {
+        let letters = UInt8(ascii: "a")...UInt8(ascii: "z"), digits = UInt8(ascii: "0")...UInt8(ascii: "9")
+        let bytes = Array(name.utf8)
+        return (1...40).contains(bytes.count) && letters.contains(bytes[0]) && bytes.allSatisfy { letters.contains($0) || digits.contains($0) || $0 == UInt8(ascii: "-") }
+            && ["author", "reviewer", "lead", "lead-reviewer"].contains(name) == false
     }
+
+    /// At most three extra reviewers.
+    public static let maxExtra = 3
 }
 
 public struct RoleRow: Equatable, Identifiable {
     public var slot: RoleSlot
+    /// what an extra reviewer is called and what it looks at (`name` and `type` of its entry); nil for the fixed roles
+    public var name: String?
+    public var type: String?
     /// the fixed role, nil for an extra reviewer
     public var role: AgentRole? { slot.agentRole }
     public var what: String
@@ -151,7 +158,7 @@ public struct RoleRow: Equatable, Identifiable {
     public var providerMissing: Bool
     /// every step of the role's list, though the page offers two; an extra reviewer with none of its own shows the Reviewer's (`ownSteps` false)
     public var steps: [FailoverStep]
-    /// false for an extra reviewer that declares no `failover`: the engine gives it the Reviewer's steps
+    /// false for an extra reviewer that declares no `failover`, and for the lead while `failover.roles.leadReviewer` is not there: the engine gives them the Reviewer's steps
     public var ownSteps = true
     /// the Lead reviewer while the file has no `agents.leadReviewer`: its page is shown dimmed and not usable
     public var off: Bool
@@ -159,7 +166,8 @@ public struct RoleRow: Equatable, Identifiable {
     /// the switch still has to say the file has no role, but it is drawn and worded as a role that is on.
     public var drafting = false
     public var id: String { slot.name }
-    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String { slot.title(bundle: bundle, locale: locale) }
+    /// The role's name, or the name the person gave an extra reviewer (its key while the entry has none).
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String { name ?? slot.agentRole?.title(bundle: bundle, locale: locale) ?? slot.name }
     /// the Lead reviewer has the switch row on top
     public var hasSwitch: Bool { slot == .lead }
 
@@ -184,7 +192,7 @@ public struct RoleRow: Equatable, Identifiable {
 }
 
 public struct RolesPage: Equatable {
-    /// Author, Reviewer, the extra reviewers in the order of `agents.extraReviewers`, then the Lead reviewer
+    /// Author, Reviewer, the extra reviewers in the order of the map `agents.extraReviewers`, then the Lead reviewer
     public var rows: [RoleRow]
     /// the bots of the registry, then the person's own login is offered next to them
     public var bots: ForgeBots
@@ -192,6 +200,8 @@ public struct RolesPage: Equatable {
     public var accounts: [String]
     /// said when Author and Reviewer resolve to one account
     public var sharedNote: String?
+    /// `limits.maxLeadRounds`: how many rounds the lead has with the author (3 when the file has none)
+    public var leadRounds = 3
 }
 
 /// The page for `config`; nil when it is not a JSON object (the engine is not configured). `providers` is `providers.json`, nil when it is not there.
@@ -218,18 +228,27 @@ public func rolesPage(config: Data, providers: Data?, bots: ForgeBots, bundle: B
     }
     func row(_ slot: RoleSlot, entry: Any?, steps: [FailoverStep], ownSteps: Bool = true, off: Bool = false) -> RoleRow {
         let fields = roleFields(entry)
+        let extra = entry as? [String: Any]
         return RoleRow(
-            slot: slot, what: slot.purpose(bundle: bundle, locale: locale), fields: fields, identity: identity(fields),
+            slot: slot, name: slot.isExtra ? extra?["name"] as? String : nil, type: slot.isExtra ? extra?["type"] as? String : nil, what: slot.purpose(bundle: bundle, locale: locale), fields: fields, identity: identity(fields),
             providerMissing: fields.provider.map { accounts.contains($0) == false } ?? false, steps: steps, ownSteps: ownSteps, off: off
         )
     }
-    func fixed(_ role: AgentRole) -> RoleRow {
-        row(RoleSlot(role), entry: roles[role.rawValue], steps: steps(lists[role.rawValue]), off: role == .leadReviewer && roles[role.rawValue] is [String: Any] == false)
-    }
     let reviewerSteps = steps(lists[AgentRole.reviewer.rawValue])
+    func fixed(_ role: AgentRole) -> RoleRow {
+        // the engine's rule (`failoverStepsFor`): the lead takes the Reviewer's steps while it declares none
+        let inherits = role == .leadReviewer && lists[role.rawValue] == nil
+        return row(
+            RoleSlot(role), entry: roles[role.rawValue], steps: inherits ? reviewerSteps : steps(lists[role.rawValue]), ownSteps: inherits == false,
+            off: role == .leadReviewer && roles[role.rawValue] is [String: Any] == false
+        )
+    }
     // the engine's rule (`failoverStepsOfSlot`): an extra reviewer's own steps when it declares a list, else the Reviewer's
-    let extras = (roles["extraReviewers"] as? [[String: Any]] ?? []).prefix(RoleSlot.extraPositions.count).enumerated().map { index, entry in
-        row(.extra(index + 2), entry: entry, steps: entry["failover"] == nil ? reviewerSteps : steps(entry["failover"]), ownSteps: entry["failover"] != nil)
+    // a list, which the engine refuses, has no keys: no row
+    let map = roles["extraReviewers"] as? [String: Any] ?? [:]
+    let extras = (jsonKeys(in: config, at: ["agents", "extraReviewers"]) ?? []).prefix(RoleSlot.maxExtra).compactMap { key -> RoleRow? in
+        guard let entry = map[key] as? [String: Any] else { return nil }
+        return row(.extra(key: key), entry: entry, steps: entry["failover"] == nil ? reviewerSteps : steps(entry["failover"]), ownSteps: entry["failover"] != nil)
     }
     let rows = [fixed(.author), fixed(.reviewer)] + extras + [fixed(.leadReviewer)]
 
@@ -244,7 +263,17 @@ public func rolesPage(config: Data, providers: Data?, bots: ForgeBots, bundle: B
             ? Copy.rolesSharedSame(profile: author.profile, bundle: bundle, locale: locale)
             : Copy.rolesSharedOne(author: author.profile, reviewer: reviewer.profile, bundle: bundle, locale: locale)
     }
-    return RolesPage(rows: rows, bots: bots, accounts: accounts, sharedNote: shared)
+    return RolesPage(rows: rows, bots: bots, accounts: accounts, sharedNote: shared, leadRounds: EngineConfig(json: config).maxLeadRounds)
+}
+
+/// Each extra reviewer of `config` as a place the Settings search can open, by the name the person gave it and its type (the static index cannot know them).
+public func rolesSearchEntries(config: Data, bundle: Bundle? = nil, locale: Locale = .current) -> [SettingsEntry] {
+    let rows = rolesPage(config: config, providers: nil, bots: ForgeBots(names: []), bundle: bundle, locale: locale)?.rows ?? []
+    return rows.filter { $0.slot.isExtra }.map {
+        SettingsEntry(
+            page: .roles, groupID: "how-an-epic-runs", group: Copy.rolesRailGroup(bundle: bundle, locale: locale), rowID: $0.id, title: $0.title(bundle: bundle, locale: locale),
+            detail: $0.what, keywords: $0.type ?? "")
+    }
 }
 
 extension AgentRole {

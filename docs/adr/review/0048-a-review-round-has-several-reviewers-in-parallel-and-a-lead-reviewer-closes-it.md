@@ -40,7 +40,7 @@ The rule that an epic never has two active executions becomes: never two of the 
 
 Settled when the epic was specced, against the code as it is after the first three epics.
 An epic with one reviewer behaves as it does today and keeps its kinds of stop, because `reviewers_failed` exists only for a round with several.
-A reviewer is named by its slot (`reviewer`, `reviewer-2` to `reviewer-4`, `lead`), and the prefix of a blocker's id is added only when the epic has several reviewers.
+A reviewer is named by its slot (`reviewer`, `lead` and, for an extra reviewer, its key: [0057](0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md) replaced the positions `reviewer-2` to `reviewer-4`, which no longer exist), and the prefix of a blocker's id is added only when the epic has several reviewers.
 An extra reviewer that has no verdict because a skill the person named is absent for it does not stop the epic, while the mandatory reviewer and the lead do, with `skill_missing` as in [ADR 0045](../orchestration/0045-each-stage-runs-a-skill-the-config-names-and-carrier-keeps-the-contract.md).
 Every reviewer publishes its own comments with its review skill, and a profile may be shared between roles: the prefix of the id, not the account, tells the reviewers apart.
 All the reviewers of a round are given the same commit, and a head that moves repeats the round with the two repeats of ADR 0047, shared with the lead's own review.

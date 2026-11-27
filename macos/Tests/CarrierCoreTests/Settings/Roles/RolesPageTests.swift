@@ -57,6 +57,23 @@ private func row(_ page: RolesPage, _ role: AgentRole) throws -> RoleRow { try #
     #expect(try row(found, .leadReviewer).steps.isEmpty)
 }
 
+@Test func theLeadTakesTheReviewersStepsWhileItHasNoneAndKeepsItsOwnWhenItDeclaresThem() throws {
+    let reviewerSteps = #""reviewer": [{"provider": "claude-work", "model": "sonnet"}]"#
+    let inherited = try row(page(full.replacingOccurrences(of: #""reviewer": []"#, with: reviewerSteps)), .leadReviewer)
+    #expect(inherited.ownSteps == false && inherited.steps.map(\.text) == ["claude-work · sonnet"])
+    let own = try row(page(full.replacingOccurrences(of: #""reviewer": []"#, with: reviewerSteps + #", "leadReviewer": [{"provider": "agy"}]"#)), .leadReviewer)
+    #expect(own.ownSteps && own.steps.map(\.text) == ["agy"])
+    // the Author and the Reviewer never take another role's steps
+    #expect(try row(page(full.replacingOccurrences(of: #""reviewer": []"#, with: reviewerSteps)), .author).ownSteps)
+}
+
+@Test func theRailSaysHowManyRoundsTheLeadHasWithTheAuthorThreeUnlessTheFileSaysOtherwise() throws {
+    #expect(try page().leadRounds == 3)
+    #expect(try page(full.replacingOccurrences(of: #""keep": 1,"#, with: #""limits": {"maxLeadRounds": 5},"#)).leadRounds == 5)
+    #expect(Copy.rolesRailPasses(rounds: 3, bundle: english.bundle, locale: english.locale) == "When every reviewer agrees · up to 3 rounds with the author")
+    #expect(Copy.rolesRailPasses(rounds: 1, bundle: english.bundle, locale: english.locale) == "When every reviewer agrees · up to 1 round with the author")
+}
+
 @Test func aRoleWithNoEffortShowsItWithoutOne() throws {
     let lead = try row(page(), .leadReviewer)
     #expect(lead.fields.effort == nil)
@@ -138,11 +155,11 @@ private func row(_ page: RolesPage, _ role: AgentRole) throws -> RoleRow { try #
     #expect(try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date == before)
 }
 
-private func withExtras(_ entries: String) -> String {
+private func withExtras(_ entries: String, as shape: (open: String, close: String) = ("{", "}")) -> String {
     """
     {"profiles": {"a": {"kind": "gh"}, "x": {"kind": "forge", "agent": "acme-reviewer"}},
      "agents": {"author": {"profile": "a", "provider": "claude", "model": "m"},
-                "reviewer": {"profile": "a", "provider": "codex", "model": "gpt-5"}\(entries.isEmpty ? "" : ", \"extraReviewers\": [\(entries)]"),
+                "reviewer": {"profile": "a", "provider": "codex", "model": "gpt-5"}\(entries.isEmpty ? "" : ", \"extraReviewers\": \(shape.open)\(entries)\(shape.close)"),
                 "leadReviewer": {"profile": "a", "provider": "claude", "model": "opus"}},
      "failover": {"roles": {"reviewer": [{"provider": "claude-work", "model": "sonnet"}]}}}
     """
@@ -153,48 +170,71 @@ private func withExtras(_ entries: String) -> String {
     #expect(try page(withExtras("")).rows.contains { $0.slot.isExtra } == false)
 }
 
-@Test func oneExtraReviewerIsReviewer2BetweenTheReviewerAndTheLead() throws {
-    let found = try page(withExtras(#"{"profile": "x", "provider": "codex", "model": "gpt-5-mini", "effort": "low"}"#))
-    #expect(found.rows.map(\.slot) == [.author, .reviewer, .extra(2), .lead])
-    let extra = try #require(found.rows.first { $0.slot == .extra(2) })
-    #expect(extra.title(bundle: english.bundle, locale: english.locale) == "Reviewer 2" && extra.slot.name == "reviewer-2" && extra.id == "reviewer-2")
+@Test func anEmptyMapAndAListGiveNoExtraReviewerRow() throws {
+    #expect(try page(withExtras(" ")).rows.map(\.slot) == [.author, .reviewer, .lead])
+    let list = withExtras(#"{"type": "ux", "name": "Usabilidad", "profile": "x", "provider": "codex", "model": "m"}"#, as: ("[", "]"))
+    #expect(try page(list).rows.map(\.slot) == [.author, .reviewer, .lead])
+}
+
+@Test func oneExtraReviewerIsTitledByItsNameAndAddressedByItsKeyBetweenTheReviewerAndTheLead() throws {
+    let found = try page(withExtras(#""seguridad-api": {"type": "security", "name": "Seguridad API", "profile": "x", "provider": "codex", "model": "gpt-5-mini", "effort": "low"}"#))
+    #expect(found.rows.map(\.slot) == [.author, .reviewer, .extra(key: "seguridad-api"), .lead])
+    let extra = try #require(found.rows.first { $0.slot.isExtra })
+    #expect(extra.title(bundle: english.bundle, locale: english.locale) == "Seguridad API" && extra.title(bundle: spanish.bundle, locale: spanish.locale) == "Seguridad API")
+    #expect(extra.slot.name == "seguridad-api" && extra.id == "seguridad-api" && extra.type == "security")
     #expect(extra.identity == .forge("acme-reviewer") && extra.summary(bundle: english.bundle, locale: english.locale) == "x · codex · gpt-5-mini · low")
 }
 
-@Test func threeExtraReviewersAreReviewer2To4InTheOrderOfTheList() throws {
-    let entry = { (model: String) in #"{"profile": "a", "provider": "codex", "model": "\#(model)", "persona": {"name": "P\#(model)", "prompt": "q"}}"# }
-    let found = try page(withExtras([entry("m2"), entry("m3"), entry("m4")].joined(separator: ",")))
-    #expect(found.rows.map(\.slot) == [.author, .reviewer, .extra(2), .extra(3), .extra(4), .lead])
+@Test func threeExtraReviewersAreInTheOrderOfTheMapNotOfTheKeys() throws {
+    let entry = { (key: String, model: String) in #""\#(key)": {"type": "t", "name": "N\#(model)", "profile": "a", "provider": "codex", "model": "\#(model)", "persona": {"name": "P\#(model)", "prompt": "q"}}"# }
+    let found = try page(withExtras([entry("zeta", "m2"), entry("alfa", "m3"), entry("model", "m4")].joined(separator: ",")))
+    #expect(found.rows.map(\.slot) == [.author, .reviewer, .extra(key: "zeta"), .extra(key: "alfa"), .extra(key: "model"), .lead])
     #expect(found.rows.filter { $0.slot.isExtra }.map { $0.fields.model } == ["m2", "m3", "m4"])
-    #expect(found.rows.first { $0.slot == .extra(3) }?.fields.persona?.name == "Pm3")
+    #expect(found.rows.filter { $0.slot.isExtra }.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["Nm2", "Nm3", "Nm4"])
+    #expect(found.rows.first { $0.slot == .extra(key: "alfa") }?.fields.persona?.name == "Pm3")
+}
+
+@Test func onlyThreeExtraReviewersAreRead() throws {
+    let entry = { (key: String) in #""\#(key)": {"type": "t", "name": "\#(key)", "profile": "a", "provider": "codex", "model": "m"}"# }
+    let found = try page(withExtras(["a", "b", "c", "d"].map(entry).joined(separator: ",")))
+    #expect(found.rows.filter { $0.slot.isExtra }.map(\.id) == ["a", "b", "c"])
 }
 
 @Test func anExtraReviewerWithNoFailoverTakesTheReviewersStepsAndOneWithItsOwnKeepsThem() throws {
-    let found = try page(withExtras(#"{"profile": "a", "provider": "codex", "model": "m", "failover": [{"provider": "agy"}]}, {"profile": "a", "provider": "codex", "model": "m"}"#))
-    let own = try #require(found.rows.first { $0.slot == .extra(2) })
+    let found = try page(withExtras(#""own": {"type": "t", "name": "Own", "profile": "a", "provider": "codex", "model": "m", "failover": [{"provider": "agy"}]}, "plain": {"type": "t", "name": "Plain", "profile": "a", "provider": "codex", "model": "m"}"#))
+    let own = try #require(found.rows.first { $0.slot == .extra(key: "own") })
     #expect(own.ownSteps && own.steps.map(\.text) == ["agy"])
-    let inherited = try #require(found.rows.first { $0.slot == .extra(3) })
+    let inherited = try #require(found.rows.first { $0.slot == .extra(key: "plain") })
     #expect(inherited.ownSteps == false && inherited.steps.map(\.text) == ["claude-work · sonnet"])
 }
 
-@Test func theSlotNamesRoundTripAndAnUnknownReviewerIsNil() {
-    for slot in [RoleSlot.author, .reviewer, .lead, .extra(2), .extra(4)] { #expect(RoleSlot(name: slot.name) == slot) }
-    #expect(RoleSlot(name: "reviewer-1") == nil && RoleSlot(name: "reviewer-5") == nil && RoleSlot(name: "reviewer-02") == nil && RoleSlot(name: "x") == nil)
+@Test func theSlotNamesRoundTripAndAWordOfARoleOrAnOddKeyIsNil() {
+    for slot in [RoleSlot.author, .reviewer, .lead, .extra(key: "seguridad-api"), .extra(key: "r-2")] { #expect(RoleSlot(name: slot.name) == slot) }
+    #expect(RoleSlot(name: "lead") == nil && RoleSlot(name: "lead-reviewer") == nil && RoleSlot(name: "2fast") == nil && RoleSlot(name: "Upper") == nil && RoleSlot(name: "") == nil)
+    #expect(RoleSlot(name: String(repeating: "a", count: 41)) == nil && RoleSlot(name: "has space") == nil)
 }
 
 @Test func anExtraReviewersSkillsAreTheReviewersAndAnIdentityLessSlotHasNone() throws {
-    let found = try page(withExtras(#"{"profile": "a", "provider": "codex", "model": "m"}"#))
-    let extra = try #require(found.rows.first { $0.slot == .extra(2) })
+    let found = try page(withExtras(#""x": {"type": "t", "name": "X", "profile": "a", "provider": "codex", "model": "m"}"#))
+    let extra = try #require(found.rows.first { $0.slot.isExtra })
     let reviewer = try #require(found.rows.first { $0.slot == .reviewer })
     let stages = { (row: RoleRow) in row.slot.stages(bundle: english.bundle, locale: english.locale).map(\.skill) }
     #expect(stages(extra) == ["code-review", "code-post"] && stages(extra) == stages(reviewer))
-    #expect(RoleSlot.lead.stages(bundle: english.bundle, locale: english.locale).isEmpty)
+    #expect(RoleSlot.lead.stages(bundle: english.bundle, locale: english.locale).map(\.skill) == ["code-review", "code-post"])
 }
 
-@Test func aPlaceWhoseReviewerNoLongerExistsHasNoRowSoTheViewShowsTheFirstScreen() throws {
-    // the place names a slot that parses, but the file now has fewer extra reviewers: no row answers it
-    let place = try #require(RoleSlot(name: "reviewer-3"))
-    let one = try page(withExtras(#"{"profile": "a", "provider": "codex", "model": "m"}"#))
-    #expect(one.rows.contains { $0.slot == .extra(2) } && one.rows.contains { $0.slot == place } == false)
+@Test func aPlaceWhoseKeyIsNotInTheFileHasNoRowSoTheViewShowsTheFirstScreen() throws {
+    // the place names a slot that parses, but the file has no such key: no row answers it
+    let place = try #require(RoleSlot(name: "gone"))
+    let one = try page(withExtras(#""here": {"type": "t", "name": "Here", "profile": "a", "provider": "codex", "model": "m"}"#))
+    #expect(one.rows.contains { $0.slot == .extra(key: "here") } && one.rows.contains { $0.slot == place } == false)
     #expect(try page(withExtras("")).rows.contains { $0.slot == place } == false)
+}
+
+@Test func theKeysOfAMapComeInTheOrderOfTheFileWhateverIsInsideThem() {
+    let file = #"{"agents": {"extraReviewers": {"zeta": {"name": "a\"}b", "list": [1, {"x": "]"}]}, "b": 1, "alfa": {}}, "other": 1}"#
+    #expect(jsonKeys(in: Data(file.utf8), at: ["agents", "extraReviewers"]) == ["zeta", "b", "alfa"])
+    #expect(jsonKeys(in: Data(file.utf8), at: ["agents", "missing"]) == nil && jsonKeys(in: Data(file.utf8), at: ["other"]) == nil)
+    #expect(jsonKeys(in: Data(#"{"agents": {"extraReviewers": []}}"#.utf8), at: ["agents", "extraReviewers"]) == nil)
+    #expect(jsonKeys(in: Data(#"{"agents": {"extraReviewers": {}}}"#.utf8), at: ["agents", "extraReviewers"]) == [])
 }

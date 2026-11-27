@@ -1,0 +1,61 @@
+{
+  "request": {
+    "cmd": "editRole",
+    "role": {
+      "extraReviewer": "seguridad-api"
+    },
+    "changes": {
+      "name": "Seguridad del front",
+      "type": "frontend-security",
+      "identity": {
+        "kind": "forge",
+        "agent": "nova"
+      },
+      "provider": "codex",
+      "model": "gpt-5-codex",
+      "effort": null
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "agents": {
+          "extraReviewers": {
+            "seguridad-api": {
+              "type": "frontend-security",
+              "name": "Seguridad del front",
+              "profile": "nova",
+              "provider": "codex",
+              "model": "gpt-5-codex",
+              "persona": {
+                "name": "Sentinel",
+                "prompt": "Busca fallas de seguridad."
+              },
+              "failover": [
+                {
+                  "provider": "codex",
+                  "model": "gpt-5"
+                }
+              ]
+            }
+          }
+        },
+        "profiles": {
+          "author-bot": {
+            "kind": "forge",
+            "agent": "artanis-agent"
+          },
+          "reviewer-bot": {
+            "kind": "gh"
+          },
+          "nova": {
+            "kind": "forge",
+            "agent": "nova"
+          }
+        }
+      },
+      "engine": "applied"
+    }
+  }
+}

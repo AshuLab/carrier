@@ -578,65 +578,166 @@ describe('skills', () => {
 });
 
 describe('extra reviewers, the lead\'s skills and the new reasons', () => {
-  const extra = { profile: 'reviewer-bot', provider: 'claude', model: 'm' };
+  const extra = { type: 'security', name: 'Seguridad API', profile: 'reviewer-bot', provider: 'claude', model: 'm' };
   const full = { ...extra, effort: 'high', persona: { name: 'Skeptic' }, skills: { review: { review: 'my-review', publish: null } }, failover: [{ provider: 'codex', model: 'x' }] };
+  /** A map of entries named `one`, `two`... each with its own name. */
+  const mapOf = (...entries: object[]) => Object.fromEntries(entries.map((entry, i) => [['one', 'two', 'three', 'four'][i]!, { ...entry, name: `Reviewer ${i + 1}` }]));
+  const globally = (extraReviewers: unknown) => ({ agents: { ...valid.agents, extraReviewers } });
   const repoWith = (agents: object) => ({ repos: [{ name: 'AshuLab/carrier', agents }] });
   const path = (user: object) => errorsOf(user)[0]!.path;
+  /** The same file as a global map and as a repo's. */
+  const both = (extraReviewers: unknown) => [globally(extraReviewers), repoWith({ extraReviewers })] as const;
 
-  test('zero to three entries with the fields of any agent, the review skills and failover, globally and in a repo', () => {
-    for (const list of [[], [extra], [full, extra, extra]]) {
-      expect(load({ agents: { ...valid.agents, extraReviewers: list } })).toMatchObject({ ok: true, config: { agents: { extraReviewers: list } } });
-      expect(load(repoWith({ extraReviewers: list }))).toMatchObject({ ok: true, config: { repos: [{ agents: { extraReviewers: list } }] } });
+  test('a map of zero to three entries with the fields of any agent, the review skills and failover loads, globally and in a repo', () => {
+    for (const map of [{}, mapOf(extra), mapOf(full, extra, extra)]) {
+      expect(load(globally(map))).toMatchObject({ ok: true, config: { agents: { extraReviewers: map } } });
+      expect(load(repoWith({ extraReviewers: map }))).toMatchObject({ ok: true, config: { repos: [{ agents: { extraReviewers: map } }] } });
     }
     expect(load({}).ok && (load({}) as { config: { agents: object } }).config.agents).not.toHaveProperty('extraReviewers');
   });
 
-  test('a fourth entry is refused naming the list, globally and in a repo', () => {
-    const four = [extra, extra, extra, extra];
-    expect(errorsOf({ agents: { ...valid.agents, extraReviewers: four } })[0]).toMatchObject({ path: 'agents.extraReviewers', message: expect.stringContaining('at most three') });
-    expect(errorsOf(repoWith({ extraReviewers: four }))[0]).toMatchObject({ path: 'repos.0.agents.extraReviewers' });
+  test('the JSON schema describes the map: slug keys, and entries that require a type and a name', () => {
+    const schema = userConfigJsonSchema().properties as unknown as Record<string, { properties: { extraReviewers: { propertyNames: { pattern: string }; additionalProperties: { required: string[] } } } }>;
+    const map = schema.agents!.properties.extraReviewers;
+    expect(map.propertyNames.pattern).toBe('^[a-z][a-z0-9-]{0,39}$');
+    expect(map.additionalProperties.required).toEqual(expect.arrayContaining(['type', 'name', 'profile', 'provider', 'model']));
   });
 
-  test('the blocks are strict: an unknown key, or a stage the reviewer does not run, is refused naming it', () => {
-    const global = (entry: object) => ({ agents: { ...valid.agents, extraReviewers: [entry] } });
-    expect(errorsOf(global({ ...extra, bogus: 1 }))[0]).toMatchObject({ path: 'agents.extraReviewers.0', message: expect.stringContaining('"bogus"') });
-    expect(errorsOf(global({ ...extra, skills: { lead: { review: 'x' } } }))[0]).toMatchObject({ path: 'agents.extraReviewers.0.skills', message: expect.stringContaining('"lead"') });
-    expect(errorsOf(global({ ...extra, skills: { ship: 'x' } }))[0]).toMatchObject({ path: 'agents.extraReviewers.0.skills', message: expect.stringContaining('"ship"') });
-    expect(errorsOf(global({ ...extra, skills: { review: { review: 'bad name' } } }))[0]).toMatchObject({ path: 'agents.extraReviewers.0.skills.review.review' });
-    expect(errorsOf(global({ ...extra, failover: ['codex'] }))[0]).toMatchObject({ path: 'agents.extraReviewers.0.failover.0' });
+  test('the map keeps the order of the file', () => {
+    const map = { zeta: { ...extra, name: 'Z' }, alfa: { ...extra, name: 'A' }, mid: { ...extra, name: 'M' } };
+    const result = load(globally(map));
+    expect(result.ok && Object.keys(result.config.agents.extraReviewers!)).toEqual(['zeta', 'alfa', 'mid']);
   });
 
-  test('a repo\'s entry carries profile, provider and model, because its list replaces the global one', () => {
-    for (const field of ['profile', 'provider', 'model']) {
-      const { [field]: _, ...without } = extra as Record<string, string>;
-      expect(errorsOf(repoWith({ extraReviewers: [without] })).map((e) => e.path)).toEqual([`repos.0.agents.extraReviewers.0.${field}`]);
-    }
-  });
-
-  test('a repo\'s list replaces the global one whole, an empty one included', () => {
-    const user = { agents: { ...valid.agents, extraReviewers: [extra, extra] }, repos: [{ name: 'AshuLab/carrier', agents: { extraReviewers: [{ ...extra, model: 'repo' }] } }, { name: 'AshuLab/other', agents: { extraReviewers: [] } }, { name: 'AshuLab/third' }] };
-    const result = load(user);
-    if (!result.ok) throw new Error(JSON.stringify(result.errors));
-    const resolved = result.config.repos.map((repo) => resolveRepoConfig(result.config, repo).agents.extraReviewers?.map((e) => e.model));
-    expect(resolved).toEqual([['repo'], undefined, ['m', 'm']]);
-  });
-
-  test('the profile and provider of each are checked as those of the other roles, global and repo, naming the path', () => {
-    expect(errorsOf({ agents: { ...valid.agents, extraReviewers: [extra, { ...extra, profile: 'ghost' }] } })[0]).toMatchObject({ path: 'agents.extraReviewers.1.profile', message: 'profile "ghost" is not declared in profiles' });
-    expect(errorsOf({ agents: { ...valid.agents, extraReviewers: [{ ...extra, provider: 'ghost' }] } })[0]).toMatchObject({ path: 'agents.extraReviewers.0.provider', message: 'provider "ghost" is not declared in providers' });
-    expect(errorsOf(repoWith({ extraReviewers: [{ ...extra, profile: 'ghost' }] }))[0]).toMatchObject({ path: 'repos.0.agents.extraReviewers.0.profile' });
-    expect(errorsOf(repoWith({ extraReviewers: [{ ...extra, provider: 'ghost' }] }))[0]).toMatchObject({ path: 'repos.0.agents.extraReviewers.0.provider' });
+  test('a fourth entry is refused naming it, globally and in a repo', () => {
+    const [global, repo] = both(mapOf(extra, extra, extra, extra));
+    expect(errorsOf(global)[0]).toMatchObject({ path: 'agents.extraReviewers.four', message: expect.stringContaining('at most three') });
+    expect(errorsOf(repo)[0]).toMatchObject({ path: 'repos.0.agents.extraReviewers.four' });
   });
 
   test.each([
-    ['an undeclared provider', [{ provider: 'ghost' }], 'agents.extraReviewers.0.failover.0.provider', '"ghost" is not declared in providers'],
-    ['a repeated step', [{ provider: 'codex' }, { provider: 'codex' }], 'agents.extraReviewers.0.failover.1', 'repeats another step'],
-    ['the reviewer\'s own provider and model', [{ provider: 'claude', model: 'm' }], 'agents.extraReviewers.0.failover.0', 'would move nowhere'],
+    ['2a', 'must be a lowercase slug'],
+    ['A', 'must be a lowercase slug'],
+    ['a_b', 'must be a lowercase slug'],
+    ['', 'must be a lowercase slug'],
+    [`a${'b'.repeat(40)}`, 'must be a lowercase slug'],
+    ['author', 'are the names of roles'],
+    ['reviewer', 'are the names of roles'],
+    ['lead', 'are the names of roles'],
+    ['lead-reviewer', 'are the names of roles'],
+  ])('the key "%s" is refused naming the entry, globally and in a repo', (key, reason) => {
+    const [global, repo] = both({ [key]: extra });
+    expect(errorsOf(global)[0]).toMatchObject({ path: `agents.extraReviewers.${key}`, message: expect.stringContaining(reason) });
+    expect(errorsOf(repo)[0]).toMatchObject({ path: `repos.0.agents.extraReviewers.${key}`, message: expect.stringContaining(reason) });
+  });
+
+  test('a key of 40 characters and one of a single letter load', () => {
+    expect(load(globally({ [`a${'b'.repeat(39)}`]: extra, a: { ...extra, name: 'Other' } })).ok).toBe(true);
+  });
+
+  test('a name that repeats another entry\'s, without regard to case, is refused naming the second entry, globally and in a repo', () => {
+    const [global, repo] = both({ one: extra, two: { ...extra, name: 'SEGURIDAD api' } });
+    expect(errorsOf(global)[0]).toMatchObject({ path: 'agents.extraReviewers.two.name', message: expect.stringContaining('"one"') });
+    expect(errorsOf(repo)[0]).toMatchObject({ path: 'repos.0.agents.extraReviewers.two.name' });
+  });
+
+  test('two entries of one type are allowed, and a name that another map has is not a clash', () => {
+    expect(load(globally({ one: extra, two: { ...extra, name: 'Other' } })).ok).toBe(true);
+    expect(load({ ...globally({ one: extra }), repos: [{ name: 'AshuLab/carrier', agents: { extraReviewers: { one: extra } } }] }).ok).toBe(true);
+  });
+
+  test.each([
+    ['blank', { name: '   ' }, 'Too small'],
+    ['empty', { name: '' }, 'Too small'],
+    ['longer than 40 characters', { name: 'x'.repeat(41) }, 'Too big'],
+    ['with a line break', { name: 'two\nlines' }, 'one line'],
+    ['with a trailing line break', { name: 'one line\n' }, 'one line'],
+    ['a number', { name: 5 }, 'expected string'],
+    ['a list', { name: ['Seguridad'] }, 'expected string'],
+    ['null', { name: null }, 'expected string'],
+    ['missing', { name: undefined }, 'expected string'],
+  ])('a name that is %s is refused naming it, globally and in a repo', (_, change, reason) => {
+    const entry = { ...extra, ...change };
+    const [global, repo] = both({ one: entry });
+    const found = errorsOf(global);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ path: 'agents.extraReviewers.one.name' });
+    expect(found[0]!.message).toContain(reason);
+    expect(path(repo)).toBe('repos.0.agents.extraReviewers.one.name');
+  });
+
+  test.each([
+    ['missing', undefined],
+    ['null', null],
+    ['a number', 5],
+    ['not a slug', 'Not A Slug'],
+    ['starting with a digit', '2fa'],
+    ['empty', ''],
+    ['of 41 characters', `a${'b'.repeat(40)}`],
+  ])('a type that is %s is refused naming it, globally and in a repo', (_, type) => {
+    const entry = { ...extra, type };
+    const [global, repo] = both({ one: entry });
+    expect(errorsOf(global).map((e) => e.path)).toEqual(['agents.extraReviewers.one.type']);
+    expect(path(repo)).toBe('repos.0.agents.extraReviewers.one.type');
+  });
+
+  test('a type of 40 characters and one with digits and hyphens load', () => {
+    expect(load(globally({ one: { ...extra, type: `a${'b'.repeat(39)}` }, two: { ...extra, name: 'Two', type: 'a11y-2' } })).ok).toBe(true);
+  });
+
+  test.each([
+    ['a list', [extra]],
+    ['an empty list', []],
+    ['null', null],
+    ['a number', 5],
+    ['a text', 'one'],
+  ])('extraReviewers as %s is refused with the path and the map it needs, globally and in a repo', (_, value) => {
+    const [global, repo] = both(value);
+    expect(errorsOf(global)[0]).toMatchObject({ path: 'agents.extraReviewers', message: expect.stringContaining('must be a map from a key to a reviewer') });
+    expect(errorsOf(repo)[0]).toMatchObject({ path: 'repos.0.agents.extraReviewers', message: expect.stringContaining('"<key>"') });
+    if (Array.isArray(value)) expect(errorsOf(global)[0]!.message).toContain('not a list');
+  });
+
+  test('the blocks are strict: an unknown key, or a stage the reviewer does not run, is refused naming it', () => {
+    const global = (entry: object) => globally({ one: entry });
+    expect(errorsOf(global({ ...extra, bogus: 1 }))[0]).toMatchObject({ path: 'agents.extraReviewers.one', message: expect.stringContaining('"bogus"') });
+    expect(errorsOf(global({ ...extra, skills: { lead: { review: 'x' } } }))[0]).toMatchObject({ path: 'agents.extraReviewers.one.skills', message: expect.stringContaining('"lead"') });
+    expect(errorsOf(global({ ...extra, skills: { ship: 'x' } }))[0]).toMatchObject({ path: 'agents.extraReviewers.one.skills', message: expect.stringContaining('"ship"') });
+    expect(errorsOf(global({ ...extra, skills: { review: { review: 'bad name' } } }))[0]).toMatchObject({ path: 'agents.extraReviewers.one.skills.review.review' });
+    expect(errorsOf(global({ ...extra, failover: ['codex'] }))[0]).toMatchObject({ path: 'agents.extraReviewers.one.failover.0' });
+  });
+
+  test('a repo\'s entry carries type, name, profile, provider and model, because its map replaces the global one', () => {
+    for (const field of ['type', 'name', 'profile', 'provider', 'model']) {
+      const { [field]: _, ...without } = extra as Record<string, string>;
+      expect(errorsOf(repoWith({ extraReviewers: { one: without } })).map((e) => e.path)).toEqual([`repos.0.agents.extraReviewers.one.${field}`]);
+    }
+  });
+
+  test('a repo\'s map replaces the global one whole, an empty one included, and no key leaves the global one', () => {
+    const user = { agents: { ...valid.agents, extraReviewers: mapOf(extra, extra) }, repos: [{ name: 'AshuLab/carrier', agents: { extraReviewers: { mine: { ...extra, model: 'repo' } } } }, { name: 'AshuLab/other', agents: { extraReviewers: {} } }, { name: 'AshuLab/third' }] };
+    const result = load(user);
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    const resolved = result.config.repos.map((repo) => resolveRepoConfig(result.config, repo).agents.extraReviewers?.map((e) => [e.key, e.model]));
+    expect(resolved).toEqual([[['mine', 'repo']], undefined, [['one', 'm'], ['two', 'm']]]);
+  });
+
+  test('the profile and provider of each are checked as those of the other roles, global and repo, naming the entry by its key', () => {
+    expect(errorsOf(globally(mapOf(extra, { ...extra, profile: 'ghost' })))[0]).toMatchObject({ path: 'agents.extraReviewers.two.profile', message: 'profile "ghost" is not declared in profiles' });
+    expect(errorsOf(globally(mapOf({ ...extra, provider: 'ghost' })))[0]).toMatchObject({ path: 'agents.extraReviewers.one.provider', message: 'provider "ghost" is not declared in providers' });
+    expect(errorsOf(repoWith({ extraReviewers: { mine: { ...extra, profile: 'ghost' } } }))[0]).toMatchObject({ path: 'repos.0.agents.extraReviewers.mine.profile' });
+    expect(errorsOf(repoWith({ extraReviewers: { mine: { ...extra, provider: 'ghost' } } }))[0]).toMatchObject({ path: 'repos.0.agents.extraReviewers.mine.provider' });
+  });
+
+  test.each([
+    ['an undeclared provider', [{ provider: 'ghost' }], 'agents.extraReviewers.mine.failover.0.provider', '"ghost" is not declared in providers'],
+    ['a repeated step', [{ provider: 'codex' }, { provider: 'codex' }], 'agents.extraReviewers.mine.failover.1', 'repeats another step'],
+    ['the reviewer\'s own provider and model', [{ provider: 'claude', model: 'm' }], 'agents.extraReviewers.mine.failover.0', 'would move nowhere'],
   ])('its failover steps are checked like failover.roles: %s', (_, failover, at, message) => {
-    const errors = errorsOf({ agents: { ...valid.agents, extraReviewers: [{ ...extra, failover }] } });
+    const errors = errorsOf(globally({ mine: { ...extra, failover } }));
     expect(errors.map((e) => e.path)).toEqual([at]);
     expect(errors[0]!.message).toContain(message);
-    expect(path(repoWith({ extraReviewers: [{ ...extra, failover }] }))).toBe(`repos.0.${at}`);
+    expect(path(repoWith({ extraReviewers: { mine: { ...extra, failover } } }))).toBe(`repos.0.${at}`);
   });
 
   test('the lead takes skills with only lead, and skills.lead has the shape of skills.review, globally, in a repo and in the lead\'s role', () => {

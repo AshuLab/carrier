@@ -2,7 +2,7 @@ export interface Workspaces {
   /** Path of the author's checkout for the epic. */
   prepareAuthor(repo: string, epic: number): Promise<string>;
   /**
-   * A separate checkout for a reviewer slot (`reviewer` by default, then `reviewer-2` to `reviewer-4` and `lead`), at `commit` or, when none is given, the PR's
+   * A separate checkout for a reviewer slot (`reviewer` by default, then an extra reviewer's key, named in the folder, and `lead`), at `commit` or, when none is given, the PR's
    * head, reset and cleaned of untracked files: its path and the commit it was made at. The same slot of an epic reuses its checkout; two slots never share one.
    */
   prepareReviewer(repo: string, epic: number, pr: number, options?: { slot?: string; commit?: string }): Promise<{ path: string; commit: string }>;

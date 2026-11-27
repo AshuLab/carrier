@@ -199,11 +199,11 @@ test('a failure detail that holds a token and runs past 300 characters is served
 });
 
 test('the session of an extra reviewer reads its agent and profile from the epic\'s saved configuration, and the reply names the role the app reads', async () => {
-  const extra = { ...agent, profile: 'x', harness: 'agy' as const, model: 'flash' };
+  const extra = { ...agent, key: 'seguridad-api', name: 'Seguridad API', type: 'security', profile: 'x', harness: 'agy' as const, model: 'flash' };
   const id = db.insert(epics).values({ repo: 'AshuLab/a', issue: 10, status: 'running', config: { ...config, agents: { ...config.agents, extraReviewers: [extra] } } as typeof config }).returning({ id: epics.id }).get().id;
-  execution(id, 1, { stage: 'review', reviewer: 'reviewer-2', status: 'running' }); // no agent recorded on the row: the saved configuration is where it is read
+  execution(id, 1, { stage: 'review', reviewer: 'seguridad-api', status: 'running' }); // no agent recorded on the row: the saved configuration is where it is read
   execution(id, 2, { stage: 'review', reviewer: 'reviewer', status: 'running' });
   const { sessions } = (await ask(10)).reply.data;
   expect(sessions.map((s: { role: string; profile: string; agent: { harness: string; model: string } }) => [s.role, s.profile, s.agent.harness, s.agent.model])).toEqual([['reviewer', 'r', 'codex', 'm'], ['reviewer', 'x', 'agy', 'flash']]);
-  expect(sessions.map((s: { reviewer: string }) => s.reviewer)).toEqual(['reviewer', 'reviewer-2']); // the slot, as a string beside the role
+  expect(sessions.map((s: { reviewer: string }) => s.reviewer)).toEqual(['reviewer', 'seguridad-api']); // the slot, as a string beside the role
 });

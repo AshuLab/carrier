@@ -4,6 +4,42 @@ import Foundation
 // Node's code writes the file and makes the engine run on it. The engine answers it when its hello lists `config`; otherwise (Carrier is stopped, or an older engine)
 // `carrier config` takes the same request, without its `id`, and prints the reply the socket would give.
 
+/// What the person has chosen for an extra reviewer they are adding: the engine refuses it, naming the field, when one is empty.
+public struct ExtraReviewerDraft: Equatable, Sendable {
+    public var name: String
+    /// A slug that says what the reviewer looks at.
+    public var type: String
+    /// `.bot` or `.gh`
+    public var identity: RoleChange
+    public var provider: String
+    public var model: String
+    public var effort: String?
+
+    public init(name: String, type: String, identity: RoleChange, provider: String, model: String, effort: String? = nil) {
+        (self.name, self.type, self.identity, self.provider, self.model, self.effort) = (name, type, identity, provider, model, effort)
+    }
+
+    /// The identity, provider, model and effort as `editRole` takes them (an effort left out is not sent: a new reviewer has none to take out).
+    var changes: [RoleChange] { [identity, .provider(provider), .model(model)] + (effort.map { [.effort($0)] } ?? []) }
+}
+
+/// One entry of a repo's own list of extra reviewers: what the engine reads of it (its persona, failover steps and skills are the Reviewer's).
+public struct RepoExtraReviewer: Equatable, Sendable {
+    /// The key the entry has in the repo's map (the engine derives none: a repo's list is sent whole).
+    public var key: String
+    public var type: String
+    public var name: String
+    /// The name of one of the file's profiles.
+    public var profile: String
+    public var provider: String
+    public var model: String
+    public var effort: String?
+
+    public init(key: String, type: String, name: String, profile: String, provider: String, model: String, effort: String? = nil) {
+        (self.key, self.type, self.name, self.profile, self.provider, self.model, self.effort) = (key, type, name, profile, provider, model, effort)
+    }
+}
+
 /// A change to `engine.json` the app asks for: the watched repos, the eight values of Behavior, the roles, or the orchestrator's profile.
 public enum EngineConfigChange: Equatable, Sendable {
     /// The whole list of `owner/name`, in order; a repo that stays keeps its own fields in the file.
@@ -22,17 +58,32 @@ public enum EngineConfigChange: Equatable, Sendable {
     case leadReviewer(LeadReviewerDraft?)
     /// nil takes the key out: the author's profile.
     case orchestratorProfile(String?)
+    /// A complete draft of an extra reviewer, added at the end of the global map; the engine derives the key from the name.
+    case addExtraReviewer(ExtraReviewerDraft)
+    /// The changes of one pick to an extra reviewer, pointed at by its key and applied together or not at all; `name` and `type` are the only fields a role has not, and a nil one is left as it is.
+    case extraReviewerRole(key: String, name: String?, type: String?, [RoleChange])
+    /// The persona of an extra reviewer: either text alone, or both; nil for both takes it out.
+    case extraReviewerPersona(key: String, name: String?, prompt: String?)
+    /// The first two failover steps of an extra reviewer's own list; both nil takes the list out and the reviewer goes back to the Reviewer's steps.
+    case extraReviewerFailover(key: String, first: FailoverStep?, second: FailoverStep?)
+    /// Takes an extra reviewer out of the global map by its key; the profile it used stays in the file.
+    case removeExtraReviewer(key: String)
+    /// A repo's own list of extra reviewers, sent whole in the order given: `[]` is none, nil takes the repo's key out and the global list applies again.
+    case repoExtraReviewers(repo: String, [RepoExtraReviewer]?)
 
     var command: String {
         switch self {
         case .watchedRepos: "setWatchedRepos"
         case .behavior: "editBehavior"
-        case .role: "editRole"
+        case .role, .extraReviewerRole: "editRole"
         case .repoRole: "editRepoRole"
-        case .persona: "editPersona"
-        case .failover: "editFailover"
+        case .persona, .extraReviewerPersona: "editPersona"
+        case .failover, .extraReviewerFailover: "editFailover"
         case .leadReviewer: "setLeadReviewer"
         case .orchestratorProfile: "setOrchestratorProfile"
+        case .addExtraReviewer: "addExtraReviewer"
+        case .removeExtraReviewer: "removeExtraReviewer"
+        case .repoExtraReviewers: "setRepoExtraReviewers"
         }
     }
 
@@ -62,6 +113,26 @@ public enum EngineConfigChange: Equatable, Sendable {
             return members(["draft": draft.map { wire($0.changes) } ?? NSNull()])
         case .orchestratorProfile(let name):
             return members(["name": name ?? NSNull()])
+        case .addExtraReviewer(let draft):
+            var body = wire(draft.changes)
+            body["name"] = draft.name
+            body["type"] = draft.type
+            return members(["draft": body])
+        case .extraReviewerRole(let key, let name, let type, let changes):
+            var body = wire(changes)
+            body["name"] = name
+            body["type"] = type
+            return members(["role": ["extraReviewer": key], "changes": body])
+        case .extraReviewerPersona(let key, let name, let prompt):
+            return members(["role": ["extraReviewer": key], "name": name ?? NSNull(), "prompt": prompt ?? NSNull()])
+        case .extraReviewerFailover(let key, let first, let second):
+            return members(["role": ["extraReviewer": key], "first": first.map(wire) ?? NSNull(), "second": second.map(wire) ?? NSNull()])
+        case .removeExtraReviewer(let key):
+            return members(["key": key])
+        case .repoExtraReviewers(let repo, let reviewers):
+            // the map is written by hand: the order of the entries is the order the epic runs them in, which a dictionary does not keep
+            let map = reviewers.map { "{" + $0.map { jsonString($0.key) + ":" + entry($0) }.joined(separator: ",") + "}" } ?? "null"
+            return ",\"repo\":" + jsonString(repo) + ",\"reviewers\":" + map
         }
     }
 
@@ -84,6 +155,13 @@ public enum EngineConfigChange: Equatable, Sendable {
             }
         }
         return wire
+    }
+
+    private func entry(_ reviewer: RepoExtraReviewer) -> String {
+        var body = ["type": reviewer.type, "name": reviewer.name, "profile": reviewer.profile, "provider": reviewer.provider, "model": reviewer.model]
+        body["effort"] = reviewer.effort
+        let data = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes])
+        return data.map { String(decoding: $0, as: UTF8.self) } ?? "{}"
     }
 
     /// The fields a repo sets: only the ones that are set.

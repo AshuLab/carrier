@@ -33,7 +33,7 @@ test.each([
 test.each([
   ['a profile that is not declared', { agents: { ...valid.agents, author: { ...valid.agents.author, profile: 'ghost' } } }],
   ['a field out of range', { limits: { maxReviews: 0 } }],
-  ['a failover step of an extra reviewer', { agents: { ...valid.agents, extraReviewers: [{ profile: 'reviewer-bot', provider: 'codex', model: 'm', failover: [{ provider: 'ghost' }] }] } }],
+  ['a failover step of an extra reviewer', { agents: { ...valid.agents, extraReviewers: { sec: { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'codex', model: 'm', failover: [{ provider: 'ghost' }] } } } }],
 ])('%s is not a known kind', (_what, user) => {
   expect(problemsOf(user).every((problem) => problem === null)).toBe(true);
 });

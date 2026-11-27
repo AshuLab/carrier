@@ -39,7 +39,7 @@ const config = { name: 'acme', agents: { author: agent('claude', 'claude-sonnet-
 
 // Every field of the snapshot has a value somewhere in this sample, so the app can be built against it.
 test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTURES=1 rewrites it)', () => {
-  const inReview = add('acme/web', 12, 'running', { config: { ...config, agents: { ...config.agents, extraReviewers: [agent('agy', 'gemini-3')] } } as never, reviewedSha: 'a1b2c3d', stage: 'review', round: 2, prNumber: 50, queuedAt: 500, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error', workspace: '/work/acme/web-epic' });
+  const inReview = add('acme/web', 12, 'running', { config: { ...config, agents: { ...config.agents, extraReviewers: [{ ...agent('agy', 'gemini-3'), key: 'seguridad-api', name: 'Seguridad API', type: 'security' }, { ...agent('claude', 'claude-haiku-5'), key: 'usabilidad', name: 'Usabilidad', type: 'ux' }] } } as never, reviewedSha: 'a1b2c3d', stage: 'review', round: 2, prNumber: 50, queuedAt: 500, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error', workspace: '/work/acme/web-epic' });
   const inShip = add('acme/web', 13, 'running', { config, stage: 'ship', queuedAt: 600, startedAt: 7_000, stageStartedAt: 7_000, workspace: '/work/acme/web-13', retryAt: 100_030_000 });
   const waiting = add('acme/api', 4, 'needs_human', { config, stage: 'fix', round: 5, prNumber: 9, queuedAt: 700, startedAt: 2_000, stageStartedAt: 8_000, finishedAt: 60_000, needsHumanKind: 'review_limit', needsHumanReason: 'review limit', needsHumanCode: 'epic.stop.reviewLimit', needsHumanParams: { round: 5, cap: 5 } });
   for (const [i, kind] of (['agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit', 'engine_error', 'skill_missing', 'reviewers_failed', 'lead_limit'] as const).entries()) {
@@ -56,15 +56,16 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
   exec('exec-ship-40', merged.id, 'ship', 3_000);
   exec('exec-ship-12', inReview.id, 'ship', 1_000);
   db.update(executions).set({ status: 'finished', finishedAt: 39_000 }).where(eq(executions.executionId, 'exec-ship-12')).run();
-  // Round 1 of two reviewers is decided (the second gave no verdict), and round 2 runs both of them.
+  // Round 1 of three reviewers is decided (the second gave no verdict), and round 2 runs both of them.
   db.insert(executions).values([
     { executionId: 'exec-review-12-r1', epicId: inReview.id, stage: 'review', reviewer: 'reviewer', status: 'finished', round: 1, headSha: 'a1b2c3d', resultPath: '/r', startedAt: 39_100, finishedAt: 39_900 },
-    { executionId: 'exec-review-12-r1-2', epicId: inReview.id, stage: 'review', reviewer: 'reviewer-2', status: 'finished', round: 1, headSha: 'a1b2c3d', resultPath: '/r', startedAt: 39_200, finishedAt: 39_900 },
+    { executionId: 'exec-review-12-r1-2', epicId: inReview.id, stage: 'review', reviewer: 'seguridad-api', status: 'finished', round: 1, headSha: 'a1b2c3d', resultPath: '/r', startedAt: 39_200, finishedAt: 39_900 },
+    { executionId: 'exec-review-12-r1-3', epicId: inReview.id, stage: 'review', reviewer: 'usabilidad', status: 'finished', round: 1, headSha: 'a1b2c3d', resultPath: '/r', startedAt: 39_300, finishedAt: 39_900 },
   ]).run();
-  db.insert(callerResults).values({ executionId: 'exec-review-12-r1', outcome: 'completed', result: JSON.stringify({ blockers: [] }) }).run();
-  db.insert(epicEvents).values({ epicId: inReview.id, at: 39_900, type: 'reviewer_no_verdict', data: { round: 1, headSha: 'a1b2c3d', none: { slot: 'reviewer-2', kind: 'agent_needs_human', why: 'cannot verify the migration' } } }).run();
+  db.insert(callerResults).values([{ executionId: 'exec-review-12-r1', outcome: 'completed', result: JSON.stringify({ blockers: [] }) }, { executionId: 'exec-review-12-r1-3', outcome: 'completed', result: JSON.stringify({ blockers: [] }) }]).run();
+  db.insert(epicEvents).values({ epicId: inReview.id, at: 39_900, type: 'reviewer_no_verdict', data: { round: 1, headSha: 'a1b2c3d', none: { slot: 'seguridad-api', kind: 'agent_needs_human', why: 'cannot verify the migration' } } }).run();
   exec('exec-review-12', inReview.id, 'review', 40_000);
-  db.insert(executions).values({ executionId: 'exec-review-12-2', epicId: inReview.id, stage: 'review', reviewer: 'reviewer-2', status: 'running', harness: 'agy', model: 'gemini-3', round: 2, headSha: 'e4f5a6b', resultPath: '/r', startedAt: 40_100 }).run();
+  db.insert(executions).values({ executionId: 'exec-review-12-2', epicId: inReview.id, stage: 'review', reviewer: 'seguridad-api', status: 'running', harness: 'agy', model: 'gemini-3', round: 2, headSha: 'e4f5a6b', resultPath: '/r', startedAt: 40_100 }).run();
   exec('exec-ship-13', inShip.id, 'ship', 7_000);
   exec('exec-fix-4', waiting.id, 'fix', 8_000);
   exec('exec-ship-30', shipped.id, 'ship', 2_000);

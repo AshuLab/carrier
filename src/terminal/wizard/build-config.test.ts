@@ -15,7 +15,7 @@ test('buildConfig names a forge profile after its agent and the login "gh", and 
   expect(config.agents.reviewer).toEqual({ profile: 'bot', provider: 'codex', model: 'x:y' });
   expect(config).not.toHaveProperty('providers'); // the accounts go in providers.json
   expect(loadConfig(defaults, config, providers).ok).toBe(true);
-  expect(() => parseIdentity('forge')).toThrow('invalid identity');
+  expect(() => parseIdentity('forge')).toThrow('invalid profile');
   expect(parseHarnessModel('codex:x:y')).toEqual({ harness: 'codex', model: 'x:y' });
   expect(() => parseHarnessModel('gpt:4')).toThrow('invalid agent');
 });
@@ -55,4 +55,26 @@ test('buildConfig writes the orchestrator as its own profile when it is not the 
   expect(config).toMatchObject({ orchestratorProfile: 'reader', profiles: { reader: { kind: 'forge', agent: 'reader' } } });
   expect(config.agents.author.profile).toBe('gh');
   expect(loadConfig(defaults, config, providers).ok).toBe(true);
+});
+
+test('buildConfig writes the extra reviewers as a map under their keys, in order, with their name, type, own profiles and failover, and the file loads', () => {
+  const config = buildConfig({
+    ...answers,
+    extraReviewers: [
+      { key: 'seguridad-api', name: 'Seguridad API', type: 'security', role: { identity: parseIdentity('forge:second'), provider: 'codex', model: 'gpt-5', effort: 'low', persona: { name: 'Rex' } }, failover: [{ provider: 'claude', model: 'opus' }] },
+      { key: 'usabilidad', name: 'Usabilidad', type: 'ux', role: { identity: parseIdentity('gh'), provider: 'claude', model: 'sonnet' } },
+    ],
+  });
+  expect(config.agents.extraReviewers).toEqual({
+    'seguridad-api': { type: 'security', name: 'Seguridad API', profile: 'second', provider: 'codex', model: 'gpt-5', effort: 'low', persona: { name: 'Rex' }, failover: [{ provider: 'claude', model: 'opus' }] },
+    usabilidad: { type: 'ux', name: 'Usabilidad', profile: 'gh', provider: 'claude', model: 'sonnet' }, // no steps, no failover key: the Reviewer's is used
+  });
+  expect(Object.keys(config.agents.extraReviewers!)).toEqual(['seguridad-api', 'usabilidad']);
+  expect(config.profiles).toMatchObject({ second: { kind: 'forge', agent: 'second' }, gh: { kind: 'gh' } });
+  expect(loadConfig(defaults, config, providers).ok).toBe(true);
+});
+
+test('buildConfig has no extraReviewers key without any', () => {
+  expect(buildConfig(answers).agents).not.toHaveProperty('extraReviewers');
+  expect(buildConfig({ ...answers, extraReviewers: [] }).agents).not.toHaveProperty('extraReviewers');
 });

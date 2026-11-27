@@ -91,6 +91,8 @@ private func readiness(_ json: String) throws -> RolesReadiness { rolesReadiness
     #expect(author[0].detail == "Drena el epic en su propio worktree y deja abierto el pull request final")
     let reviewer = AgentRole.reviewer.stages(bundle: b, locale: l)
     #expect(reviewer.map(\.title) == ["Revisión", "Publicar los hallazgos"] && reviewer[1].detail == "Publica los hallazgos en el pull request")
+    #expect(AgentRole.leadReviewer.stages(bundle: b, locale: l).map(\.title) == ["Revisión del líder", "Publicar y aprobar"])
+    #expect(Copy.rolesRailPasses(rounds: 3, bundle: b, locale: l) == "Cuando todos los revisores coinciden · hasta 3 rondas con el autor")
 }
 
 @Test func whatTheEngineWouldRefuseInARolesFieldsIsSaidInSpanish() {

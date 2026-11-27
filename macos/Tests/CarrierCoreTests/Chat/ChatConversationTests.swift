@@ -548,6 +548,8 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var capabilities: Set<ControlClient.Capability> = [.stopTask]
     var stopped: [String] = []
     var refusingStopTask: ControlError?
+    /// The tasks `stopTask` refuses, by id, when the others stop.
+    var refusingTasks: [String: ControlError] = [:]
     /// The state the host reports with its events; nil leaves the model's as it was (idle).
     var state: ChatSession.State?
     /// The folder the summary of `events` says the session works from.
@@ -601,6 +603,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     func stopTask(_ id: String, task: String) async throws {
         stopped.append("\(id) \(task)")
         if let refusingStopTask { throw refusingStopTask }
+        if let refusing = refusingTasks[task] { throw refusing }
     }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
@@ -895,6 +898,76 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     let preparing = ConversationModel(host: host, sessionId: "s", log: { _ in })
     await preparing.poll()
     #expect(preparing.asleep == false && host.listed.isEmpty)
+}
+
+private let build = BackgroundTask(id: "p1", kind: "local_bash", description: "pnpm build", agentWork: false)
+private let watch = BackgroundTask(id: "p2", kind: "local_bash", description: "", agentWork: false)
+private let review = BackgroundTask(id: "a1", kind: "local_agent", description: "Review the diff")
+
+@MainActor @Test func theProcessesCardSaysTheCountTheNamesAndWhetherStopIsOfferedAndGoesWithTheLastProcess() async {
+    let host = ScriptedHost()
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hi")]
+    host.background = [build]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    // one process: its own words and Stop
+    let one = model.processesCard
+    #expect(one?.title == "1 process still running" && one?.names == "pnpm build" && one?.stop == "Stop" && one?.stopsEach == true)
+    // several: the names on one line (a process the agent did not describe is named by its kind) and Stop all
+    host.background = [build, watch]
+    await model.poll()
+    #expect(model.processesCard?.title == "2 processes still running" && model.processesCard?.names == "pnpm build, local_bash" && model.processesCard?.stop == "Stop all")
+    // agent work is the cyan card's: with a subagent too each card has its own tasks, and with only a subagent there is no grey card
+    host.background = [build, review]
+    await model.poll()
+    #expect(model.processesCard?.processes.map(\.id) == ["p1"] && model.agentWork.map(\.id) == ["a1"])
+    host.background = [review]
+    await model.poll()
+    #expect(model.processesCard == nil && model.agentWork.map(\.id) == ["a1"])
+    // gone with the last process, and the cyan card is given nothing but agent work
+    host.background = []
+    await model.poll()
+    #expect(model.processesCard == nil && model.agentWork.isEmpty)
+}
+
+@MainActor @Test func aHostWithoutStopTaskGetsTheProcessesCardWithNoStop() async {
+    let host = ScriptedHost()
+    host.capabilities = []
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hi")]
+    host.background = [build, watch]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.processesCard?.stop == nil && model.processesCard?.stopsEach == false && model.processesCard?.stopHelp == nil)
+    #expect(model.processesCard?.title == "2 processes still running" && model.processesCard?.names == "pnpm build, local_bash")
+}
+
+@MainActor @Test func stopOnARowStopsThatProcessAndStopAllStopsEachOfThemWithoutAnInterrupt() async {
+    let host = ScriptedHost()
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hi")]
+    host.background = [build, watch, review]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    await model.stopTask("p2")
+    #expect(host.stopped == ["s p2"])
+    await model.stopProcesses()
+    // each process, one at a time, and never the agent work or an interrupt (with no turn running it would stop the subagent as well)
+    #expect(host.stopped == ["s p2", "s p1", "s p2"] && host.interrupts == 0)
+}
+
+@MainActor @Test func stopAllKeepsTheRefusalOfAProcessThatDidNotStopWhenALaterOneStopsCleanly() async {
+    let host = ScriptedHost()
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hi")]
+    host.background = [build, watch]
+    host.refusingTasks["p1"] = ControlError.remote(Refusal(code: "session.task.notRunning", text: "That task is not running"))
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    await model.stopProcesses()
+    // the first is refused and the second stops: the second's success does not take the banner of the first away
+    #expect(host.stopped == ["s p1", "s p2"] && model.refusal?.code == "session.task.notRunning")
+    // and with all of them stopping, a refusal from before is cleared as any stop does
+    host.refusingTasks = [:]
+    await model.stopProcesses()
+    #expect(model.refusal == nil)
 }
 
 @MainActor @Test func aHostWhoseEventsLeaveOutLiveIsStillReadFromItsLists() async {

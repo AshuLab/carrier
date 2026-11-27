@@ -19,8 +19,8 @@ export type Agent = {
 /** The lead reviewer: an agent that also keeps whether its profile is the author's (`sharedIdentity`, saved only when it is). */
 export type LeadReviewer = Agent & { sharedIdentity?: true };
 
-/** A reviewer beyond the mandatory one, with the review skills it resolved, the failover steps it declared (none: the reviewer role's) and whether its profile is the author's (`sharedIdentity`, saved only when it is). */
-export type ExtraReviewer = Agent & { skills: ReviewSkills; failover?: NonNullable<NonNullable<Config['failover']>['roles']>['reviewer']; sharedIdentity?: true };
+/** A reviewer beyond the mandatory one, with its key (its identity in the file), name and type, the review skills it resolved, the failover steps it declared (none: the reviewer role's) and whether its profile is the author's (`sharedIdentity`, saved only when it is). */
+export type ExtraReviewer = Agent & { key: string; name: string; type: string; skills: ReviewSkills; failover?: NonNullable<NonNullable<Config['failover']>['roles']>['reviewer']; sharedIdentity?: true };
 
 // Only profile names, never credentials: Agent Forge resolves those from the profile at run time.
 // `sharedIdentity` is saved with the epic so a later config change does not move it; absent on epics saved before it existed.
@@ -73,9 +73,12 @@ export function resolveRepoConfig(config: Config, repo: Config['repos'][number])
   const sharesAuthor = (profile: string) => authorProfile !== undefined && config.profiles[profile] !== undefined && sameAccount(authorProfile, config.profiles[profile]!);
   const leadAgent = roleOf('leadReviewer');
   const leadReviewer = leadAgent && { ...leadAgent, ...(sharesAuthor(leadAgent.profile) && { sharedIdentity: true as const }) };
-  // A repo's list replaces the global one whole, an empty one included.
-  const extraReviewers = (repo.agents?.extraReviewers ?? config.agents.extraReviewers ?? []).map((extra): ExtraReviewer => ({
+  // A repo's map replaces the global one whole, an empty one included; the list keeps the order of the map.
+  const extraReviewers = Object.entries(repo.agents?.extraReviewers ?? config.agents.extraReviewers ?? {}).map(([key, extra]): ExtraReviewer => ({
     ...agentOf(extra)!,
+    key,
+    name: extra.name,
+    type: extra.type,
     skills: resolveReviewSkills('review', config.skills, repo.skills, extra.skills?.review),
     ...(extra.failover && { failover: extra.failover }),
     ...(sharesAuthor(extra.profile) && { sharedIdentity: true as const }),

@@ -5,6 +5,7 @@ The Carrier folder (`~/.carrier`, or `CARRIER_HOME`, [ADR 0034](../../docs/adr/c
 The engine's files are in `<folder>/engine/`: `state/` (`carrier.db`, `control.sock`, `carrier.lock`), `logs/`, `repos/`, `reviews/` and `worktrees/`.
 `places.ts` computes every path in the folder (the four files at the top, the engine's and the chat's places), and nothing else decides them; `--config` only chooses the engine's config file.
 Its Swift twin is `macos/Sources/CarrierCore/Support/CarrierPlaces.swift`, which also has the app's places.
+An extra reviewer is an entry of `agents.extraReviewers`, a map from a key to its `type`, `name` and agent fields ([ADR 0057](../../docs/adr/review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md)); `extra-reviewer-key.ts` derives the key from the name, the one rule `carrier init` and the request that adds a reviewer share, and `resolve.ts` turns the map into the ordered list the engine runs, each reviewer carrying its key, name and type.
 
 ## Adding a config field
 
@@ -38,7 +39,7 @@ Its Swift twin is `macos/Sources/CarrierCore/Support/CarrierPlaces.swift`, which
 2. Swift: `macos/Sources/CarrierCore/Sessions/SessionAges.swift` for the ages it edits, `WorktreeStart.swift` for `worktreeStart` and `IdleClose.swift` for `idleCloseMinutes`; the row is also listed in `SettingsIndex.swift`, or the Settings search cannot find it.
 
 All four: `docs/configuration.md`, the Settings pages in `docs/macos/` if Settings shows it, and `CHANGELOG.md`.
-`carrier init` saves both files whole through `saveAccounts` (`providers-edit.ts`) and `saveEngineConfig` (`engine-edit.ts`), the accounts first, so its files are checked and renamed like every other write (`src/terminal/wizard/deps.ts`).
+`carrier init` saves both files through `saveAccounts` (`providers-edit.ts`) and `saveEngineConfig` (`engine-edit.ts`), the accounts first, so its files are checked and renamed like every other write (`src/terminal/wizard/deps.ts`); an edit hands `saveEngineConfig` the file as it is with only the keys the wizard owns replaced (`keep-rest.ts`), while "Start over", a new file and `--out` write whole.
 The app's writers keep keys they do not know, and send `reload` after saving the parts of `engine.json` it still writes; `engine.json`'s watched repos and Behavior values are written by `engine-edit.ts` and followed by the engine's own reload.
 `providers.json` is written by `providers-edit.ts` only ([ADR 0053](../../docs/adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)): the chat host answers `setAccounts`, `addAccount`, `editAccount`, `removeAccount` and `setTextGenerator` and `carrier config` runs the same code, each reading the raw file again, keeping every key it does not touch, validating the whole result with `providersFileSchema` and renaming a temporary file over it; the one that wrote then asks the engine to reload (`chat/engine-reload.ts`) and the reply says what it did.
 `removeAccount` reads `engine.json` and `chat.json` for who uses the account (`accountUses`) and stops when one of them is there and cannot be read.

@@ -103,7 +103,7 @@ epic.stop.reviewersNotAgreed||=round:s detail:s
 epic.stop.skillMissing||=
 epic.stop.timeout||=stage:s limit:s
 epic.stop.usageLimit||=
-epic.stop.usageLimitWakeRefused|cause|serverError=runs:n stage:s option:s repo:s issue:s role:s detail:s why:s|other=runs:n stage:s option:s repo:s issue:s role:s detail:s why:s
+epic.stop.usageLimitWakeRefused|cause|serverError=runs:n stage:s option:s repo:s issue:s flag:s detail:s why:s|other=runs:n stage:s option:s repo:s issue:s flag:s detail:s why:s
 epic.stop.workspacePrepare||=error:s
 epic.stop.worktreeListFailed||=repo:s attempts:n error:s
 epic.stop.worktreeNotFound||=branch:s repo:s
@@ -160,6 +160,7 @@ request.invalid||=
 request.invalidJson||=
 request.tooLong||=
 resume.didNotRestart||=
+resume.extraReviewerUnknown||=key:s
 resume.extraRoundsNeedReviewLimit||=
 resume.extraRoundsNeedStage||=
 resume.noPullRequest||=
@@ -167,6 +168,7 @@ resume.notStopped||=
 resume.optionUnknown||=
 resume.pullRequestHeadChanged||=
 resume.pullRequestNotOpen||=
+resume.reviewersWithoutKey||=
 resume.roleUnknown||=
 session.action.failed||=action:s output:s
 session.action.failedWithCode||=action:s exitCode:s output:s

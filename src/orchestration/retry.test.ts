@@ -59,26 +59,26 @@ afterEach(() => {
 });
 const epic = { id: 1, startedAt: 100 };
 const failed = { status: 'failed', error: 'boom', failureKind: 'crashed' } as const;
-const row = (executionId: string, reviewer: 'reviewer' | 'reviewer-2' | null, extra: Partial<typeof executions.$inferInsert> = {}) =>
+const row = (executionId: string, reviewer: 'reviewer' | 'seguridad-api' | null, extra: Partial<typeof executions.$inferInsert> = {}) =>
   db.insert(executions).values({ executionId, epicId: 1, stage: reviewer === null ? 'ship' : 'review', reviewer, status: 'finished', resultPath: '/r.json', startedAt: 100, ...extra }).run();
 const idsOf = (list: { executionId: string }[]) => list.map((e) => e.executionId);
 
 test('the streak of a slot is not extended by the failures of another slot, and not broken by what another slot did well', () => {
   row('a1', 'reviewer', failed);
-  row('b1', 'reviewer-2', failed);
+  row('b1', 'seguridad-api', failed);
   row('a2', 'reviewer', failed);
-  row('b2', 'reviewer-2'); // the extra reviewer recovered: its streak ends
+  row('b2', 'seguridad-api'); // the extra reviewer recovered: its streak ends
   row('a3', 'reviewer', failed);
-  row('b3', 'reviewer-2', failed);
+  row('b3', 'seguridad-api', failed);
 
   expect(idsOf(failureStreak(db, epic, 'reviewer'))).toEqual(['a3', 'a2', 'a1']);
-  expect(idsOf(failureStreak(db, epic, 'reviewer-2'))).toEqual(['b3']);
+  expect(idsOf(failureStreak(db, epic, 'seguridad-api'))).toEqual(['b3']);
 });
 
 test('a slot that ended well has no streak whatever the other slots did after, and the author is a slot of its own', () => {
   row('a1', 'reviewer', failed);
   row('a2', 'reviewer');
-  row('b1', 'reviewer-2', failed);
+  row('b1', 'seguridad-api', failed);
   row('s1', null, failed);
 
   expect(failureStreak(db, epic, 'reviewer')).toEqual([]);
@@ -94,27 +94,27 @@ test('a review row with no slot written is the mandatory reviewer\'s, and an exe
 
 test('the last execution of each slot is of the attempt, the author first, and a running retry does not hide the failure it replaces', () => {
   row('s1', null);
-  row('b1', 'reviewer-2', failed);
+  row('b1', 'seguridad-api', failed);
   row('a1', 'reviewer', { startedAt: 99 }); // another attempt's
   row('a2', 'reviewer', { status: 'running' });
 
   expect(idsOf(lastBySlot(db, epic))).toEqual(['s1', 'a2', 'b1']);
   expect(idsOf(lastBySlot(db, epic, { ended: true }))).toEqual(['s1', 'b1']);
-  expect(failingBesides(db, epic, 'reviewer')).toBe(true); // reviewer-2 is still recovering
-  expect(failingBesides(db, epic, 'reviewer-2')).toBe(false);
+  expect(failingBesides(db, epic, 'reviewer')).toBe(true); // seguridad-api is still recovering
+  expect(failingBesides(db, epic, 'seguridad-api')).toBe(false);
 });
 
 test('the due time of each slot is its own, and an epic shows the earliest of the slots that wait for one', () => {
   const apiError = { ...failed, failureKind: 'api_error' } as const;
   row('a1', 'reviewer', { ...apiError, finishedAt: 1_000 }); // first failure of the streak: 30 s
-  row('b1', 'reviewer-2', { ...apiError, finishedAt: 500 });
-  row('b2', 'reviewer-2', { ...apiError, finishedAt: 600 }); // second: 2 min
+  row('b1', 'seguridad-api', { ...apiError, finishedAt: 500 });
+  row('b2', 'seguridad-api', { ...apiError, finishedAt: 600 }); // second: 2 min
   row('s1', null, { ...failed, finishedAt: 50 }); // a crash waits nothing
 
   expect(retryDue(db, epic, 'reviewer')).toBe(31_000);
-  expect(retryDue(db, epic, 'reviewer-2')).toBe(120_600);
+  expect(retryDue(db, epic, 'seguridad-api')).toBe(120_600);
   expect(retryDue(db, epic, null)).toBeNull();
   expect(earliestRetryDue(db, epic)).toBe(31_000);
   expect(earliestRetryDue(db, epic, ['reviewer'])).toBe(120_600);
-  expect(earliestRetryDue(db, epic, ['reviewer', 'reviewer-2'])).toBeNull();
+  expect(earliestRetryDue(db, epic, ['reviewer', 'seguridad-api'])).toBeNull();
 });

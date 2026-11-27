@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- The engine adds, changes and removes an extra reviewer and sets a repo's own list of them (`addExtraReviewer`, `removeExtraReviewer`, `setRepoExtraReviewers`, and `editRole`, `editPersona` and `editFailover` with `{ "extraReviewer": "<key>" }`), announced with the capability `extraReviewers`, so the app can edit them without touching the file by hand.
+  `carrier config` accepts the same requests.
+- `carrier init` takes extra reviewers by flags that name them: `--extra-reviewer "<name>=<harness>:<model>"`, repeatable, and `--extra-reviewer-profile`, `-provider`, `-effort`, `-type`, `-persona-name`, `-persona-prompt` and `-failover`, each as `"<name>=<value>"`.
+- `carrier restart` takes `--extra-reviewer-option "<key>=<option>"`, repeatable, to choose the option of an extra reviewer by its key.
+- Eleven more themes in Settings, Appearance: Solarized, Nord, Gruvbox, Dracula, Tokyo Night, Catppuccin, One Dark, Monokai, Rosé Pine, Everforest and Ayu, each with a light and a dark version that the colour scheme picks, twenty themes in all.
+  The terminal can use any of them too, each with its own 16-colour palette built from the theme's published terminal colours and nudged only where the contrast test needs it.
+  Monokai has no official light version, so its light one is Carrier's own, inspired by the original.
+- Send to sleep, in the context menu of a session, closes its agent right away (freeing its memory) and leaves the session asleep: a message wakes it where it left off.
+  It is offered while the agent is idle; one that works or waits ends with Stop.
+
+### Changed
+
+- The theme gallery shows three rows and scrolls sideways, with half a column cut at the right edge while there are more themes, an arrow at each side, and the arrow keys moving the choice, so it keeps the same height with twenty themes as with nine.
+- The terminal chooses its theme in that same gallery instead of a pop-up, and its first cell, "Same as app", follows the app's theme until another one is picked.
+- `carrier init` asks the AI accounts first, then the orchestrator's GitHub profile, then one closed block for each role (the Author, the Reviewer, each extra reviewer and the Lead reviewer), and the repos last.
+  A role block asks its profile and account, shows the model and effort it would use and asks only whether to change them, asks one "customise the persona?" and then its failover, which is asked only with two or more accounts.
+  After the Reviewer it offers up to three extra reviewers, each with a name and a type, written to `agents.extraReviewers`.
+- Esc goes back one question in `init` and keeps the earlier answers, Ctrl+C leaves, and the recap's "Change an answer" is a menu that jumps to one block instead of asking everything again.
+  Ctrl+C at "Start Carrier now?" counts as no and prints what to run.
+- Every `init` question has a flag, built from the same table of roles (`--<role>`, `--<role>-profile`, `--<role>-provider`, `--<role>-effort`, `--<role>-persona-name`, `--<role>-persona-prompt`, repeatable `--<role>-failover`, plus `--orchestrator-profile`), and a mistake in a flag is reported naming it before the wizard looks at the machine or GitHub.
+  `--yes` prints what it chose and now always needs `--repo`.
+- `agents.extraReviewers` is a map from a key to a reviewer with a `name` and a `type`, at most three, in the order of the file, global or a repo's, and a file that still has a list is refused when it loads with a message that names the map.
+  The key is derived from the name and is the identity of the reviewer everywhere: its stored executions, rounds, blockers, checkout folder, the epic's status, the doctor's checks and `carrier restart`.
+  `reviewer-2` to `reviewer-4` do not exist any more, nothing migrates, and an epic saved with extra reviewers before the names cannot be resumed.
+  A reviewer with no persona signs with its name, and the `resumeEpic` request takes `extraReviewers`, a map from a key to the option.
+- A session is working only while the model acts or has agent work (a subagent, a workflow, a teammate or a remote agent) running.
+  A dev server, a watcher or any other background process left running no longer keeps it as working: the session reads Done or idle, its stopwatch stops, and it can be archived.
+  The row carries a small grey mark with the number of processes (also while the model works), the hover card names them, and VoiceOver says "N background processes".
+  In the chat they are one grey card over the message box with their names, Stop all, and a chevron that opens a row for each with how long it has run and its own Stop.
+  Archiving or deleting a session that has only processes asks first, saying which ones it stops, and stops them; a session with agent work is still refused.
+
+### Fixed
+
+- A session's branch in the sidebar and on the Sessions page reads as the branch name again, instead of `ModifiedContent<Text, ScaledFont…>`.
+- A session no longer shows the pull request of an older branch that had the same name: one merged or closed before the session started is not its own.
+- The week chart of the Dictation statistics puts each day's name centred under its bar and spells it out (Fri, Sat), instead of a single letter to the left of the bar that was the same for Saturday and Sunday.
+- The four figures of Overview and of Records in the Dictation statistics sit on the panel's own background, no longer inside a second card.
+- The Settings window no longer shrinks below its smallest size (it could be dragged down to about 400 px wide, where its pages broke): it stops at 950 px wide, and opens at 1000.
+- `carrier init` no longer takes anything away: it adds the agent CLIs it finds to the accounts in `providers.json` instead of replacing them, an edit keeps the keys it does not ask (`limits`, `labels`, `skills`, `behavior`, per-repo overrides), an existing config that does not validate is reported with its first error before the file is touched, and `--config` is refused with a line that says `init` writes with `--out`.
+- An epic whose slices build for more than 10 minutes no longer ends its `ship` with "no result file was written" and starts again from the top.
+  Claude's headless mode stopped the subagents still running 10 minutes after the agent's last turn and exited; the engine now turns that limit off (a `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS` you exported is kept), pins Antigravity's print mode to no time limit, and tells the author, whatever its harness, not to end its turn while its subagents or background tasks are running.
+
 ## [0.20.0] - 2026-11-25
 
 The Mac app in Spanish and organized by area, `carrier config`, named engine and chat host processes, worktree chips that say where the work stands, and glass terminals.

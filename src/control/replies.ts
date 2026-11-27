@@ -62,7 +62,7 @@ export type SessionsReply = {
     /** `lead` is the lead reviewer's: unlike the snapshot, the replies name it. */
     stage: 'ship' | 'review' | 'fix' | 'lead';
     role: 'author' | 'reviewer';
-    /** The reviewer's slot (`reviewer`, `reviewer-2`...; `lead` for the lead) as a string, on a review session. */
+    /** The reviewer's slot (`reviewer`, an extra reviewer's key, or `lead` for the lead) as a string, on a review session. */
     reviewer?: string;
     round: number | null;
     agent: PanelAgent;
@@ -103,7 +103,7 @@ export type Blocker = {
 export type Observation = { id: string | null; title: string; url: string | null };
 
 export type EpicReply = {
-  /** `reviewers` (the slots as strings, `reviewer-2`...) is only on a review stage in which several reviewers ran. */
+  /** `reviewers` (the slots as strings: `reviewer` and the extra reviewers' keys) is only on a review stage in which several reviewers ran. */
   stages: { stage: 'queued' | 'ship' | 'review' | 'fix' | 'lead' | 'ready'; startedAt: number; endedAt: number | null; reviewers?: string[] }[];
   /** One per round, however many reviewers it has; a round repeated on a new head is one, for the head it was decided on. */
   rounds: {

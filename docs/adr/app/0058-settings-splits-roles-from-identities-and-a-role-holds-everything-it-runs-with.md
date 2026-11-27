@@ -1,4 +1,4 @@
-# 0056 - Settings splits roles from identities, and a role holds everything it runs with
+# 0058 - Settings splits roles from identities, and a role holds everything it runs with
 
 - Status: proposed
 - Date: 2026-11-26

@@ -81,7 +81,7 @@ async function client() {
 test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
   await open();
   const c = await client();
-  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config'] });
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config', 'extraReviewers'] });
   expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
   expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
 });
@@ -308,6 +308,18 @@ test('resumeEpic passes the options named for each role, a role left out as unde
   expect(resumeEpic).toHaveBeenLastCalledWith('AshuLab/carrier', 5, { author: undefined, reviewer: 'claude' });
 });
 
+test('resumeEpic passes the option of each extra reviewer by its key, and refuses the old names and a key that is not a slug', async () => {
+  const resumeEpic = vi.fn(() => Promise.resolve());
+  await open(undefined, { ...fakeControls().controls, resumeEpic });
+  const c = await client();
+  expect(await c.ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"extraReviewers":{"seguridad-api":"codex","usabilidad":"claude"}}')).toEqual({ id: 4, ok: true });
+  expect(resumeEpic).toHaveBeenLastCalledWith('AshuLab/carrier', 5, { author: undefined, reviewer: undefined, extraReviewers: { 'seguridad-api': 'codex', usabilidad: 'claude' } });
+  for (const extra of ['"reviewer2":"codex"', '"reviewer3":"codex"', '"reviewer4":"codex"', '"extraReviewers":{"2":"codex"}', '"extraReviewers":{"Seguridad":"codex"}', '"extraReviewers":["codex"]', '"extraReviewers":{"a":"codex","b":"codex","c":"codex","d":"codex"}']) {
+    expect(await c.ask(`{"id":5,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,${extra}}`)).toMatchObject({ id: 5, ok: false });
+  }
+  expect(resumeEpic).toHaveBeenCalledTimes(1);
+});
+
 test('resumeEpic passes the stage named in from, and refuses any other', async () => {
   const resumeEpic = vi.fn(() => Promise.resolve());
   await open(undefined, { ...fakeControls().controls, resumeEpic });
@@ -352,6 +364,7 @@ test.each([
   ['resume.didNotRestart', 'did not restart'],
   ['resume.optionUnknown', 'unknown option'],
   ['resume.roleUnknown', 'no such role'],
+  ['resume.reviewersWithoutKey', 'reviewers without a key'],
   ['resume.noPullRequest', 'no pull request'],
   ['resume.pullRequestNotOpen', 'pull request not open'],
   ['resume.pullRequestHeadChanged', 'pull request head changed'],
@@ -360,6 +373,11 @@ test.each([
 ] as const)('resumeEpic refused with %s answers "%s" as the words', async (code, reason) => {
   await open(undefined, { ...fakeControls().controls, resumeEpic: () => Promise.reject(new ResumeRefused(code, reason)) });
   expect(await (await client()).ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: reason, code, params: {} });
+});
+
+test('resumeEpic refused for an extra reviewer the epic does not have carries its key as the parameter', async () => {
+  await open(undefined, { ...fakeControls().controls, resumeEpic: () => Promise.reject(new ResumeRefused('resume.extraReviewerUnknown', 'no such extra reviewer', { key: 'rendimiento' })) });
+  expect(await (await client()).ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: 'no such extra reviewer', code: 'resume.extraReviewerUnknown', params: { key: 'rendimiento' } });
 });
 
 test('resumeEpic that fails for any other reason is an "internal error" without the reason, and the server goes on', async () => {
@@ -508,7 +526,7 @@ test('no request takes a status, a stage or a round, and each accepts exactly th
     fileDiff: ['issue', 'path', 'repo', 'section'],
     availableRepos: ['page'],
     reload: [],
-    resumeEpic: ['author', 'extraRounds', 'from', 'issue', 'lead', 'repo', 'reviewer', 'reviewer2', 'reviewer3', 'reviewer4'],
+    resumeEpic: ['author', 'extraReviewers', 'extraRounds', 'from', 'issue', 'lead', 'repo', 'reviewer'],
     recoverEpic: ['issue', 'repo'],
     setWatchedRepos: ['repos'],
     editBehavior: ['changes'],
@@ -518,6 +536,9 @@ test('no request takes a status, a stage or a round, and each accepts exactly th
     editFailover: ['first', 'role', 'second'],
     setLeadReviewer: ['draft'],
     setOrchestratorProfile: ['name'],
+    addExtraReviewer: ['draft'],
+    removeExtraReviewer: ['key'],
+    setRepoExtraReviewers: ['repo', 'reviewers'],
   });
   expect(Object.values(accepted).flat().filter((field) => ['status', 'stage', 'round', 'rounds'].includes(field))).toEqual([]);
 });
@@ -767,6 +788,7 @@ test.each([
   ['editFailover', '"role":"author","first":{"provider":"codex","model":"g"},"second":null', (file: any) => file.failover.roles.author, [{ provider: 'codex', model: 'g' }]],
   ['setLeadReviewer', '"draft":{"identity":{"kind":"gh"},"provider":"claude","model":"opus"}', (file: any) => file.agents.leadReviewer, { profile: 'reviewer-bot', provider: 'claude', model: 'opus' }],
   ['setOrchestratorProfile', '"name":"author-bot"', (file: any) => file.orchestratorProfile, 'author-bot'],
+  ['addExtraReviewer', '"draft":{"name":"Seguridad API","type":"security","identity":{"kind":"gh"},"provider":"claude","model":"opus"}', (file: any) => file.agents.extraReviewers, { 'seguridad-api': { type: 'security', name: 'Seguridad API', profile: 'reviewer-bot', provider: 'claude', model: 'opus' } }],
 ])('%s writes the file, keeping every key it does not touch, makes the engine run on it and answers saved and the engine', async (cmd, fields, read, expected) => {
   const reload = vi.fn();
   const { file, c } = await openConfig(reload);
@@ -775,6 +797,25 @@ test.each([
   const after = JSON.parse(readFileSync(file, 'utf8'));
   expect(read(after)).toEqual(expected);
   expect(Object.keys(after)).toEqual(Object.keys(validEngineFile));
+  expect(reload).toHaveBeenCalledTimes(1);
+});
+
+test('removeExtraReviewer takes the reviewer out of the file, makes the engine run on it and answers saved and the engine', async () => {
+  const reload = vi.fn();
+  const { file, c } = await openConfig(reload);
+  const sec = { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'claude', model: 'opus' };
+  writeFileSync(file, JSON.stringify({ ...validEngineFile, agents: { ...validEngineFile.agents, extraReviewers: { sec } } }));
+  expect(await c.ask('{"id":5,"cmd":"removeExtraReviewer","key":"sec"}')).toEqual({ id: 5, ok: true, data: { saved: {}, engine: 'applied' } });
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual(validEngineFile);
+  expect(reload).toHaveBeenCalledTimes(1);
+});
+
+test('setRepoExtraReviewers writes the repo\'s own list, makes the engine run on it and answers saved and the engine', async () => {
+  const reload = vi.fn();
+  const { file, c } = await openConfig(reload);
+  const sec = { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'claude', model: 'opus' };
+  expect(await c.ask(JSON.stringify({ id: 5, cmd: 'setRepoExtraReviewers', repo: 'acme/web', reviewers: { sec } }))).toEqual({ id: 5, ok: true, data: { saved: { repos: [{ name: 'acme/web', agents: { author: { model: 'opus' }, extraReviewers: { sec } } }] }, engine: 'applied' } });
+  expect(JSON.parse(readFileSync(file, 'utf8')).repos[1].agents.extraReviewers).toEqual({ sec });
   expect(reload).toHaveBeenCalledTimes(1);
 });
 
@@ -795,7 +836,14 @@ test.each([
   ['editPersona', '"role":"author","name":"","prompt":null', 'The persona’s name cannot be empty. Leave it out instead.', { path: 'agents.author.persona.name', problem: 'empty' }],
   ['editFailover', '"role":"author","first":null,"second":{"provider":"codex"}', 'Then needs a First step.', { path: 'failover.roles.author.1', problem: 'firstMissing' }],
   ['editFailover', '"role":"author","first":{"provider":"claude","model":"m"},"second":null', 'First is the role’s own provider and model, so it would move nowhere.', { path: 'failover.roles.author.0', problem: 'stepOwnRole' }],
+  ['editRole', '"role":{"extraReviewer":"ghost"},"changes":{"model":"m"}', 'There is no extra reviewer “ghost” in engine.json.', { path: 'agents.extraReviewers.ghost', problem: 'noEntry' }],
+  ['editPersona', '"role":{"extraReviewer":"ghost"},"name":"Ada","prompt":null', 'There is no extra reviewer “ghost” in engine.json.', { path: 'agents.extraReviewers.ghost', problem: 'noEntry' }],
+  ['editFailover', '"role":{"extraReviewer":"ghost"},"first":{"provider":"codex"},"second":null', 'There is no extra reviewer “ghost” in engine.json.', { path: 'agents.extraReviewers.ghost', problem: 'noEntry' }],
+  ['editRole', '"role":"author","changes":{"name":"Ada"}', 'Author has no name: only an extra reviewer has one.', { path: 'agents.author.name', problem: 'notAnExtraReviewer' }],
   ['setLeadReviewer', '"draft":{"provider":"claude"}', 'The lead reviewer needs an identity, a model.', { path: 'agents.leadReviewer', problem: 'incomplete' }],
+  ['addExtraReviewer', '"draft":{"name":"Sec","provider":"claude","model":"opus"}', 'An extra reviewer needs type, identity.', { path: 'agents.extraReviewers.type', problem: 'incomplete' }],
+  ['removeExtraReviewer', '"key":"ghost"', 'There is no extra reviewer “ghost” in engine.json.', { path: 'agents.extraReviewers.ghost', problem: 'noEntry' }],
+  ['setRepoExtraReviewers', '"repo":"x/y","reviewers":{}', 'x/y is no longer in the config file.', { path: 'repos', problem: 'notWatched' }],
   ['setOrchestratorProfile', '"name":"ghost"', expect.stringContaining('orchestratorProfile'), { path: 'orchestratorProfile', problem: 'invalid' }],
 ])('%s with %s is refused with its words, code and params, no reload, and the file is as it was', async (cmd, fields, words, params) => {
   const reload = vi.fn();
@@ -811,6 +859,11 @@ test.each([
   '{"id":5,"cmd":"editRole","role":"boss","changes":{}}',
   '{"id":5,"cmd":"editRole","role":"author","changes":{"identity":{"kind":"forge"}}}',
   '{"id":5,"cmd":"editRole","role":"author","changes":{"bots":["a"]}}',
+  '{"id":5,"cmd":"editRole","role":{"extraReviewer":5},"changes":{}}',
+  '{"id":5,"cmd":"editRole","role":{"extraReviewer":"a","key":"a"},"changes":{}}',
+  '{"id":5,"cmd":"editRole","role":{},"changes":{}}',
+  '{"id":5,"cmd":"editPersona","role":{"extraReviewer":"a","name":"x"},"name":null,"prompt":null}',
+  '{"id":5,"cmd":"setLeadReviewer","draft":{"name":"Ada"}}',
   '{"id":5,"cmd":"editRepoRole","repo":"nope","role":"author","fields":null}',
   '{"id":5,"cmd":"editRepoRole","repo":"a/b","role":"author"}',
   '{"id":5,"cmd":"editRepoRole","repo":"a/b","role":"author","fields":{"accounts":["a"]}}',
@@ -819,6 +872,13 @@ test.each([
   '{"id":5,"cmd":"editFailover","role":"author","first":null,"second":null,"accounts":["a"]}',
   '{"id":5,"cmd":"setLeadReviewer"}',
   '{"id":5,"cmd":"setOrchestratorProfile","name":5}',
+  '{"id":5,"cmd":"addExtraReviewer"}',
+  '{"id":5,"cmd":"addExtraReviewer","draft":{"name":"a","key":"a"}}',
+  '{"id":5,"cmd":"removeExtraReviewer"}',
+  '{"id":5,"cmd":"removeExtraReviewer","key":5}',
+  '{"id":5,"cmd":"setRepoExtraReviewers","repo":"acme/web"}',
+  '{"id":5,"cmd":"setRepoExtraReviewers","repo":"acme/web","reviewers":[]}',
+  '{"id":5,"cmd":"setRepoExtraReviewers","repo":"acme/web","reviewers":{"a":{"name":"A","key":"a"}}}',
 ])('%s is a validation error', async (line) => {
   const { c } = await openConfig(() => {});
   expect(await c.ask(line)).toEqual({ id: 5, ok: false, error: 'invalid request', code: 'request.invalid', params: {} });

@@ -29,8 +29,8 @@ struct RolesStatusCard: View {
                 ForEach(readiness.notes, id: \.self) { note in
                     Text(note).scaledFont(12).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                if let fix = readiness.fix {
-                    Button { open(fix) } label: { Label(Copy.rolesOpenRole(role: fix.title()), icon: .arrowRight).labelStyle(.titleAndIcon) }
+                if let fix = readiness.problems.first {
+                    Button { open(fix.role) } label: { Label(Copy.rolesOpenRole(role: fix.title), icon: .arrowRight).labelStyle(.titleAndIcon) }
                         .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).padding(.top, Tokens.Space.s4)
                 }
             }
@@ -100,7 +100,7 @@ struct EpicRail: View {
                 }
             }
         } else {
-            RailLink(dashed: next.off) { Text(next.off ? Copy.rolesRailLeadOff() : Copy.rolesRailPasses()) }
+            RailLink(dashed: next.off) { Text(next.off ? Copy.rolesRailLeadOff() : Copy.rolesRailPasses(rounds: page.leadRounds)) }
         }
     }
 }
@@ -216,7 +216,10 @@ struct RoleHero: View {
             VStack(alignment: .leading, spacing: Tokens.Space.s3) {
                 Text(name).scaledFont(16, weight: .bold).lineLimit(1).truncationMode(.middle)
                 Text(row.headline()).scaledFont(12).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                source
+                HStack(spacing: Tokens.Space.s6) {
+                    source
+                    if let type = row.type { StatusChip(text: Copy.rolesExtraType(type: type), tint: .secondary) }
+                }
             }
             Spacer(minLength: 8)
         }

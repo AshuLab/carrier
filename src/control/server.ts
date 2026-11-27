@@ -6,6 +6,7 @@ import type { ChatCapability } from '../chat/server.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
 import { controlSocketIn } from '../config/places.ts';
 import { ConfigRefused } from '../config/engine-edit.ts';
+import { slugPattern } from '../config/extra-reviewer-key.ts';
 import { optionNamePattern } from '../config/providers.ts';
 import type { TextParams } from '../orchestration/text-params.ts';
 import { RecoverRefused } from '../orchestration/recover-refused.ts';
@@ -34,6 +35,8 @@ const repo = z
 const issue = z.number().int().positive();
 const optionName = z.string().regex(optionNamePattern);
 const extraRounds = z.int().min(1);
+// The option of each extra reviewer the epic has, by its key; an extra reviewer is at most three (the engine refuses a key the epic does not have).
+const extraReviewerOptions = z.record(z.string().regex(slugPattern), optionName).refine((options) => Object.keys(options).length <= 3);
 // The `config` capability: the requests that change `engine.json` (ADR 0053). A value the file's schema refuses is refused with its key path and kind.
 const whole = z.number().finite();
 export const setWatchedReposRequest = z.strictObject({ id, cmd: z.literal('setWatchedRepos'), repos: z.array(z.string().max(200)).max(500) });
@@ -48,15 +51,17 @@ export const editBehaviorRequest = z.strictObject({
   }),
 });
 // The requests that change the roles of `engine.json`: what the Roles page, a repo's role screens and the Engine page send. The words of a field the file refuses are the handler's, so a limit here is only a bound on the line.
-const roleName = z.enum(['author', 'reviewer', 'leadReviewer']);
 const field = z.string().max(200);
+const roleName = z.enum(['author', 'reviewer', 'leadReviewer']);
+// What a change to a role may point at: a role, or an extra reviewer by its key (the handler refuses a key the file does not hold, naming it).
+const roleTarget = z.union([roleName, z.strictObject({ extraReviewer: field })]);
 const identity = z.union([z.strictObject({ kind: z.literal('forge'), agent: field }), z.strictObject({ kind: z.literal('gh') })]);
 const roleChanges = z.strictObject({ identity: identity.optional(), provider: field.optional(), model: field.optional(), effort: field.nullable().optional() });
 const personaName = field;
 const personaPrompt = z.string().max(10_000);
 const failoverStep = z.strictObject({ provider: field, model: field.optional(), effort: field.optional() }).nullable();
 export const engineFileRequests = [
-  z.strictObject({ id, cmd: z.literal('editRole'), role: roleName, changes: roleChanges }),
+  z.strictObject({ id, cmd: z.literal('editRole'), role: roleTarget, changes: roleChanges.extend({ name: field.optional(), type: field.optional() }) }),
   z.strictObject({
     id,
     cmd: z.literal('editRepoRole'),
@@ -64,10 +69,18 @@ export const engineFileRequests = [
     role: roleName,
     fields: z.strictObject({ profile: field.optional(), provider: field.optional(), model: field.optional(), effort: field.optional(), persona: z.strictObject({ name: personaName.optional(), prompt: personaPrompt.optional() }).optional() }).nullable(),
   }),
-  z.strictObject({ id, cmd: z.literal('editPersona'), role: roleName, name: personaName.nullable(), prompt: personaPrompt.nullable() }),
-  z.strictObject({ id, cmd: z.literal('editFailover'), role: roleName, first: failoverStep, second: failoverStep }),
+  z.strictObject({ id, cmd: z.literal('editPersona'), role: roleTarget, name: personaName.nullable(), prompt: personaPrompt.nullable() }),
+  z.strictObject({ id, cmd: z.literal('editFailover'), role: roleTarget, first: failoverStep, second: failoverStep }),
   z.strictObject({ id, cmd: z.literal('setLeadReviewer'), draft: roleChanges.nullable() }),
   z.strictObject({ id, cmd: z.literal('setOrchestratorProfile'), name: field.nullable() }),
+  z.strictObject({ id, cmd: z.literal('addExtraReviewer'), draft: z.strictObject({ name: field.optional(), type: field.optional(), identity: identity.optional(), provider: field.optional(), model: field.optional(), effort: field.optional() }) }),
+  z.strictObject({ id, cmd: z.literal('removeExtraReviewer'), key: field }),
+  z.strictObject({
+    id,
+    cmd: z.literal('setRepoExtraReviewers'),
+    repo,
+    reviewers: z.record(field, z.strictObject({ type: field.optional(), name: field.optional(), profile: field.optional(), provider: field.optional(), model: field.optional(), effort: field.optional() })).nullable(),
+  }),
 ] as const;
 type EngineFileCmd = (typeof engineFileRequests)[number]['shape']['cmd']['value'];
 // An allowlist: any other command, field or type is rejected before anything acts on it.
@@ -81,7 +94,7 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('fileDiff'), repo, issue, section: z.string().min(1).max(100), path: z.string().min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('availableRepos'), page: z.int().min(1).max(100).optional() }),
   z.strictObject({ id, cmd: z.literal('reload') }),
-  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional(), reviewer2: optionName.optional(), reviewer3: optionName.optional(), reviewer4: optionName.optional(), lead: optionName.optional(), from: z.enum(['ship', 'review', 'fix']).optional(), extraRounds: extraRounds.optional() }),
+  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional(), extraReviewers: extraReviewerOptions.optional(), lead: optionName.optional(), from: z.enum(['ship', 'review', 'fix']).optional(), extraRounds: extraRounds.optional() }),
   z.strictObject({ id, cmd: z.literal('recoverEpic'), repo, issue }),
   setWatchedReposRequest,
   editBehaviorRequest,
@@ -92,9 +105,9 @@ export const request = z.union([
 export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
-export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'resumeFromStage' | 'resumeReviewerOptions' | 'recoverEpic' | 'reload' | 'config';
+export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'resumeFromStage' | 'resumeReviewerOptions' | 'recoverEpic' | 'reload' | 'config' | 'extraReviewers';
 /** What the hello announces. */
-export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config'];
+export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config', 'extraReviewers'];
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: (Capability | ChatCapability)[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string; code?: string; params?: TextParams };
 
@@ -119,7 +132,7 @@ export type Controls = {
   /** One page of the repos the gh login can push to, and whether there is a next one; rejects when GitHub cannot be read. */
   availableRepos(page: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }>;
   /** Puts a stopped epic back in motion and resolves once it started; rejects with ResumeRefused when it could not. */
-  resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; reviewer2?: string; reviewer3?: string; reviewer4?: string; lead?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number }): Promise<void>;
+  resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; extraReviewers?: Record<string, string>; lead?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number }): Promise<void>;
   /** Continues one running epic whose agent is not alive and resolves once it was; rejects with RecoverRefused when it could not. It takes no state: the engine reads the epic's own. */
   recoverEpic(repo: string, issue: number): Promise<void>;
   /** Reads the settings again and runs on them; throws ReloadRefused, with the settings as they were, when they are not valid. */
@@ -236,9 +249,9 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       );
   }
   if (parsed.data.cmd === 'resumeEpic') {
-    const { id: replyId, repo, issue, author, reviewer, reviewer2, reviewer3, reviewer4, lead, from, extraRounds } = parsed.data;
+    const { id: replyId, repo, issue, author, reviewer, extraReviewers, lead, from, extraRounds } = parsed.data;
     return Promise.resolve()
-      .then(() => controls.resumeEpic(repo, issue, { author, reviewer, reviewer2, reviewer3, reviewer4, lead, from, extraRounds }))
+      .then(() => controls.resumeEpic(repo, issue, { author, reviewer, extraReviewers, lead, from, extraRounds }))
       .then(
         (): Reply => ({ id: replyId, ok: true }),
         (error): Reply => {

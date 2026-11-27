@@ -44,7 +44,10 @@ public struct NewExtraReviewer: Equatable, Sendable {
     }
 
     /// Said on the screen while the entry is not complete: it is not saved and nothing is written until it is.
-    public func hint(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+    public func hint(bundle: Bundle? = nil, locale: Locale = .current) -> String? { Self.hint(missing: missing, bundle: bundle, locale: locale) }
+
+    /// "Not saved yet. It needs a name, a type and an identity; …" for what is `missing`; nil when nothing is.
+    public static func hint(missing: [Field], bundle: Bundle? = nil, locale: Locale = .current) -> String? {
         let names = missing.map { field in
             switch field {
             case .name: Copy.rolesDraftNeeds(which: .name, bundle: bundle, locale: locale)

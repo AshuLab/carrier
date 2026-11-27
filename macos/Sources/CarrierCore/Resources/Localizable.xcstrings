@@ -72937,6 +72937,40 @@
         }
       }
     },
+    "watchingMoreChoiceDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Reviewer always reviews; these join it"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El Revisor siempre revisa; estos se suman a él"
+          }
+        }
+      }
+    },
+    "watchingMoreChoiceTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run here"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Corren aquí"
+          }
+        }
+      }
+    },
     "watchingMoreFooter.noExtras": {
       "extractionState": "manual",
       "localizations": {
@@ -73045,13 +73079,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The app does not change this list yet: edit it in engine.json."
+            "value": "This engine does not let the app change this list: edit it in engine.json."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La app aún no cambia esta lista: edítala en engine.json."
+            "value": "Este motor no deja que la app cambie esta lista: edítala en engine.json."
           }
         }
       }
@@ -73338,6 +73372,57 @@
         }
       }
     },
+    "watchingOwnDiscard": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descartar"
+          }
+        }
+      }
+    },
+    "watchingOwnDiscardDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It is not saved yet, so nothing is written"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no está guardado, así que no se escribe nada"
+          }
+        }
+      }
+    },
+    "watchingOwnEmpty": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No reviewers in this list yet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta lista aún no tiene revisores"
+          }
+        }
+      }
+    },
     "watchingOwnList": {
       "extractionState": "manual",
       "localizations": {
@@ -73351,6 +73436,74 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lista propia"
+          }
+        }
+      }
+    },
+    "watchingOwnNameTaken %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another reviewer here is already called %1$@. Pick another name."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otro revisor de aquí ya se llama %1$@. Elige otro nombre."
+          }
+        }
+      }
+    },
+    "watchingOwnRemoveButton": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar"
+          }
+        }
+      }
+    },
+    "watchingOwnRemoveDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takes it out of this repository's own list; the other reviewers stay as they are"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo quita de la lista propia de este repositorio; los demás revisores quedan como estaban"
+          }
+        }
+      }
+    },
+    "watchingOwnRemoveTitle %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar %1$@"
           }
         }
       }

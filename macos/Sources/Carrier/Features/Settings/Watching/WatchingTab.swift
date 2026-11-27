@@ -16,6 +16,8 @@ struct WatchingTabView: View {
     let canReload: Bool
     /// Open Roles: the page of the global roles, which every repo inherits.
     let openRoles: () -> Void
+    /// The engine's hello lists `extraReviewers`: a repo's list of extra reviewers can be chosen and edited here.
+    var canEditExtras = false
     @ObservedObject private var start = StartController.shared
     @State private var saved: [String] = []
     @State private var draft: [String] = []
@@ -203,6 +205,15 @@ struct WatchingTabView: View {
         return repoExtraReviewers(config: configData, providers: providersData, bots: bots, repo: repo.name) ?? []
     }
 
+    /// What changes the repo's extra reviewers, for an engine that can write them: each change is sent whole and the file is read again, whether it was saved or refused.
+    private func extrasEditor(of repo: RepoRow, profiles: [String]) -> ExtrasEditor? {
+        guard canEditExtras, let configData else { return nil }
+        return ExtrasEditor(
+            own: repoOwnEntries(config: configData, repo: repo.name), roles: rolesExtraEntries(config: configData), profiles: profiles, accounts: declaredAccounts(providersJSON: providersData),
+            save: { await saveExtras($0) }
+        )
+    }
+
     /// The chosen repo's screen. Open on GitHub and Check again are the toolbar's.
     private func repoScreen(_ row: RepoRow, page: RolesPage?) -> some View {
         let status = repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine)), notLoaded: settingsNote(state: state, canReload: canReload, outcome: reloaded.outcome))
@@ -214,7 +225,7 @@ struct WatchingTabView: View {
             roles: page.flatMap { page in
                 roles.map { (page: page, own: Set($0.rows.filter(\.isOwn).map { RoleSlot($0.role) }), extras: $0.extras, reviewers: reviewers(of: row)) }
             },
-            icons: accountIcons(providersJSON: providersData), refusal: refusal,
+            icons: accountIcons(providersJSON: providersData), editor: extrasEditor(of: row, profiles: roles?.profiles ?? []), refusal: refusal,
             openProject: { owner.map { go(SettingsPlace(.projects, path: [$0.path])) } ?? go(SettingsPlace(.projects)) },
             openRole: { go(SettingsPlace(.watching, path: [row.name, $0.name])) }, stop: { removing = row.name }
         )
@@ -247,6 +258,17 @@ struct WatchingTabView: View {
         if result == .saved {
             failure = nil
             load()
+            runDoctor()
+        }
+        return result
+    }
+
+    /// Sends the repo's list (`setRepoExtraReviewers`), then reads the file back and asks the doctor, whose reason is shown when the engine refuses what was written.
+    private func saveExtras(_ change: EngineConfigChange) async -> RoleSave {
+        let result = await saveToEngine(change)
+        load()
+        if result == .saved {
+            failure = nil
             runDoctor()
         }
         return result

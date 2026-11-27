@@ -112,20 +112,6 @@ extension FixtureServer {
         return trimmed
     }
 
-    /// The key an extra reviewer gets from its name (`extraReviewerKey` of src/config/extra-reviewer-key.ts): lowercase, accents out, every run of other characters one hyphen, `r-` in front
-    /// when it does not start with a letter, `extra` when nothing is left, and `-2`, `-3`… while it is taken or is a role's word.
-    static func extraReviewerKey(_ name: String, taken: Set<String>) -> String {
-        let slug = name.folding(options: .diacriticInsensitive, locale: nil).lowercased()
-            .replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-        let base = slug.isEmpty ? "extra" : slug.first?.isLetter == true ? slug : "r-\(slug)"
-        for number in 1... {
-            let suffix = number == 1 ? "" : "-\(number)"
-            let key = String(base.prefix(40 - suffix.count)) + suffix
-            if taken.contains(key) == false, ["author", "reviewer", "lead", "lead-reviewer"].contains(key) == false { return key }
-        }
-        return base
-    }
-
     private static func extrasOf(_ file: [String: Any]) -> [String: Any] { (file["agents"] as? [String: Any])?["extraReviewers"] as? [String: Any] ?? [:] }
 
     private static func set(_ extras: [String: Any], in file: inout [String: Any]) {
@@ -207,6 +193,41 @@ extension FixtureServer {
             extras[extraReviewerKey(name, taken: Set(extras.keys))] = entry
             set(extras, in: &file)
             file["profiles"] = profiles
+        }
+    }
+
+    /// `setRepoExtraReviewers`: a repo's own map written whole (the entries are what was sent, trimmed; nothing of the earlier map stays), `{}` for none, and nil taking the key out, `agents` going with it when
+    /// it was the only one. The entries are checked as the engine does, one by one in the order of their keys, and the first one refused refuses the request.
+    static func setRepoExtras(repo: String, reviewers: [String: Any]?, accounts: [String], to file: inout [String: Any]) -> String? {
+        attempt {
+            guard var repos = file["repos"] as? [[String: Any]], let index = repos.firstIndex(where: { $0["name"] as? String == repo }) else { throw Refused(words: "\(repo) is no longer in the config file.") }
+            var own: [String: Any]?
+            if let reviewers {
+                if reviewers.count > RoleSlot.maxExtra { throw Refused(words: "At most \(RoleSlot.maxExtra) extra reviewers.") }
+                var checked: [String: Any] = [:]
+                for key in reviewers.keys.sorted() {
+                    let sent = reviewers[key] as? [String: Any] ?? [:]
+                    func text(_ field: String) -> String? { (sent[field] as? String).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 } }
+                    if key.range(of: "^[a-z][a-z0-9-]{0,39}$", options: .regularExpression) == nil || ["author", "reviewer", "lead", "lead-reviewer"].contains(key) {
+                        throw Refused(words: "The key “\(key)” is a slug of up to 40 characters that starts with a letter, and it is not author, reviewer, lead, lead-reviewer.")
+                    }
+                    let missing = ["type", "name", "profile", "provider", "model"].filter { text($0) == nil }
+                    if missing.isEmpty == false { throw Refused(words: "An extra reviewer needs \(missing.joined(separator: ", ")).") }
+                    var entry: [String: Any] = [
+                        "type": try checkedType(text("type") ?? ""), "name": try checkedName(text("name") ?? "", others: Array(checked.values)),
+                        "profile": text("profile") ?? "", "provider": text("provider") ?? "", "model": text("model") ?? "",
+                    ]
+                    entry["effort"] = text("effort")
+                    let problems = roleFields(entry).normalized().problems(profiles: Array((file["profiles"] as? [String: Any] ?? [:]).keys), accounts: accounts, bundle: english.bundle, locale: english.locale)
+                    if problems.isEmpty == false { throw Refused(words: problems.joined(separator: " ")) }
+                    checked[key] = entry
+                }
+                own = checked
+            }
+            var agents = repos[index]["agents"] as? [String: Any] ?? [:]
+            if let own { agents["extraReviewers"] = own } else { agents["extraReviewers"] = nil }
+            repos[index]["agents"] = agents.isEmpty ? nil : agents
+            file["repos"] = repos
         }
     }
 

@@ -76,7 +76,7 @@ extension FixtureServer {
     }
 }
 
-// `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer` and `setOrchestratorProfile`: the fixture engine makes the checks Node's `config/role-edit.ts` makes (with its words)
+// `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer`, `setOrchestratorProfile` and the extra reviewers' requests (`FixtureServer+ExtraReviewers.swift`): the fixture engine makes the checks Node's `config/role-edit.ts` makes (with its words)
 // against the fixture home's `engine.json`, `providers.json` and `agent-forge.json`. What Node refuses is refused with the same words; the code is `config.problem` with a key path
 // of `(engine.json)`, the exact path and kind being the real engine's.
 
@@ -141,6 +141,9 @@ extension FixtureServer {
         case "addExtraReviewer":
             guard let draft = request["draft"] as? [String: Any] else { return nil }
             refusal = edit { Self.addExtra(draft: draft, accounts: accounts, bots: bots, to: &$0) }
+        case "setRepoExtraReviewers":
+            guard let repo = request["repo"] as? String, request["reviewers"] is NSNull || request["reviewers"] is [String: Any] else { return nil }
+            refusal = edit { Self.setRepoExtras(repo: repo, reviewers: request["reviewers"] as? [String: Any], accounts: accounts, to: &$0) }
         case "removeExtraReviewer":
             guard let key = request["key"] as? String else { return nil }
             refusal = edit { Self.removeExtra(key: key, from: &$0) }

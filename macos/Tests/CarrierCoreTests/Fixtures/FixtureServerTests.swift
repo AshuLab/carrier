@@ -499,6 +499,59 @@ private struct ScratchEngine {
     #expect(try await engine.refusal(.repoRole(repo: "acme/web", role: .author, fields: RoleFields(profile: "ghost"))).text == "Identity “ghost” is not declared in profiles. Pick another one.")
 }
 
+@Test func theFixtureEngineSetsARepoOwnListOfExtraReviewersWholeAndSwitchesItBetweenTheThreeChoices() async throws {
+    let engine = try ScratchEngine()
+    defer { engine.server.stop() }
+    func repo(_ name: String = "acme/web") throws -> [String: Any] { try #require((engine.written()["repos"] as? [[String: Any]])?.first { $0["name"] as? String == name }) }
+    func own(_ name: String = "acme/web") throws -> [String: Any]? { try (repo(name)["agents"] as? [String: Any])?["extraReviewers"] as? [String: Any] }
+    func entry(_ key: String, _ name: String, profile: String = "gh", provider: String = "codex", effort: String? = nil) -> RepoExtraReviewer {
+        RepoExtraReviewer(key: key, type: "general", name: name, profile: profile, provider: provider, model: "gpt-5", effort: effort)
+    }
+    let others = try (repo("acme/api") as NSDictionary, engine.written()["agents"] as? NSDictionary, engine.written()["profiles"] as? NSDictionary)
+
+    // Same as everywhere: the key goes, and `agents` with it when it was the only one
+    #expect(try await engine.sender.send(.repoExtraReviewers(repo: "acme/web", nil)).outcome == .applied)
+    #expect(try own() == nil && repo()["agents"] == nil)
+    // Own list: the map is what was sent, trimmed, with the keys it has and nothing of the global one
+    #expect(try await engine.sender.send(.repoExtraReviewers(repo: "acme/web", [entry("seguridad-api", " Seguridad API "), entry("ux", "UX", profile: "acme-reviewer", provider: "claude", effort: "low")])).outcome == .applied)
+    #expect(try own()?.keys.sorted() == ["seguridad-api", "ux"])
+    #expect(try own()?["seguridad-api"] as? NSDictionary == ["type": "general", "name": "Seguridad API", "profile": "gh", "provider": "codex", "model": "gpt-5"] as NSDictionary)
+    #expect(try own()?["ux"] as? NSDictionary == ["type": "general", "name": "UX", "profile": "acme-reviewer", "provider": "claude", "model": "gpt-5", "effort": "low"] as NSDictionary)
+    // a whole map again replaces the earlier one: what is not in it is gone, and the repo's other keys stay
+    #expect(try await engine.sender.send(.repoRole(repo: "acme/web", role: .reviewer, fields: RoleFields(model: "qwen"))).outcome == .applied)
+    #expect(try await engine.sender.send(.repoExtraReviewers(repo: "acme/web", [entry("ux", "UX")])).outcome == .applied)
+    #expect(try own()?.keys.sorted() == ["ux"] && (repo()["agents"] as? [String: Any])?["reviewer"] != nil)
+    // None: `{}` stays in the file as an empty map
+    #expect(try await engine.sender.send(.repoExtraReviewers(repo: "acme/web", [])).outcome == .applied)
+    #expect(try own()?.isEmpty == true)
+    #expect(try await engine.sender.send(.repoExtraReviewers(repo: "acme/web", nil)).outcome == .applied)
+    #expect(try own() == nil && (repo()["agents"] as? [String: Any])?["reviewer"] != nil)
+    // nothing else of the file moved
+    #expect(try repo("acme/api") as NSDictionary == others.0 && engine.written()["agents"] as? NSDictionary == others.1 && engine.written()["profiles"] as? NSDictionary == others.2)
+
+    // what the engine refuses is refused with its words and the file stays as it was
+    let before = try Data(contentsOf: URL(fileURLWithPath: engine.file))
+    func blank(_ field: WritableKeyPath<RepoExtraReviewer, String>) -> RepoExtraReviewer { var one = entry("ux", "UX"); one[keyPath: field] = " "; return one }
+    for (change, words) in [
+        (EngineConfigChange.repoExtraReviewers(repo: "x/y", []), "x/y is no longer in the config file."),
+        (.repoExtraReviewers(repo: "acme/web", [entry("a", "A"), entry("b", "B"), entry("c", "C"), entry("d", "D")]), "At most 3 extra reviewers."),
+        (.repoExtraReviewers(repo: "acme/web", [entry("Sec API", "A")]), "The key “Sec API” is a slug of up to 40 characters that starts with a letter, and it is not author, reviewer, lead, lead-reviewer."),
+        (.repoExtraReviewers(repo: "acme/web", [entry("lead", "A")]), "The key “lead” is a slug of up to 40 characters that starts with a letter, and it is not author, reviewer, lead, lead-reviewer."),
+        (.repoExtraReviewers(repo: "acme/web", [blank(\.profile)]), "An extra reviewer needs profile."),
+        (.repoExtraReviewers(repo: "acme/web", [blank(\.name)]), "An extra reviewer needs name."),
+        (.repoExtraReviewers(repo: "acme/web", [entry("a", String(repeating: "x", count: 41))]), "The name is one line of up to 40 characters."),
+        (.repoExtraReviewers(repo: "acme/web", [entry("a", "Same"), entry("b", " sAME ")]), "“sAME” is already another reviewer’s name. Pick another one."),
+        (.repoExtraReviewers(repo: "acme/web", [RepoExtraReviewer(key: "a", type: "Not a slug", name: "A", profile: "gh", provider: "codex", model: "m")]), "The type is a slug of up to 40 characters: it starts with a letter and holds lowercase letters, digits and hyphens."),
+        (.repoExtraReviewers(repo: "acme/web", [entry("a", "A", profile: "ghost")]), "Identity “ghost” is not declared in profiles. Pick another one."),
+        (.repoExtraReviewers(repo: "acme/web", [entry("a", "A", provider: "nope")]), "Provider “nope” is not an account of providers.json. Pick another one."),
+        (.repoExtraReviewers(repo: "acme/web", [entry("a", "A", effort: "extreme")]), "Effort must be one of low, medium, high, xhigh, max."),
+    ] {
+        let refusal = try await engine.refusal(change)
+        #expect(refusal.code == "config.problem" && refusal.text == words, Comment(rawValue: words))
+    }
+    #expect(try Data(contentsOf: URL(fileURLWithPath: engine.file)) == before)
+}
+
 @Test func theFixtureChatHostAnswersTheFiveProvidersRequestsLikeTheRealOneWithTheEnginesAnswer() async throws {
     let server = try FixtureServer(fixtures: testPaths().fixtures.path)
     defer { server.stop() }

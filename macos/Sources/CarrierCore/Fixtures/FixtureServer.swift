@@ -136,7 +136,7 @@ public final class FixtureServer {
     """
 
     /// The requests that change the roles, personas, failover, extra reviewers, lead reviewer or orchestrator profile in `engine.json`: `engineRolesReply` writes them.
-    static let roleRequests: Set<String> = ["editRole", "editRepoRole", "editPersona", "editFailover", "setLeadReviewer", "setOrchestratorProfile", "addExtraReviewer", "removeExtraReviewer"]
+    static let roleRequests: Set<String> = ["editRole", "editRepoRole", "editPersona", "editFailover", "setLeadReviewer", "setOrchestratorProfile", "addExtraReviewer", "removeExtraReviewer", "setRepoExtraReviewers"]
     /// Accepted and answered with nothing, as the real engine would; the fixture has no one to pause or stop.
     static let controls: Set<String> = ["pause", "resume", "checkNow", "stop", "resumeEpic", "recoverEpic", "reload"]
 

@@ -10150,6 +10150,42 @@ public enum Copy {
         String(localized: "watchingMoreFromRoles", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func watchingMoreChoiceTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingMoreChoiceTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingMoreChoiceDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingMoreChoiceDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnEmpty(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnEmpty", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnRemoveTitle(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnRemoveTitle \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnRemoveDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnRemoveDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnRemoveButton(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnRemoveButton", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnDiscard(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnDiscard", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnDiscardDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnDiscardDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnNameTaken(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnNameTaken \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func watchingChipOwnReviewers(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "watchingChipOwnReviewers", bundle: bundle ?? carrierResources, locale: locale)
     }

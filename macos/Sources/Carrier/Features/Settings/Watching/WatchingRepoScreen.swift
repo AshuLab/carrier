@@ -3,7 +3,7 @@ import CarrierUI
 import SwiftUI
 
 /// A repository's screen, a group for each thing it says or does, in the order of what a person comes here for: how it stands (Status), whether Carrier can work in
-/// it (Ready for Carrier), who works there (the rail of Roles, each role opening its own screen, then the extra reviewers it runs, read only), what it is (the project, the clone, GitHub) and, last and apart,
+/// it (Ready for Carrier), who works there (the rail of Roles, each role opening its own screen, then the extra reviewers it runs, chosen and edited here when the engine can write them), what it is (the project, the clone, GitHub) and, last and apart,
 /// Stop watching. Open on GitHub and Check again are the toolbar's.
 struct RepoScreen: View {
     let row: RepoRow
@@ -15,6 +15,8 @@ struct RepoScreen: View {
     /// The repository's roles as it has them, the ones it has settings of its own for, and its extra reviewers (which list, and who runs); nil while the file does not read.
     let roles: (page: RolesPage, own: Set<RoleSlot>, extras: RepoExtraReviewers, reviewers: [RoleRow])?
     let icons: [String: String]
+    /// What changes the repo's extra reviewers; nil while the engine does not announce `extraReviewers`.
+    let editor: ExtrasEditor?
     /// The doctor's refusal of the config, said under Who works here.
     let refusal: String?
     let openProject: () -> Void
@@ -39,21 +41,7 @@ struct RepoScreen: View {
             SettingsGroup(id: "who-works-here", title: Copy.watchingGroupWho(), footer: refusal ?? Copy.watchingWhoFooter()) {
                 EpicRail(page: roles.page, readiness: rolesReadiness(roles.page), icons: icons, own: roles.own, open: openRole)
             }
-            SettingsGroup(id: "more-reviewers-here", title: Copy.watchingGroupMore(), footer: roles.extras.footer(), accessory: { StatusChip(text: roles.extras.title(), tint: .secondary) }) {
-                ForEach(Array(roles.reviewers.enumerated()), id: \.element.id) { index, reviewer in
-                    SettingsTabRow(
-                        title: reviewer.title(), detail: reviewer.headline(), first: index == 0, leading: AnyView(roleAvatar(reviewer, page: roles.page, icons: icons, size: 30))
-                    ) {
-                        HStack(spacing: Tokens.Space.s4) {
-                            if let type = reviewer.type { StatusChip(text: Copy.rolesExtraType(type: type), tint: .secondary) }
-                            if roles.extras == .sameAsEverywhere { StatusChip(text: Copy.watchingMoreFromRoles(), tint: .secondary) }
-                        }
-                    }
-                }
-                if roles.reviewers.isEmpty {
-                    SettingsTabRow(title: roles.extras == .noExtras ? Copy.watchingMoreOnlyReviewer() : Copy.watchingMoreNoneInRoles(), detail: "", first: true) { EmptyView() }
-                }
-            }
+            RepoMoreReviewers(repo: row.name, extras: roles.extras, reviewers: roles.reviewers, page: roles.page, icons: icons, editor: editor)
         }
         SettingsGroup(id: "repository", title: Copy.watchingGroupRepository()) {
             SettingsTabRow(id: "project", title: Copy.watchingProject(), detail: project ?? Copy.watchingNotAProject(), first: true) {

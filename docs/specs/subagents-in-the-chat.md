@@ -1,6 +1,6 @@
 # The chat shows what the agent waits on and what its subagents do
 
-Status: spec
+Status: spec, superseded in part by [subagents-in-the-header](subagents-in-the-header.md): the subagent row of the chat is gone
 Source: AshuLab/carrier#1025
 
 ## Problem

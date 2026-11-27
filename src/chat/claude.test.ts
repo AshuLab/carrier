@@ -730,11 +730,13 @@ test('the subagents of the recording are task events joined to their launching c
   expect(events.find((e) => e.state === 'progress' && e.taskId === 'aea1aa9de8a2c258e')).toEqual({
     kind: 'task', callId: 'toolu_019ekANdDSU9vdwH1qKqmNq1', taskId: 'aea1aa9de8a2c258e', state: 'progress', agentType: 'general-purpose', text: 'Running List entries in current working directory', lastTool: 'Bash', tools: 1, tokens: 15111, ms: 1239,
   });
-  // the ends: three completed (one after the turn's result), one stopped
-  expect(events.filter((e) => e.state !== 'started' && e.state !== 'progress').map((e) => [e.taskId, e.state])).toEqual(
-    lines.filter((line) => line.subtype === 'task_notification' && started.some((s) => s.task_id === line.task_id)).map((line) => [line.task_id, line.status]),
+  // started and progress never carry summary
+  expect(events.filter((e) => e.state === 'started' || e.state === 'progress').every((e) => !('summary' in e))).toBe(true);
+  // the ends: three completed (one after the turn's result), one stopped, each carrying the notification's summary
+  expect(events.filter((e) => e.state !== 'started' && e.state !== 'progress').map((e) => [e.taskId, e.state, e.summary])).toEqual(
+    lines.filter((line) => line.subtype === 'task_notification' && started.some((s) => s.task_id === line.task_id)).map((line) => [line.task_id, line.status, line.summary]),
   );
-  expect(events.filter((e) => e.state === 'stopped')).toEqual([expect.objectContaining({ callId: 'toolu_01LfpGpsC55uPcp3MTLtLGwE', taskId: 'af0d8b127fea03930', state: 'stopped' })]);
+  expect(events.filter((e) => e.state === 'stopped')).toEqual([expect.objectContaining({ callId: 'toolu_01LfpGpsC55uPcp3MTLtLGwE', taskId: 'af0d8b127fea03930', state: 'stopped', summary: 'Long wait' })]);
 });
 
 test('a turn the SDK opens by itself after a background subagent ended starts with `turn_start` at its `system/init`; a turn a message opened gives none', async () => {
@@ -753,14 +755,15 @@ test('a field of the wrong type is left out of a task event and a shape the adap
   const end = main[0]!.lines.find((line) => line.type === 'result')!;
   const task = { type: 'system', session_id: 's', uuid: 'u' };
   const odd: Line[] = [
-    { ...task, subtype: 'task_started', task_id: 'a', tool_use_id: 'call-a', task_type: 'local_agent', description: 5, subagent_type: {}, is_backgrounded: 'yes', parent_task_id: 7, usage: 'lots' },
-    { ...task, subtype: 'task_progress', task_id: 'a', tool_use_id: 'call-a', description: 'step', last_tool_name: 4, usage: { total_tokens: '9', tool_uses: 2, duration_ms: null } },
+    { ...task, subtype: 'task_started', task_id: 'a', tool_use_id: 'call-a', task_type: 'local_agent', description: 5, subagent_type: {}, is_backgrounded: 'yes', parent_task_id: 7, usage: 'lots', summary: 'ignored' },
+    { ...task, subtype: 'task_progress', task_id: 'a', tool_use_id: 'call-a', description: 'step', last_tool_name: 4, usage: { total_tokens: '9', tool_uses: 2, duration_ms: null }, summary: 'ignored' },
     { ...task, subtype: 'task_started', task_type: 'local_agent', tool_use_id: 'call-b', description: 'no task id' },
     { ...task, subtype: 'task_started', task_id: 'c', task_type: 'local_agent', description: 'no call' },
     { ...task, subtype: 'task_started', task_id: 'd', tool_use_id: 'call-d', description: 'no type' },
     { ...task, subtype: 'task_progress', task_id: 'unknown', tool_use_id: 'call-u', description: 'never started' },
     { ...task, subtype: 'task_notification', task_id: 'a', tool_use_id: 'call-a', status: 'exploded' },
-    { ...task, subtype: 'task_notification', task_id: 'a', tool_use_id: 'call-a', status: 'failed', usage: null },
+    { ...task, subtype: 'task_notification', task_id: 'a', tool_use_id: 'call-a', status: 'failed', usage: null, summary: 42 },
+    { ...task, subtype: 'task_notification', task_id: 'a', tool_use_id: 'call-a', status: 'failed', usage: null, summary: 'Timed out' },
     { ...task, subtype: 'task_updated', task_id: 'a' },
     { type: 'system', subtype: 'task_started' },
     end,
@@ -771,6 +774,7 @@ test('a field of the wrong type is left out of a task event and a shape the adap
     { kind: 'task', callId: 'call-a', taskId: 'a', state: 'started' },
     { kind: 'task', callId: 'call-a', taskId: 'a', state: 'progress', text: 'step', tools: 2 },
     { kind: 'task', callId: 'call-a', taskId: 'a', state: 'failed' },
+    { kind: 'task', callId: 'call-a', taskId: 'a', state: 'failed', summary: 'Timed out' },
   ]);
 });
 

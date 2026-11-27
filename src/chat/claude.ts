@@ -422,6 +422,7 @@ class ClaudeConversation implements ChatConversation {
     const usage = m.usage as { total_tokens?: unknown; tool_uses?: unknown; duration_ms?: unknown } | null | undefined;
     const text = (value: unknown) => (typeof value === 'string' ? value : undefined);
     const count = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : undefined);
+    const ended = state === 'completed' || state === 'failed' || state === 'stopped';
     const fields = {
       agentType: text(m.subagent_type),
       text: text(m.description),
@@ -431,6 +432,7 @@ class ClaudeConversation implements ChatConversation {
       ms: count(usage?.duration_ms),
       background: typeof m.is_backgrounded === 'boolean' ? m.is_backgrounded : undefined,
       parentCallId,
+      summary: ended ? text(m.summary) : undefined,
     };
     const present = Object.entries(fields).filter(([, value]) => value !== undefined);
     return [{ kind: 'task', callId: m.tool_use_id, taskId: m.task_id, state, ...Object.fromEntries(present) }];

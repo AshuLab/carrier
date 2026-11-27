@@ -1,0 +1,24 @@
+{
+  "sessionId": "b8c9d0e1-7f6a-4b32-9d5e-6f7a8b9c0d08",
+  "events": [
+    { "id": 1, "at": 0, "ago": 480000, "kind": "user", "text": "Audit the chat host and test runner, then fix what fails." },
+    { "id": 2, "at": 0, "ago": 420000, "kind": "tool_start", "callId": "l1-a1", "tool": "Agent", "arg": "{\"description\":\"Inspect chat host socket\",\"subagent_type\":\"Explore\"}" },
+    { "id": 3, "at": 0, "ago": 419000, "kind": "task", "callId": "l1-a1", "taskId": "l1-t1", "state": "started", "agentType": "Explore", "text": "Inspect chat host socket" },
+    { "id": 4, "at": 0, "ago": 418000, "kind": "tool_start", "callId": "l1-a2", "tool": "Agent", "arg": "{\"description\":\"Check schema migration\",\"subagent_type\":\"general-purpose\"}" },
+    { "id": 5, "at": 0, "ago": 417000, "kind": "task", "callId": "l1-a2", "taskId": "l1-t2", "state": "started", "agentType": "general-purpose", "text": "Check schema migration" },
+    { "id": 6, "at": 0, "ago": 350000, "kind": "task", "callId": "l1-n1", "taskId": "l1-t3", "state": "started", "agentType": "Explore", "text": "Read protocol framing", "parentCallId": "l1-a1" },
+    { "id": 7, "at": 0, "ago": 290000, "kind": "task", "callId": "l1-n1", "taskId": "l1-t3", "state": "completed", "tools": 3, "ms": 60000, "parentCallId": "l1-a1" },
+    { "id": 8, "at": 0, "ago": 270000, "kind": "task", "callId": "l1-a2", "taskId": "l1-t2", "state": "failed", "tools": 2, "ms": 147000, "summary": "Migration dry-run exited 1." },
+    { "id": 9, "at": 0, "ago": 240000, "kind": "task", "callId": "l1-a1", "taskId": "l1-t1", "state": "completed", "tools": 5, "ms": 179000, "summary": "Socket framing verified." },
+    { "id": 10, "at": 0, "ago": 235000, "kind": "assistant", "text": "The first audit finished; starting the fix pass now." },
+    { "id": 11, "at": 0, "ago": 230000, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": {} },
+    { "id": 12, "at": 0, "ago": 90000, "kind": "user", "text": "Patch the migration and verify the tests." },
+    { "id": 13, "at": 0, "ago": 85000, "kind": "tool_start", "callId": "l2-a1", "tool": "Agent", "arg": "{\"description\":\"Fix migration script\",\"subagent_type\":\"general-purpose\"}" },
+    { "id": 14, "at": 0, "ago": 84000, "kind": "task", "callId": "l2-a1", "taskId": "l2-t1", "state": "started", "agentType": "general-purpose", "text": "Fix migration script" },
+    { "id": 15, "at": 0, "ago": 60000, "kind": "task", "callId": "l2-a1", "taskId": "l2-t1", "state": "completed", "tools": 4, "ms": 24000 },
+    { "id": 16, "at": 0, "ago": 55000, "kind": "task", "callId": "l2-n1", "taskId": "l2-t2", "state": "started", "agentType": "Explore", "text": "Run regression suite", "parentCallId": "l2-a1" },
+    { "id": 17, "at": 0, "ago": 25000, "kind": "tool_start", "callId": "l2-s1", "tool": "Bash", "arg": "pnpm test", "parentCallId": "l2-n1" }
+  ],
+  "cursor": 17,
+  "streaming": ""
+}

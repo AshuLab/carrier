@@ -372,6 +372,58 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     #expect(Copy.chatToolDoingLive(doing: "Leyendo a.ts", bundle: es.bundle, locale: es.locale) == "Leyendo a.ts…")
     #expect(Copy.chatContextTokens(count: "900", bundle: es.bundle, locale: es.locale) == "900 de contexto")
     #expect(Copy.chatToolUnnamed(bundle: es.bundle, locale: es.locale) == "herramienta" && Copy.chatSubagentTypeDefault(bundle: es.bundle, locale: es.locale) == "Agente")
+    #expect(Copy.chatSubagentResult(bundle: es.bundle, locale: es.locale) == "Resultado")
+    #expect(Copy.chatSubagentResultShowMore(bundle: es.bundle, locale: es.locale) == "Mostrar más")
+    #expect(Copy.chatSubagentResultShowLess(bundle: es.bundle, locale: es.locale) == "Mostrar menos")
+    #expect(Copy.chatSubagentBrief(bundle: es.bundle, locale: es.locale) == "Encargo")
+    #expect(Copy.chatSubagentBriefShowMore(bundle: es.bundle, locale: es.locale) == "Mostrar más")
+    #expect(Copy.chatSubagentBriefShowLess(bundle: es.bundle, locale: es.locale) == "Mostrar menos")
+    #expect(Copy.chatSubagentBriefExpandSpoken(bundle: es.bundle, locale: es.locale) == "Mostrar todo el encargo")
+    #expect(Copy.chatSubagentBriefCollapseSpoken(bundle: es.bundle, locale: es.locale) == "Plegar el encargo")
+    #expect(Copy.chatFailed(bundle: es.bundle, locale: es.locale) == "Falló")
+    #expect(Copy.chatSubagentsButtonSpoken(count: 1, bundle: es.bundle, locale: es.locale) == "1 subagente")
+    #expect(Copy.chatSubagentsButtonSpoken(count: 3, bundle: es.bundle, locale: es.locale) == "3 subagentes")
+    #expect(Copy.chatSubagentsButtonRunningSpoken(count: 1, running: 1, bundle: es.bundle, locale: es.locale) == "1 subagente, 1 en marcha")
+    #expect(Copy.chatSubagentsButtonRunningSpoken(count: 3, running: 2, bundle: es.bundle, locale: es.locale) == "3 subagentes, 2 en marcha")
+    #expect(Copy.chatSubagentsButtonFailedSpoken(count: 1, failed: 1, bundle: es.bundle, locale: es.locale) == "1 subagente, 1 falló")
+    #expect(Copy.chatSubagentsButtonFailedSpoken(count: 4, failed: 2, bundle: es.bundle, locale: es.locale) == "4 subagentes, 2 fallaron")
+    #expect(Copy.chatSubagentsListSpoken(bundle: es.bundle, locale: es.locale) == "Subagentes")
+    let spanishLaunch = SubagentLaunch(
+        id: "l1",
+        items: (1...4).map {
+            SubagentItem(subagent: Subagent(task: ChatEvent(id: $0, at: 1000, kind: "task", callId: "a\($0)", taskId: "t\($0)", state: "completed", ms: 1000), bundle: es.bundle, locale: es.locale))
+        },
+        startedAt: 1000,
+        endedAt: 2000
+    )
+    let fourMinsLater = 2000 + 4 * 60_000
+    #expect(spanishLaunch.barLabel(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "terminaron hace 4 min · 4 subagentes")
+    #expect(spanishLaunch.barSpoken(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "terminaron hace 4 minutos, 4 subagentes")
+    #expect(spanishLaunch.barLabel(now: 10_000, bundle: es.bundle, locale: es.locale) == "terminaron ahora mismo · 4 subagentes")
+    #expect(spanishLaunch.barLabel(now: 2000 + 2 * 3_600_000, bundle: es.bundle, locale: es.locale) == "terminaron hace 2 h · 4 subagentes")
+    #expect(spanishLaunch.barSpoken(now: 2000 + 2 * 3_600_000, bundle: es.bundle, locale: es.locale) == "terminaron hace 2 horas, 4 subagentes")
+    #expect(spanishLaunch.barLabel(now: 2000 + 2 * 86_400_000, bundle: es.bundle, locale: es.locale) == "terminaron hace 2 d · 4 subagentes")
+    #expect(spanishLaunch.barSpoken(now: 2000 + 2 * 86_400_000, bundle: es.bundle, locale: es.locale) == "terminaron hace 2 días, 4 subagentes")
+    let spanishSingle = SubagentLaunch(id: "l2", items: [spanishLaunch.items[0]], startedAt: 1000, endedAt: 2000)
+    #expect(spanishSingle.barLabel(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "terminó hace 4 min · 1 subagente")
+    #expect(spanishSingle.barSpoken(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "terminó hace 4 minutos, 1 subagente")
+    let spanishRunning = SubagentLaunch(
+        id: "l3",
+        items: [
+            SubagentItem(subagent: Subagent(task: ChatEvent(id: 1, at: 1000, kind: "task", callId: "r1", taskId: "tr1", state: "started"), bundle: es.bundle, locale: es.locale)),
+            spanishLaunch.items[0],
+        ],
+        startedAt: 1000,
+        endedAt: nil
+    )
+    #expect(spanishRunning.barLabel(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "en marcha · 2 subagentes")
+    #expect(spanishRunning.barSpoken(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "en marcha, 2 subagentes")
+    let spanishRow = subagentsList(in: [
+        event(1, "tool_start", callId: "a1", tool: "Agent"),
+        ChatEvent(id: 2, at: 1000, kind: "task", text: "Buscar", callId: "a1", taskId: "t1", state: "started", agentType: "Explore"),
+        ChatEvent(id: 3, at: 2000, kind: "task", callId: "a1", taskId: "t1", state: "stopped", ms: 1000),
+    ]).allSubagents[0]
+    #expect(spanishRow.spoken(bundle: es.bundle, locale: es.locale) == "Subagente Explore, Buscar, Detenido, 0 pasos")
 }
 
 @Test func theProcessesCardIsSpanishWithAndWithoutStopInItsSingularAndPluralCases() {

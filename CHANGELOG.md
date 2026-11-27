@@ -26,6 +26,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Chat subagents live in a round Subagents button in the session header instead of rows inside the conversation or inside another subagent's view.
+  While any subagent runs, a turning arc surrounds the button and its badge counts the subagents of the launches still running; when nothing runs, it counts every subagent of the session with a red dot if any failed.
+  Tapping it opens a list grouped by launch under timeline bars, with nested subagents indented under their launcher, and choosing a row opens its view while keeping the button in the header to jump between subagents.
+  Each subagent view now pins its brief in a collapsible Brief card at the top and shows what a completed or failed subagent returned in a Result block after its work.
+  The conversation keeps one run line per launch, and the sidebar row keeps its cyan ring while a subagent runs.
 - Settings' Agents page is called Roles, in its title, its search, its copy and its folders.
 - The theme gallery shows three rows and scrolls sideways, with half a column cut at the right edge while there are more themes, an arrow at each side, and the arrow keys moving the choice, so it keeps the same height with twenty themes as with nine.
 - The terminal chooses its theme in that same gallery instead of a pop-up, and its first cell, "Same as app", follows the app's theme until another one is picked.

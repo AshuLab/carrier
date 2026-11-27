@@ -287,23 +287,65 @@ private let fakeSessions = [
     #expect(shell.searchRequest == nil)
 }
 
-@Test func aSubagentViewIsLeftOneLevelAtATimeAndWithTheSession() {
+@Test func aSubagentViewIsLeftWithBackAndWithTheSession() {
     let shell = WindowShell()
     shell.selection = .session(id: "a")
-    shell.openSubagent("c1")
-    shell.openSubagent("c3")
-    #expect(shell.subagents == ["c1", "c3"])
-    shell.leaveSubagent()
+    shell.jumpToSubagent("c1")
     #expect(shell.subagents == ["c1"])
+    shell.leaveSubagent()
+    #expect(shell.subagents.isEmpty)
+    shell.jumpToSubagent("c1")
     shell.subagentHeader = SubagentHeader(title: "T", type: "Explore", state: .running, startedAt: 0, durationMs: nil)
+    shell.subagentsList = SubagentsList(launches: [SubagentLaunch(id: "g", items: [], startedAt: 0, endedAt: nil)])
     // choosing another page or session leaves it, the header with it; Back with none open is nothing
     shell.selection = .session(id: "b")
-    #expect(shell.subagents.isEmpty && shell.subagentHeader == nil)
+    #expect(shell.subagents.isEmpty && shell.subagentHeader == nil && shell.subagentsList == .empty)
     shell.leaveSubagent()
     #expect(shell.subagents.isEmpty)
-    shell.openSubagent("c1")
+    shell.jumpToSubagent("c1")
     shell.reset()
     #expect(shell.subagents.isEmpty)
+}
+
+@Test func openingFromTheSubagentsListKeepsTheListAndLeavesToTheConversation() {
+    let shell = WindowShell()
+    shell.selection = .session(id: "a")
+    let list = SubagentsList(launches: [SubagentLaunch(id: "g", items: [], startedAt: 0, endedAt: nil)])
+    shell.subagentsList = list
+    shell.jumpToSubagent("c1")
+    #expect(shell.subagents == ["c1"])
+    #expect(shell.subagentsList == list)
+    shell.leaveSubagent()
+    #expect(shell.subagents.isEmpty)
+    #expect(shell.subagentsList == list)
+}
+
+@Test func jumpingFromTheSubagentsListInASubagentViewReplacesAtTheSameLevelAndNoOpsForTheOpenOne() {
+    let shell = WindowShell()
+    shell.selection = .session(id: "a")
+    let historyBefore = shell.history
+    let list = SubagentsList(launches: [SubagentLaunch(id: "g", items: [], startedAt: 0, endedAt: nil)])
+    shell.subagentsList = list
+    shell.jumpToSubagent("c1")
+    shell.subagentHeader = SubagentHeader(title: "First", type: "Explore", state: .running, startedAt: 0, durationMs: nil)
+    // choosing the already-open subagent leaves the view as it is
+    shell.jumpToSubagent("c1")
+    #expect(shell.subagents == ["c1"])
+    #expect(shell.subagentsList == list)
+    #expect(shell.subagentHeader?.title == "First")
+    // choosing another replaces the open one at the conversation's level, so Back leaves for the conversation
+    shell.jumpToSubagent("c2")
+    #expect(shell.subagents == ["c2"])
+    #expect(shell.subagentsList == list)
+    #expect(shell.history == historyBefore)
+    shell.leaveSubagent()
+    #expect(shell.subagents.isEmpty)
+    #expect(shell.subagentsList == list)
+    // the window's back shortcut still leaves a subagent view along with the session
+    shell.jumpToSubagent("c1")
+    shell.subagentHeader = SubagentHeader(title: "First", type: "Explore", state: .running, startedAt: 0, durationMs: nil)
+    shell.perform(.back)
+    #expect(shell.selection == .home && shell.subagents.isEmpty && shell.subagentHeader == nil && shell.subagentsList == .empty)
 }
 
 @Test func backAndForwardWalkTheSelectionsVisitedAndAddNothingThemselves() {

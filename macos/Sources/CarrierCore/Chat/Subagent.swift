@@ -22,7 +22,7 @@ public enum SubagentStep: Equatable {
 }
 
 /// One subagent the main agent launched, built from the `task` events that share its launching call's id and the events made inside it
-/// (`parentCallId` is that call). It is a row under the run that launched it; the launching `Agent` call is not a call of the run.
+/// (`parentCallId` is that call). It is counted on the run line that launched it and listed in the Subagents list; the launching `Agent` call is not a call of the run.
 public struct Subagent: Equatable, Identifiable {
     /// The launching call's id.
     public let id: String
@@ -42,6 +42,8 @@ public struct Subagent: Equatable, Identifiable {
     public internal(set) var endedAt: Int?
     /// The time the provider reported for its whole life, once it ended.
     private var reportedMs: Int?
+    /// What the subagent returned (or why it failed), from its end notification; nil when none was sent or when it was stopped.
+    public internal(set) var report: String?
     private var ownCalls = 0
     private var reported = 0
 
@@ -67,6 +69,11 @@ public struct Subagent: Equatable, Identifiable {
             status = event.state == "completed" ? .completed : event.state == "failed" ? .failed : .stopped
             endedAt = event.at
             reportedMs = event.ms
+            if status == .stopped {
+                report = nil
+            } else if let text = event.summary?.trimmingCharacters(in: .whitespacesAndNewlines), text.isEmpty == false {
+                report = text
+            }
         default: break
         }
     }
@@ -100,6 +107,12 @@ public struct Subagent: Equatable, Identifiable {
         case .failed: Copy.chatFailed(bundle: bundle, locale: locale)
         case .stopped: Copy.chatSubagentStopped(bundle: bundle, locale: locale)
         }
+    }
+
+    /// What VoiceOver reads aloud for this subagent: its type, title, step or how it ended, and step count.
+    public func spoken(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        let count = Copy.chatSubagentSteps(count: steps, bundle: bundle, locale: locale)
+        return Copy.chatSubagentSpoken(type: type, name: name, words: words(bundle: bundle, locale: locale), steps: count, bundle: bundle, locale: locale)
     }
 
     /// How long it has run at `now`, or how long it ran: the provider's own count when it gave one.

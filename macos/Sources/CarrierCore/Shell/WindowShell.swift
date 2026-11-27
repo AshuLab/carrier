@@ -90,6 +90,7 @@ public struct ArchiveRequest: Equatable {
             if selection == .newSession, navigating == false { newSessionOpened += 1 }
             subagents = []
             subagentHeader = nil
+            subagentsList = .empty
             switch selection {
             case .sessions, .session, .newSession: open = .sessions
             case .terminals, .terminal: open = .terminal
@@ -132,11 +133,13 @@ public struct ArchiveRequest: Equatable {
     /// A terminal that was closed leaves the history, as a session that is gone does.
     public func terminalRemoved(_ id: UUID) { history.forget(.terminal(id: id)) }
 
-    /// The subagent views open over the open conversation, outermost first, each the call that launched it: Back leaves the last. A session
-    /// is left with none open.
+    /// The call of the subagent view open over the open conversation, or over an epic's Agent output; empty with none open. Back leaves it, and so
+    /// does leaving the session. It is a list for the views that bind it, and holds one call.
     public var subagents: [String] = []
     /// What the window's header says of the last one, set by the conversation, which has the events; nil with none open.
     public var subagentHeader: SubagentHeader?
+    /// The open session's subagents, set by the conversation, for the header's Subagents button; empty on any other page.
+    public var subagentsList: SubagentsList = .empty
     /// Counts the times New session was asked for, the + while its draft is already open included: the draft starts blank each time.
     public private(set) var newSessionOpened = 0
     /// The unfolded section; nil when all are folded.
@@ -160,8 +163,13 @@ public struct ArchiveRequest: Equatable {
         open = .archive
     }
 
-    public func openSubagent(_ call: String) { subagents.append(call) }
-    /// Back: one level up, to the subagent that launched this one or to the conversation.
+    /// Opens a subagent from the header's Subagents list, replacing any open subagent at the conversation's level; choosing the one already
+    /// open changes nothing.
+    public func jumpToSubagent(_ call: String) {
+        guard subagents.last != call else { return }
+        subagents = [call]
+    }
+    /// Back: from the subagent view to the conversation.
     public func leaveSubagent() { _ = subagents.popLast() }
 
     public func toggleSidebar() { sidebarShown.toggle() }

@@ -94,6 +94,7 @@ extension ConversationModel {
             let next = feed()
             if quotaErrorAppeared(from: rows, to: next) { onQuotaError?() }
             rows = next
+            subagents = subagentsList(in: events, working: busy)
             openSubagent = openCall.flatMap(work)
             times = Dictionary(events.filter { $0.kind == "user" || $0.kind == "assistant" }.map { ("e\($0.id)", $0.at) }) { $1 }
             if followsOutput && atEnd { scrolls += 1 }

@@ -59,6 +59,8 @@ export type ChatEvent =
       background?: boolean;
       /** The call of the subagent that launched this one; absent for one the main agent launched. */
       parentCallId?: string;
+      /** What the subagent returned (or why it failed), on completed, failed or stopped events when the provider sent a string. */
+      summary?: string;
     }
   | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; /** Set when the approval is the agent asking questions: the person answers them with `answers`. */ questions?: ChatQuestion[] }
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; /** Question text to the answer; a multiple choice joins its picks with a comma. */ answers?: Record<string, string> }

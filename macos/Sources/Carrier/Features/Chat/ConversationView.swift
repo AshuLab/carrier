@@ -42,15 +42,17 @@ struct ConversationView: View {
     /// what `header` is told, which is the window's too.
     @Binding private var subagents: [String]
     @Binding private var header: SubagentHeader?
+    @Binding private var subagentsList: SubagentsList
 
     init(
         sessionId: String, draft: NewSessionModel? = nil, request: ConversationRequest? = nil, subagents: Binding<[String]> = .constant([]),
-        header: Binding<SubagentHeader?> = .constant(nil), cancelled: @escaping (SessionPlan) -> Void = { _ in }
+        header: Binding<SubagentHeader?> = .constant(nil), subagentsList: Binding<SubagentsList> = .constant(.empty), cancelled: @escaping (SessionPlan) -> Void = { _ in }
     ) {
         self.draft = draft
         self.request = request
         _subagents = subagents
         _header = header
+        _subagentsList = subagentsList
         self.cancelled = cancelled
         // a model made at every pass over the parent's body is wasted work: the events count them
         Signposts.render.emitEvent("ConversationModel init")
@@ -72,6 +74,7 @@ struct ConversationView: View {
                     Group {
                         if let work = model.openSubagent {
                             SubagentView(work: work, backToChat: { subagents = [] })
+                                .id(subagents.last)
                         } else {
                             LoadingRow()
                         }
@@ -80,7 +83,6 @@ struct ConversationView: View {
                     .background(Color.themeWindow)
                 }
             }
-            .environment(\.openSubagent) { subagents.append($0) }
             .environment(\.feedActions, FeedActions(model: model))
             .onChange(of: subagents, initial: true) { before, stack in
                 model.show(subagent: stack.last)
@@ -92,6 +94,7 @@ struct ConversationView: View {
                 }
             }
             .onChange(of: model.openSubagent?.header) { _, shown in header = shown }
+            .onChange(of: model.subagents, initial: true) { _, list in subagentsList = list }
     }
 
     private var conversation: some View {

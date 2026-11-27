@@ -1047,7 +1047,7 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     let working = "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01"
     try await host.archive(idle, true)
     #expect(try await host.list(archived: true).count == 3)
-    #expect(try await host.list(archived: false).count == 17)
+    #expect(try await host.list(archived: false).count == 18)
     try await host.archive(idle, false)
     #expect(try await host.list(archived: true).count == 2)
     await #expect(throws: ControlError.remote(.words("This session is working; interrupt or close it first, then archive it"))) { try await host.archive(working, true) }

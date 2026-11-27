@@ -3413,12 +3413,92 @@ public enum Copy {
         String(localized: "chatSubagentBrief", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func chatSubagentBriefShowMore(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentBriefShowMore", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentBriefShowLess(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentBriefShowLess", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentBriefExpandSpoken(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentBriefExpandSpoken", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentBriefCollapseSpoken(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentBriefCollapseSpoken", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func chatSubagentReadOnly(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatSubagentReadOnly", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func chatSubagentTitleSpoken(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatSubagentTitleSpoken \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentResult(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentResult", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentResultShowMore(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentResultShowMore", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentResultShowLess(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentResultShowLess", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentsButtonSpoken(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentsButtonSpoken \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentsButtonRunningSpoken(count: Int, running: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentsButtonRunningSpoken \(count) \(running)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentsButtonFailedSpoken(count: Int, failed: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentsButtonFailedSpoken \(count) \(failed)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatSubagentsListSpoken(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatSubagentsListSpoken", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchFinishedNow(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchFinishedNow \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchFinishedAgo(count: Int, ago: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchFinishedAgo \(count) \(ago)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeMinutes(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeMinutes \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeHours(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeHours \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeDays(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeDays \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeMinutesSpoken(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeMinutesSpoken \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeHoursSpoken(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeHoursSpoken \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeDaysSpoken(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeDaysSpoken \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func chatLogNoOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -4649,10 +4729,6 @@ public enum Copy {
 
     public static func epicsToolbarInspectorHelp(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "epicsToolbarInspectorHelp", bundle: bundle ?? carrierResources, locale: locale)
-    }
-
-    public static func epicsToolbarBackToSubagent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "epicsToolbarBackToSubagent", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func epicsToolbarBackToConversation(bundle: Bundle? = nil, locale: Locale = .current) -> String {

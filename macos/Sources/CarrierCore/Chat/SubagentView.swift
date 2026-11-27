@@ -1,7 +1,7 @@
 import Foundation
 
-// The subagent view (docs/glossary.md): what replaces the conversation when a subagent's row is opened. The view takes `SubagentWork`: the
-// header's description, the brief and the flow items the epic's Agent output tab draws too. The chat's events become them in `subagentWork`.
+// The subagent view (docs/glossary.md): what replaces the conversation when a row of the Subagents list is opened. The view takes `SubagentWork`:
+// the header's description, the brief and the flow items the epic's Agent output tab draws too. The chat's events become them in `subagentWork`.
 
 /// What the window's header says of a subagent: its title, its type, how it stands and for how long.
 public struct SubagentHeader: Equatable {
@@ -57,15 +57,31 @@ public struct SubagentHeader: Equatable {
     }
 }
 
-/// A subagent as its view draws it: the header's description, the brief it was given (nil when the events do not carry it) and its own work.
+/// What a finished or failed subagent's view shows at the end of its work: its `report` when present, or "Failed" alone when it failed without one.
+public struct SubagentResult: Equatable {
+    public let text: String?
+    public let failed: Bool
+
+    public init(text: String?, failed: Bool = false) {
+        self.text = text
+        self.failed = failed
+    }
+}
+
+/// A subagent as its view draws it: the header's description, the brief it was given (nil when the events do not carry it), its own work and what it returned.
 public struct SubagentWork: Equatable {
     public internal(set) var header: SubagentHeader
     public let brief: String?
     public let items: [FlowItem]
+    public let result: SubagentResult?
+
+    public init(header: SubagentHeader, brief: String?, items: [FlowItem], result: SubagentResult? = nil) {
+        (self.header, self.brief, self.items, self.result) = (header, brief, items, result)
+    }
 }
 
-/// The subagent launched by `call`, from the events of the session: its own calls, thoughts and messages as flow items (the rows of any
-/// subagent it launched in turn are in its groups), drawn as the main agent's are. A run still going while the subagent runs is live; once
+/// The subagent launched by `call`, from the events of the session: its own calls, thoughts and messages as flow items (any subagent it
+/// launched is counted on its run line and nested under it in the Subagents list, with no row in the view), drawn as the main agent's are. A run still going while the subagent runs is live; once
 /// it ended, a call that never ended was stopped, and so is the subagent when its session is not `working`. Nil when no `task` event names the call.
 public func subagentWork(in events: [ChatEvent], call: String, working: Bool = true, bundle: Bundle? = nil, locale: Locale = .current) -> SubagentWork? {
     var subagent: Subagent?
@@ -104,7 +120,12 @@ public func subagentWork(in events: [ChatEvent], call: String, working: Bool = t
         }
     }
     let launch = events.first { $0.kind == "tool_start" && $0.callId == call }
-    return SubagentWork(header: SubagentHeader(subagent), brief: launch?.arg.flatMap(brief(of:)), items: items)
+    let result: SubagentResult? = switch subagent.status {
+    case .running, .stopped: nil
+    case .completed: subagent.report.map { SubagentResult(text: $0, failed: false) }
+    case .failed: SubagentResult(text: subagent.report, failed: true)
+    }
+    return SubagentWork(header: SubagentHeader(subagent), brief: launch?.arg.flatMap(brief(of:)), items: items, result: result)
 }
 
 /// The subagent of the slice card `id` in the epic's sessions, as its view draws it: the lane's own flow items, all its runs in one view (a

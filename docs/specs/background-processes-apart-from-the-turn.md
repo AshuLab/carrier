@@ -90,7 +90,7 @@ public var processes: [BackgroundTask] { background.filter { $0.agentWork == fal
 **The app.** `archiveBlock` reads agent work; a new function says which processes an archive or a delete would stop, for the confirmation, in `CarrierCore` with the other session-menu rules.
 The processes card is its own view over the message box (`NoticeCard`, grey), fed by `ConversationModel` with the processes and with whether the host can `stopTask`; the cyan card is given agent work only.
 New words go in `Localizable.xcstrings` in English and Spanish, as the background-work lines did.
-The UI guide (`docs/ui.md`), `docs/macos/sessions.md` and `docs/macos/chat.md` say the new row mark and the card, and the fixture `chat-events-background.json` gets a session that has only processes; the view work follows `macos-ui-change`.
+The UI guide (`docs/ui.md`), `docs/macos/sessions.md` and `docs/macos/chat.md` say the new row mark and the card, and the list fixture `chat-list.json` gets a session that has only processes; the view work follows `macos-ui-change`.
 
 **Testing seams**, the broadest one that still isolates each story:
 
@@ -117,8 +117,11 @@ The spike ran Claude Code 2.1.332 headless: a spawn with a name listed a `local_
 The CLI's own code names the same four types as agent work, so the inference has support but no observation; it needs a person to run a teammate and a cloud agent and look at what the session shows.
 A wrong placement costs little: a teammate shown as a process leaves the session Done while it works, and the person can still read and stop it.
 A teammate that only waits for a message may hold a session as working: the CLI does not count it as work, and the event carries nothing that says it.
+The same holds for a long-running cloud session (`remote_agent` marked `isLongRunning` in the CLI's code, read and not observed): it may hold a session as working while the CLI does not count it.
 
 Answered, as observed: closing a session ended the shell tasks its agent started.
-A background `sleep` was gone after `close()` in each of six runs, within a few seconds where it was timed (one run needed those few seconds) and with no `stopTask` before it, so "archiving stops them" held without it; the ADR does not separate a delayed kill from some other cause.
-The shell lives in a process group of its own, outside the group the host signals.
+A background `sleep` was gone by the end of each of six runs, after `close()`; it was timed in three of them, within a few seconds (one run needed those few seconds), and checked only at the end in the other three, with a filter that was not recorded.
+No run called `stopTask` before the close, so "archiving stops them" held without it, and the path with `stopTask` was not run; the ADR does not separate a delayed kill from some other cause.
+The shell lives in a process group of its own (seen in `ps`).
+That the host signals only the agent's group is read from the code (ADR 0056, Consequences), not run.
 In one side check a `claude` killed with SIGKILL left its shell running, which is a dying host and not an archive (ADR 0056, Consequences).

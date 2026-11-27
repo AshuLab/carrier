@@ -705,23 +705,37 @@ export function createSessions({ db, agents, clock, runners, env, git, shell = r
     if (row(sessionId).state === 'preparing' || restoring.has(sessionId)) throw new ChatRefused('session.preparing', `This session is being prepared; wait for it to finish, then ${verb} it`, { action: verb });
     const family = [sessionId, ...kidsOf(sessionId)];
     if (family.some((id) => opening.has(id))) throw new ChatRefused('session.childStarting', `A child of this session is starting; try again in a moment, then ${verb} it`, { action: verb });
-    for (const id of family) {
+    const refuseAgentWork = (id: string) => {
       const waiting = lives.get(id)?.background.filter((task) => task.agentWork).length ?? 0;
       if (waiting > 0) {
         const tasks = waiting === 1 ? ['a background task', 'it'] : ['background tasks', 'them'];
         if (id === sessionId) throw new ChatRefused('session.tasksRunning', `This session is waiting for ${tasks[0]}; stop ${tasks[1]} first, then ${verb} it`, { count: waiting, action: verb });
         throw new ChatRefused('session.childTasksRunning', `A child of this session is waiting for ${tasks[0]}; stop ${tasks[1]} first, then ${verb} the session`, { count: waiting, action: verb });
       }
-    }
-    for (const id of family) {
+    };
+    const refuseBusy = (id: string) => {
       const state = lives.get(id)?.state;
       if (state !== undefined && state !== 'idle') throw new ChatRefused(id === sessionId ? 'session.busy' : 'session.childBusy', `${id === sessionId ? 'This session' : 'A child of this session'} is ${state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} ${id === sessionId ? 'it' : 'the session'}`, { state, action: verb });
-    }
+    };
+    for (const id of family) refuseAgentWork(id);
+    for (const id of family) refuseBusy(id);
     for (const id of family) {
       const live = lives.get(id);
       if (live === undefined) continue;
       // only processes are left (agent work refused above): they are stopped before the close, and one that refuses does not stop the archive
       await Promise.all(live.background.map((task) => live.conversation.stopTask?.(task.id).catch((error) => log.error('stopping a background process failed', error))));
+      // A request met the session while the processes stopped: a message, a turn the SDK opened, agent work, a switch or a resume. What came in wins and the session stays open; the processes already stopped are not restored.
+      const now = lives.get(id);
+      if (now === undefined) continue; // closed meanwhile, by a second archive or a close
+      if (now !== live) throw new ChatRefused('session.resumedMeanwhile', 'This session was resumed meanwhile; close it first');
+      notSwitching(id);
+      try {
+        refuseAgentWork(id);
+        refuseBusy(id);
+      } catch (error) {
+        log.info('a session was not closed for its archive or delete: it took up work while its background processes stopped', { sessionId: id, verb });
+        throw error;
+      }
       await close({ sessionId: id }, { wait: verb === 'delete' });
       if (lives.has(id)) throw new ChatRefused('session.resumedMeanwhile', 'This session was resumed meanwhile; close it first'); // a resume that finished during the close
     }

@@ -121,6 +121,22 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(waitingOnText([task("", kind: "monitor")], bundle: english.bundle, locale: english.locale) == "Waiting on monitor")
 }
 
+@Test func theLineOfWhatAWorkingSessionWaitsForNamesAgentWorkAndNeverAProcess() {
+    let process = BackgroundTask(id: "p", kind: "local_bash", description: "pnpm dev", agentWork: false)
+    let agent = BackgroundTask(id: "a", kind: "local_agent", description: "review")
+    func row(_ state: SessionState, _ tasks: [BackgroundTask]) -> SessionRow {
+        SessionRow(id: "s", title: "s", workspace: "w", agent: "a", state: state, updatedAt: Date(timeIntervalSince1970: 1), background: tasks)
+    }
+    func line(_ row: SessionRow) -> String? { row.waitingOn(bundle: english.bundle, locale: english.locale) }
+    // in a turn with a process, or idle with only a process, the line is the status's own words, not "Waiting on pnpm dev"
+    #expect(line(row(.working, [process])) == nil && line(row(.idle, [process])) == nil)
+    // mixed, it names the agent work and counts only it
+    #expect(line(row(.idle, [process, agent])) == "Waiting on review")
+    #expect(line(row(.idle, [process, agent, BackgroundTask(id: "b", kind: "local_agent", description: "tests")])) == "Waiting on review and 1 more")
+    // a session that waits for the person says nothing of its tasks
+    #expect(line(row(.waiting, [agent])) == nil)
+}
+
 @Test func twoSessionsThatWorkKeepTheirPlaceWhateverTheirAgentsDoAndTakeItOnceWhenTheyStop() {
     let base = Date(timeIntervalSince1970: 1_000_000)
     func row(_ id: String, _ state: SessionState, at seconds: Double, background: [BackgroundTask] = []) -> SessionRow {

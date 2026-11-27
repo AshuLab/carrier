@@ -17,8 +17,6 @@ public struct ProcessesCard: Equatable {
     public let stopHelp: String?
     /// Whether each row has its own Stop.
     public var stopsEach: Bool { stop != nil }
-    /// What VoiceOver reads for the card.
-    public var spoken: String { "\(title), \(names)" }
 
     init(processes: [BackgroundTask], title: String, names: String, stop: String?, stopHelp: String?) {
         (self.processes, self.title, self.names, self.stop, self.stopHelp) = (processes, title, names, stop, stopHelp)

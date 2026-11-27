@@ -272,7 +272,7 @@ private struct SessionHomeRow: View {
 
     /// What the session is doing, or the last thing the agent said.
     @ViewBuilder private var status: some View {
-        if row.isWorking, let waiting = waitingOnText(row.background) {
+        if let waiting = row.waitingOn() {
             Text(waiting).foregroundStyle(Color.backgroundWork).font(.callout).lineLimit(1).truncationMode(.tail)
         } else {
             switch row.state {

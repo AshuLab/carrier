@@ -180,9 +180,17 @@ extension ConversationModel {
     }
 
     /// The Stop of the processes card's line: each process through `stopTask`, one at a time, and never `interrupt`, which with no turn running would stop
-    /// the agent work as well. A refusal is said by `stopTask`; the rest are still asked.
+    /// the agent work as well. A refusal is said by `stopTask`, and the first one stays up when a later process stops cleanly; the rest are still asked.
     public func stopProcesses() async {
-        for process in processesCard?.processes ?? [] { await stopTask(process.id) }
+        var first: Refusal?
+        for process in processesCard?.processes ?? [] {
+            await stopTask(process.id)
+            first = first ?? refusal
+        }
+        if let first {
+            refusedText = nil
+            refusal = first
+        }
     }
 
     /// The Stop button: ends the turn (with none running, the host stops what the agent waits for in the background), then stops each subagent

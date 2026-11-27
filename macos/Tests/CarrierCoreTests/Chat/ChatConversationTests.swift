@@ -548,6 +548,8 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var capabilities: Set<ControlClient.Capability> = [.stopTask]
     var stopped: [String] = []
     var refusingStopTask: ControlError?
+    /// The tasks `stopTask` refuses, by id, when the others stop.
+    var refusingTasks: [String: ControlError] = [:]
     /// The state the host reports with its events; nil leaves the model's as it was (idle).
     var state: ChatSession.State?
     /// The folder the summary of `events` says the session works from.
@@ -601,6 +603,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     func stopTask(_ id: String, task: String) async throws {
         stopped.append("\(id) \(task)")
         if let refusingStopTask { throw refusingStopTask }
+        if let refusing = refusingTasks[task] { throw refusing }
     }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
@@ -949,6 +952,22 @@ private let review = BackgroundTask(id: "a1", kind: "local_agent", description: 
     await model.stopProcesses()
     // each process, one at a time, and never the agent work or an interrupt (with no turn running it would stop the subagent as well)
     #expect(host.stopped == ["s p2", "s p1", "s p2"] && host.interrupts == 0)
+}
+
+@MainActor @Test func stopAllKeepsTheRefusalOfAProcessThatDidNotStopWhenALaterOneStopsCleanly() async {
+    let host = ScriptedHost()
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hi")]
+    host.background = [build, watch]
+    host.refusingTasks["p1"] = ControlError.remote(Refusal(code: "session.task.notRunning", text: "That task is not running"))
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    await model.stopProcesses()
+    // the first is refused and the second stops: the second's success does not take the banner of the first away
+    #expect(host.stopped == ["s p1", "s p2"] && model.refusal?.code == "session.task.notRunning")
+    // and with all of them stopping, a refusal from before is cleared as any stop does
+    host.refusingTasks = [:]
+    await model.stopProcesses()
+    #expect(model.refusal == nil)
 }
 
 @MainActor @Test func aHostWhoseEventsLeaveOutLiveIsStillReadFromItsLists() async {

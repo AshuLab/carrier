@@ -720,6 +720,78 @@ test('deleting a parent whose child has only processes stops them before the chi
   expect(f.db.select().from(schemaSessions).all()).toEqual([]);
 });
 
+/** Holds the fake's `stopTask` open until `release` is called: the window in which an archive or a delete waits for a process to stop. */
+const holdStops = (conversation: { stopTask?: (taskId: string) => Promise<void> }) => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  conversation.stopTask = () => held;
+  return release;
+};
+
+test.each(['archive', 'delete'] as const)('a message sent while %s waits for a process to stop is delivered, and the %s is refused as the session is working, with the turn left running', async (verb) => {
+  const s = setup();
+  const one = await openOne(s);
+  one.conversation.emit(bg('p'));
+  const release = holdStops(one.conversation);
+  const settling = verb === 'archive' ? s.sessions.archive({ sessionId: one.id, archived: true }) : s.sessions.delete({ sessionId: one.id });
+  const refused = settling.then(() => undefined, (error: unknown) => error);
+  s.sessions.send({ sessionId: one.id, text: 'one more thing' });
+  release();
+  expect(await refused).toMatchObject({ code: 'session.busy', params: { state: 'working', action: verb } });
+  expect(one.conversation.closed).toBe(false);
+  expect(one.conversation.sent).toEqual(['one more thing']);
+  expect(stateOf(s, one.id)).toBe('working');
+  expect(rows('sessions').find((r) => r.id === one.id)).toMatchObject({ archived: 0 });
+});
+
+test('a turn the SDK opens while an archive waits for a process to stop keeps the session open, and agent work that appears meanwhile is refused with its own code', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  one.conversation.emit(bg('p'));
+  let release = holdStops(one.conversation);
+  let refused = s.sessions.archive({ sessionId: one.id, archived: true }).then(() => undefined, (error: unknown) => error);
+  one.conversation.emit({ kind: 'turn_start' });
+  release();
+  expect(await refused).toMatchObject({ code: 'session.busy', params: { state: 'working', action: 'archive' } });
+  expect(one.conversation.closed).toBe(false);
+
+  one.conversation.emit({ kind: 'turn_end', outcome: 'ok' });
+  release = holdStops(one.conversation);
+  refused = s.sessions.archive({ sessionId: one.id, archived: true }).then(() => undefined, (error: unknown) => error);
+  one.conversation.emit({ kind: 'background', tasks: [...agent('a').tasks, ...bg('p').tasks] });
+  release();
+  expect(await refused).toMatchObject({ code: 'session.tasksRunning', params: { count: 1, action: 'archive' } });
+  expect(one.conversation.closed).toBe(false);
+});
+
+test('a second archive while the first waits for a process to stop leaves one close and an archived session', async () => {
+  const s = setup();
+  const one = await openOne(s);
+  one.conversation.emit(bg('p'));
+  const close = vi.spyOn(one.conversation, 'close');
+  const release = holdStops(one.conversation);
+  const first = s.sessions.archive({ sessionId: one.id, archived: true });
+  const second = s.sessions.archive({ sessionId: one.id, archived: true });
+  release();
+  await Promise.all([first, second]);
+  expect(close).toHaveBeenCalledTimes(1);
+  expect(rows('sessions').find((r) => r.id === one.id)).toMatchObject({ archived: 1 });
+});
+
+test('a switch of agent that starts while an archive waits for a process to stop is not closed under: the archive is refused as the session is switching', async () => {
+  const s = switching();
+  const { id, old } = await s.talked();
+  old.emit(bg('p'));
+  const release = holdStops(old);
+  const archiving = s.sessions.archive({ sessionId: id, archived: true }).then(() => undefined, (error: unknown) => error);
+  const switched = s.sessions.switchAgent({ sessionId: id, agent: 'b' });
+  release();
+  expect(await archiving).toMatchObject({ code: 'session.switching' });
+  await switched;
+  expect(s.sessionRow(id)).toMatchObject({ agent: 'b', archived: false });
+  expect(s.codex.conversations[0]!.closed).toBe(false);
+});
+
 test('a turn the agent begins on its own is working from its first word and ends at its turn_end, which is recorded', async () => {
   const s = setup();
   const one = await openOne(s);

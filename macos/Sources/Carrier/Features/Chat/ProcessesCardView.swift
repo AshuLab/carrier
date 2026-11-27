@@ -20,8 +20,8 @@ struct ProcessesCardView: View {
             if let stop = card.stop {
                 Button(stop, action: stopAll).buttonStyle(NoticeActionStyle()).help(card.stopHelp ?? "").accessibilityLabel(card.stopHelp ?? stop)
             }
-            Button { toggle() } label: { LogChevron(open: open).frame(width: 16, height: 22).contentShape(Rectangle()) }
-                .buttonStyle(.plain).accessibilityLabel(card.spoken)
+            Button { toggle() } label: { LogChevron(open: open).frame(width: 24, height: 24).contentShape(Rectangle()) }
+                .buttonStyle(.plain).accessibilityLabel(card.title).accessibilityValue(open ? Copy.chatProcessesExpanded() : Copy.chatProcessesCollapsed())
                 .accessibilityHint(open ? Copy.chatProcessesHintHide() : Copy.chatProcessesHintShow())
         } below: {
             if open { rows.transition(reduceMotion ? .opacity : .reveal) }

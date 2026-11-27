@@ -73,18 +73,19 @@ To redo the close check: in a throwaway folder, open a conversation with `claude
   The same code leaves out of that count an idle teammate (one that waits for a message) and a cloud session marked as long-running, and `background_tasks_changed` carries nothing that tells either, so a teammate that is only waiting may hold a session as working here.
   That reading is also inferred.
 
-Nothing seen or read puts a type in the wrong list, so the allowlist in `src/chat/claude.ts`, its test and the spec's list stay as they are.
+Nothing seen or read puts a type in the wrong list as a whole, so the allowlist in `src/chat/claude.ts`, its test and the spec's list stay as they are.
+The one gap that was read is inside two of the types: an idle teammate and a long-running cloud session count as not working in the CLI, and the event carries neither, so they may read as agent work here.
 A person who runs a teammate or a cloud agent in the app, and looks at what the session shows, closes the two open ends.
 
-Closing a session ended a background shell: in the six runs the shell was gone after `conversation.close()`, though how soon was not the same in each.
+Closing a session ended a background shell: in the six runs the shell was gone by the end of the run, after `conversation.close()`, though how soon was not the same in each, and in three of them it was checked only at the end.
 The model was asked to run `sleep 4217` with `run_in_background`; the host listed `{"task_type":"local_bash","description":"Sleep for 4217 seconds"}` (no `ambient`, `agentWork: false`) and the turn ended.
 `ps -axo pid,ppid,pgid,command`, filtered for `sleep 4217`, then showed the shell and its `sleep`, children of the `claude` process but in a process group of their own, not the agent's.
 The script then called `conversation.close()`, which is what the host's `close` ends in for an archive or a delete (`src/chat/sessions.ts`), with no `stopTask` before it, and looked again.
 What each run showed: gone 1.5 seconds after the close in the first run; still there 1.5 seconds after it in the second and gone a few seconds later (the exact figure was not kept); gone at the first check in the sixth, which polled every 0.2 seconds right after `close()` returned; in the three between, only that nothing was left at the end of the run.
 So every run ended with the shell gone, within a few seconds of the close where it was timed, and one run needed those few seconds.
 This ADR does not separate a delayed kill (the `claude` process taking its shells down as it ends, or the shell ending on its own once its parent is gone) from some other cause, and the spike did not observe which step ends it.
-The shell is not in the group that `endGroup` signals, so it is not that signal that reaches it directly.
-So the archive's promise held for a closed session, with or without `stopTask`, in these runs, and no ticket is needed for it.
+The shell is in a process group of its own (seen in `ps`), and `endGroup` signals the agent's group (read in `src/chat/group.ts`, not run), so by reading it is not that signal that reaches it directly.
+So the archive's promise held for a closed session in these runs, which never called `stopTask` (the host calls it before the close, and that path was not run), and no ticket is needed for it.
 The exact filter the original script used to leave its own command out of the match was not recorded: `ps ... | grep "sleep 4217"` alone also lists the `grep`, and `pgrep -f` can match the checking script's own command line, which holds that text, so the redo above uses a pattern that excludes itself.
 
 One side check, a single observation, not a series: a SIGKILL sent to the `claude` process left its shell alive, with `ps` showing its parent as `launchd` (pid 1) and a process group of its own.

@@ -199,6 +199,12 @@ public struct SessionRow: Equatable {
     /// a background process does not hold it, and a session that waits for the person still waits.
     public var isWorking: Bool { state == .working || (state != .waiting && background.contains { $0.agentWork }) }
 
+    /// What the working session waits for in a line, as `waitingOnText` says it: only agent work, since a process does not hold it and is not what
+    /// the model is on; nil when it does not work or waits for nothing of the agent's.
+    public func waitingOn(bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        isWorking ? waitingOnText(background.filter(\.agentWork), bundle: bundle, locale: locale) : nil
+    }
+
     /// What it is for the person; see `SessionStatus`.
     public var status: SessionStatus {
         switch state {

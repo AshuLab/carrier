@@ -61,8 +61,10 @@ _Avoid_: run, job, activity (anything that is not the model acting).
 **Background task** - Anything the agent started that is still running after its turn ended, as the host lists it in a session's `background`: an agent work or a background process.
 _Avoid_: job, pending task.
 
-**Agent work** - A background task that is the model's own work: a subagent or a workflow. It will wake the agent with a result, so the session is still working while it runs.
+**Agent work** - A background task that is the model's own work: a subagent or a workflow.
+It will wake the agent with a result, so the session is still working while it runs.
 _Avoid_: background job, async task.
 
-**Background process** - A background task that is not the model working: a command, a monitor, an MCP tool, a dev server left running. The turn is over, the session is done and the process is a fact about it, not work (it does not mean the engine's [Detached run](orchestration.md)).
+**Background process** - A background task that is not the model working: a command, a monitor, an MCP tool, a dev server left running.
+The turn is over, the session is done and the process is a fact about it, not work (it does not mean the engine's [Detached run](orchestration.md)).
 _Avoid_: job, service, daemon, running task.

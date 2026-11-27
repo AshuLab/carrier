@@ -218,7 +218,7 @@ Use for: the search of a toolbar, which opens inline into a 220 pt pill. Not for
 ### NoticeCard
 Kind: Cards · File: `macos/Sources/CarrierUI/Cards/NoticeCard.swift` · Web: `<NoticeCard>`
 Takes: `symbol`, `tint`, `title`, `detail`, `hint`, `tag`, `detailLines`, `inline` (the detail on the title's line, cut at the end), `account`, `onTap`, `actions` and `below` (slots).
-States: each tint (info, warning, error); with and without detail; with actions; a disabled action.
+States: each tint (info, warning, error); with and without detail; inline (the detail on the title's line); with actions; a disabled action.
 Use for: a notice about the whole page or conversation, over the message box. Not for: a problem of one field (that is `ProblemLine`).
 
 ### OverviewCard

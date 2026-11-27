@@ -8,6 +8,7 @@ import SwiftUI
 struct SessionProcessMark: View {
     let count: Int
     @Environment(\.rowState) private var state
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var fill: Color {
         switch state {
@@ -27,7 +28,7 @@ struct SessionProcessMark: View {
         .foregroundStyle(words).lineLimit(1).fixedSize()
         .padding(.horizontal, Tokens.Space.s6).frame(height: 15)
         .background(Capsule().fill(fill))
-        .animation(.easeOut(duration: 0.12), value: state)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: state)
         .accessibilityHidden(true)
     }
 }

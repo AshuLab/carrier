@@ -110,11 +110,40 @@ test.each([
   [{ cmd: 'editFailover', role: 'author', first: { provider: 'codex' }, second: null }, (file: any) => file.failover.roles.author, [{ provider: 'codex' }]],
   [{ cmd: 'setLeadReviewer', draft: null }, (file: any) => file.agents.leadReviewer, undefined],
   [{ cmd: 'setOrchestratorProfile', name: null }, (file: any) => file.orchestratorProfile, undefined],
+  [{ cmd: 'addExtraReviewer', draft: { name: 'Sec', type: 'security', identity: { kind: 'gh' }, provider: 'claude', model: 'opus' } }, (file: any) => file.agents.extraReviewers, { sec: { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'claude', model: 'opus' } }],
 ])('with no engine, %o writes engine.json with the same code and says notRunning', async (request, read, expected) => {
   writeFileSync(engineFile(), JSON.stringify(validEngineFile));
   expect(await run(JSON.stringify(request))).toBe(0);
   expect(printed()).toMatchObject({ ok: true, data: { engine: 'notRunning' } });
   expect(read(JSON.parse(readFileSync(engineFile(), 'utf8')))).toEqual(expected);
+});
+
+test.each([
+  [{ cmd: 'editRole', role: { extraReviewer: 'sec' }, changes: { name: 'Security', type: 'appsec', model: 'm2' } }, (entry: any) => entry, { type: 'appsec', name: 'Security', profile: 'reviewer-bot', provider: 'claude', model: 'm2' }],
+  [{ cmd: 'editPersona', role: { extraReviewer: 'sec' }, name: 'Ada', prompt: null }, (entry: any) => entry.persona, { name: 'Ada' }],
+  [{ cmd: 'editFailover', role: { extraReviewer: 'sec' }, first: { provider: 'codex' }, second: null }, (entry: any) => entry.failover, [{ provider: 'codex' }]],
+])('with no engine, %o writes the entry of the extra reviewer', async (request, read, expected) => {
+  const sec = { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'claude', model: 'opus' };
+  writeFileSync(engineFile(), JSON.stringify({ ...validEngineFile, agents: { ...validEngineFile.agents, extraReviewers: { sec } } }));
+  expect(await run(JSON.stringify(request))).toBe(0);
+  expect(printed()).toMatchObject({ ok: true, data: { engine: 'notRunning' } });
+  expect(read(JSON.parse(readFileSync(engineFile(), 'utf8')).agents.extraReviewers.sec)).toEqual(expected);
+});
+
+test('with no engine, removeExtraReviewer takes the reviewer out of engine.json and says notRunning', async () => {
+  const sec = { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'claude', model: 'opus' };
+  writeFileSync(engineFile(), JSON.stringify({ ...validEngineFile, agents: { ...validEngineFile.agents, extraReviewers: { sec } } }));
+  expect(await run(JSON.stringify({ cmd: 'removeExtraReviewer', key: 'sec' }))).toBe(0);
+  expect(printed()).toEqual({ ok: true, data: { saved: {}, engine: 'notRunning' } });
+  expect(JSON.parse(readFileSync(engineFile(), 'utf8'))).toEqual(validEngineFile);
+});
+
+test('with no engine, setRepoExtraReviewers writes the repo\'s own list and says notRunning', async () => {
+  const sec = { type: 'security', name: 'Sec', profile: 'reviewer-bot', provider: 'claude', model: 'opus' };
+  writeFileSync(engineFile(), JSON.stringify(validEngineFile));
+  expect(await run(JSON.stringify({ cmd: 'setRepoExtraReviewers', repo: 'acme/web', reviewers: { sec } }))).toBe(0);
+  expect(printed()).toMatchObject({ ok: true, data: { engine: 'notRunning' } });
+  expect(JSON.parse(readFileSync(engineFile(), 'utf8')).repos[1].agents.extraReviewers).toEqual({ sec });
 });
 
 test('a refused role change prints the refusal with its code and params and leaves the file as it was', async () => {

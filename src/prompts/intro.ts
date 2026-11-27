@@ -6,8 +6,9 @@ import { personaLines } from './persona.ts';
 export function intro(task: AgentTask, forgeAgent?: string): string[] {
   const { executionId, repo, epic, stage, context } = task;
   const slot = slotOf(task);
+  const role = slot === null ? 'author' : slot === 'lead' ? 'lead reviewer' : slot === 'reviewer' ? 'reviewer' : `reviewer ${task.reviewerName ?? slot}`; // an extra reviewer is called by its name
   const lines = [
-    `You are the ${slot === null ? 'author' : slot === 'lead' ? 'lead reviewer' : slot} of the final integration PR of epic #${epic} in ${repo}. Execution ${executionId}, stage ${stage}.`,
+    `You are the ${role} of the final integration PR of epic #${epic} in ${repo}. Execution ${executionId}, stage ${stage}.`,
     ...personaLines(task),
     'Nobody answers questions during this run: decide, and use needs_human when you cannot.',
     'Apply the repo\'s own rules (its docs, agent instructions and conventions) to choose and evaluate tests, CI and blockers. Do not assume commands from other repos.',

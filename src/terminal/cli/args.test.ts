@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { roleSlots, roleFlagSuffixes } from '../wizard/roles.ts';
-import { parseCli, usage } from './args.ts';
+import { extraReviewerOptionsOf, parseCli, usage } from './args.ts';
 
 test('a command and its flags become data', () => {
   const parsed = parseCli(['init', '--repo', 'A/a', '--repo', 'B/b', '--author', 'claude:sonnet', '--yes']);
@@ -75,6 +75,14 @@ test('restart without its argument or with a second one is a usage error, and th
   expect(parseCli(['status', 'A/a#1'])).toEqual({ ok: false, message: 'Unknown command: status A/a#1' });
 });
 
+test('restart takes --extra-reviewer-option "<key>=<option>", repeated, and refuses one that is not a key and an option or names a key twice', () => {
+  expect(parseCli(['restart', 'A/a#1', '--extra-reviewer-option', 'seguridad-api=codex', '--extra-reviewer-option=usabilidad=claude'])).toMatchObject({ ok: true, flags: { 'extra-reviewer-option': ['seguridad-api=codex', 'usabilidad=claude'] } });
+  for (const value of ['codex', 'seguridad-api=', '=codex', 'Seguridad=codex', '2a=codex']) expect(parseCli(['restart', 'A/a#1', '--extra-reviewer-option', value])).toMatchObject({ ok: false, message: expect.stringContaining('--extra-reviewer-option takes "<key>=<option>"') });
+  expect(parseCli(['restart', 'A/a#1', '--extra-reviewer-option', 'usabilidad=a', '--extra-reviewer-option', 'usabilidad=b'])).toMatchObject({ ok: false, message: expect.stringContaining('usabilidad twice') });
+  expect(extraReviewerOptionsOf(['seguridad-api=codex'])).toEqual({ ok: true, options: { 'seguridad-api': 'codex' } });
+  expect(usage()).toContain('--extra-reviewer-option "<key>=<option>"');
+});
+
 test('restart takes --from ship, review or fix and refuses any other', () => {
   for (const from of ['ship', 'review', 'fix']) expect(parseCli(['restart', 'A/a#1', '--from', from])).toMatchObject({ ok: true, flags: { from } });
   expect(parseCli(['restart', 'A/a#1'])).toMatchObject({ ok: true });
@@ -125,10 +133,23 @@ test('every role the table asks takes its flags, and a slot added to the table a
     for (const suffix of roleFlagSuffixes) expect(parseCli(['init', `--${slot}${suffix}`, 'x'])).toMatchObject({ ok: true, command: 'init', flags: { [`${slot}${suffix}`]: 'x' } });
     expect(parseCli(['init', `--${slot}-failover`, 'codex'])).toMatchObject({ ok: true, flags: { [`${slot}-failover`]: ['codex'] } });
   }
-  expect(roleSlots).toEqual(['author', 'reviewer', 'reviewer-2', 'reviewer-3', 'reviewer-4', 'lead-reviewer']);
-  expect(parseCli(['init', '--reviewer-2', 'codex:gpt-5', '--reviewer-3-effort', 'low', '--reviewer-4-failover', 'claude'])).toMatchObject({ ok: true, flags: { 'reviewer-2': 'codex:gpt-5', 'reviewer-3-effort': 'low', 'reviewer-4-failover': ['claude'] } });
+  expect(roleSlots).toEqual(['author', 'reviewer', 'lead-reviewer']);
+  // no flag of init or restart names an extra reviewer by its place
+  for (const flag of ['--reviewer-2', '--reviewer-3-effort', '--reviewer-4-failover']) {
+    expect(parseCli(['init', flag, 'x'])).toMatchObject({ ok: false, message: expect.stringContaining(flag) });
+    expect(parseCli(['restart', 'A/a#1', flag, 'x'])).toMatchObject({ ok: false, message: expect.stringContaining(flag) });
+  }
+  expect(usage()).not.toMatch(/reviewer-[234]/);
+  expect(usage()).toContain('--extra-reviewer "<name>=<harness>:<model>"');
   expect(parseCli(['init', '--orchestrator-profile', 'gh'])).toMatchObject({ ok: true, flags: { 'orchestrator-profile': 'gh' } });
   expect(parseCli(['init', '--lead-reviewer-effort', 'high', '--lead-reviewer-persona-prompt', 'p'])).toMatchObject({ ok: true, flags: { 'lead-reviewer-effort': 'high', 'lead-reviewer-persona-prompt': 'p' } });
+});
+
+test('--extra-reviewer and every field flag repeat, one text per reviewer, and keep the order given', () => {
+  const parsed = parseCli(['init', '--extra-reviewer', 'A=claude:m', '--extra-reviewer', 'B=codex:n', ...['profile', 'provider', 'effort', 'type', 'persona-name', 'persona-prompt', 'failover'].flatMap((field) => [`--extra-reviewer-${field}`, `A=x`, `--extra-reviewer-${field}`, `B=y`])]);
+  expect(parsed).toMatchObject({ ok: true, flags: { 'extra-reviewer': ['A=claude:m', 'B=codex:n'], 'extra-reviewer-failover': ['A=x', 'B=y'], 'extra-reviewer-persona-name': ['A=x', 'B=y'], 'extra-reviewer-type': ['A=x', 'B=y'] } });
+  expect(parseCli(['init', '--extra-reviewer-color', 'A=red'])).toMatchObject({ ok: false, message: expect.stringContaining('--extra-reviewer-color') });
+  expect(parseCli(['init', '--extra-reviewer'])).toMatchObject({ ok: false });
 });
 
 test('--<role>-failover repeats and keeps the order given, and a flag no role has is still an error', () => {
@@ -140,12 +161,12 @@ test('--<role>-failover repeats and keeps the order given, and a flag no role ha
   expect(parseCli(['init', '--author-fallback', 'codex'])).toMatchObject({ ok: false, message: expect.stringContaining('--author-fallback') });
 });
 
-test('restart and recover read the same options as before, --reviewer-2 to --reviewer-4 and --lead among them', () => {
-  expect(parseCli(['restart', 'A/a#1', '--author', 'codex', '--reviewer', 'claude', '--reviewer-2', 'x', '--reviewer-3', 'y', '--reviewer-4', 'z', '--lead', 'l', '--from', 'fix', '--extra-rounds', '2'])).toEqual({
+test('restart and recover read the same options as before, --lead among them', () => {
+  expect(parseCli(['restart', 'A/a#1', '--author', 'codex', '--reviewer', 'claude', '--lead', 'l', '--from', 'fix', '--extra-rounds', '2'])).toEqual({
     ok: true,
     command: 'restart',
     target: { repo: 'A/a', issue: 1 },
-    flags: { author: 'codex', reviewer: 'claude', 'reviewer-2': 'x', 'reviewer-3': 'y', 'reviewer-4': 'z', lead: 'l', from: 'fix', 'extra-rounds': '2' },
+    flags: { author: 'codex', reviewer: 'claude', lead: 'l', from: 'fix', 'extra-rounds': '2' },
   });
   expect(parseCli(['recover', 'A/a#1', '--config', 'x.json'])).toEqual({ ok: true, command: 'recover', target: { repo: 'A/a', issue: 1 }, flags: { config: 'x.json' } });
 });

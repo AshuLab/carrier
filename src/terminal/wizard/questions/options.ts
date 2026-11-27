@@ -6,7 +6,7 @@ import type { HarnessName } from '../../../harnesses/names.ts';
 import type { Ui } from '../../prompts/types.ts';
 import { parseHarnessModel, parseProvider, type AIProvider, type Role } from '../build-config.ts';
 import type { InitDeps } from '../deps.ts';
-import { roleName, type RoleSlot } from '../roles.ts';
+import { roleName, type Block } from '../roles.ts';
 import { providerLine, stepsLine } from '../summary.ts';
 import { askAIProvider, askModel } from './agent.ts';
 
@@ -75,7 +75,7 @@ export async function askProviders(ui: Ui, start: Providers, installed: readonly
   return providers;
 }
 
-export async function askRoleProvider(ui: Ui, slot: RoleSlot, providers: Providers, current?: string, other?: string): Promise<string> {
+export async function askRoleProvider(ui: Ui, slot: Block, providers: Providers, current?: string, other?: string): Promise<string> {
   const names = Object.keys(providers);
   if (names.length === 1) return names[0]!;
   return ui.select({
@@ -99,7 +99,7 @@ const done = '\0done';
 const ordinal = ['first', 'second'];
 
 /** A role's failover, inside its block: with two or more accounts, up to two steps, each an account and a model, that the role moves through when its credits run out or errors occur; a step may not repeat another or be the role's own account and model. With fewer accounts there is nowhere to move: one line says so and nothing is asked. A failover the file has is offered first ("keep the failover you have?"). */
-export async function askRoleFailover(ui: Ui, providers: Providers, slot: RoleSlot, own: Pick<Role, 'provider' | 'model'>, locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps, current: Steps | undefined, said: { failover: boolean }): Promise<Steps | undefined> {
+export async function askRoleFailover(ui: Ui, providers: Providers, slot: Block, own: Pick<Role, 'provider' | 'model'>, locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps, current: Steps | undefined, said: { failover: boolean }): Promise<Steps | undefined> {
   const role = roleName(slot);
   const names = Object.keys(providers);
   if (names.length < 2) {

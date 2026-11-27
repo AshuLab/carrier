@@ -37,6 +37,17 @@ let goldenRoleChanges: [(String, EngineConfigChange)] = [
     ("engine-set-lead-reviewer.json", .leadReviewer(goldenLead())),
     ("engine-set-lead-reviewer-off.json", .leadReviewer(nil)),
     ("engine-set-orchestrator-profile.json", .orchestratorProfile("author-bot")),
+    ("engine-add-extra-reviewer.json", .addExtraReviewer(ExtraReviewerDraft(name: "Seguridad API", type: "security", identity: .bot("nova"), provider: "claude", model: "sonnet", effort: "high"))),
+    ("engine-edit-extra-reviewer-role.json", .extraReviewerRole(key: "seguridad-api", name: "Seguridad del front", type: "frontend-security", [.bot("nova"), .provider("codex"), .model("gpt-5-codex"), .effort(nil)])),
+    ("engine-edit-extra-reviewer-persona.json", .extraReviewerPersona(key: "seguridad-api", name: "Centinela", prompt: nil)),
+    ("engine-edit-extra-reviewer-failover.json", .extraReviewerFailover(key: "seguridad-api", first: FailoverStep(provider: "agy", model: "gemini", effort: "low"), second: nil)),
+    ("engine-remove-extra-reviewer.json", .removeExtraReviewer(key: "seguridad-api")),
+    ("engine-set-repo-extra-reviewers.json", .repoExtraReviewers(repo: "acme/web", [
+        RepoExtraReviewer(key: "seguridad-api", type: "security", name: "Seguridad API", profile: "author-bot", provider: "claude", model: "sonnet", effort: "high"),
+        RepoExtraReviewer(key: "usabilidad", type: "ux", name: "Usabilidad", profile: "reviewer-bot", provider: "codex", model: "gpt-5"),
+    ])),
+    ("engine-set-repo-extra-reviewers-none.json", .repoExtraReviewers(repo: "acme/web", [])),
+    ("engine-set-repo-extra-reviewers-global.json", .repoExtraReviewers(repo: "acme/web", nil)),
 ]
 
 func goldenLead() -> LeadReviewerDraft {
@@ -125,6 +136,24 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
     draft.apply(.provider("codex"))
     #expect(try object(EngineConfigChange.leadReviewer(draft).request) == ["cmd": "setLeadReviewer", "draft": ["provider": "codex", "model": ""]] as NSDictionary)
     #expect(try object(EngineConfigChange.orchestratorProfile(nil).request) == ["cmd": "setOrchestratorProfile", "name": NSNull()] as NSDictionary)
+}
+
+@Test func aRepoListOfExtraReviewersIsSentWholeInItsOrderAndWithoutAnEffortItDoesNotHave() throws {
+    let list = [
+        RepoExtraReviewer(key: "zeta", type: "a", name: "Z", profile: "p", provider: "claude", model: "m"),
+        RepoExtraReviewer(key: "alfa", type: "b", name: "A", profile: "p", provider: "codex", model: "n", effort: "low"),
+    ]
+    let line = String(decoding: EngineConfigChange.repoExtraReviewers(repo: "a/b", list).request, as: UTF8.self)
+    #expect(try #require(line.range(of: "\"zeta\"")).lowerBound < #require(line.range(of: "\"alfa\"")).lowerBound)
+    #expect(try object(EngineConfigChange.repoExtraReviewers(repo: "a/b", list).request) == ["cmd": "setRepoExtraReviewers", "repo": "a/b", "reviewers": [
+        "zeta": ["type": "a", "name": "Z", "profile": "p", "provider": "claude", "model": "m"],
+        "alfa": ["type": "b", "name": "A", "profile": "p", "provider": "codex", "model": "n", "effort": "low"],
+    ]] as NSDictionary)
+}
+
+@Test func anExtraReviewerWithoutAnEffortIsSentWithoutOne() throws {
+    let draft = ExtraReviewerDraft(name: "Sec", type: "security", identity: .gh, provider: "claude", model: "opus")
+    #expect(try object(EngineConfigChange.addExtraReviewer(draft).request) == ["cmd": "addExtraReviewer", "draft": ["name": "Sec", "type": "security", "identity": ["kind": "gh"], "provider": "claude", "model": "opus"]] as NSDictionary)
 }
 
 @MainActor @Test func theQueueSendsOneChangeAtATimeInTheOrderItWasAskedEvenWhenAnEarlierOneAnswersLast() async {

@@ -2,7 +2,7 @@
 // The entry point: read the command line, hand it to the command, turn a CliError into an exit code. Nothing else lives here.
 import { resolve } from 'node:path';
 import { carrierHome } from '../../config/places.ts';
-import { parseCli, usage } from './args.ts';
+import { extraReviewerOptionsOf, parseCli, usage } from './args.ts';
 import { CliError } from './cli-error.ts';
 import { configPathFor, loadConfigFile, noConfig } from './config-file.ts';
 
@@ -56,9 +56,11 @@ else if (cli.flags.help) {
       case 'reload':
         exit = await (await import('./commands/control.ts')).controlCommand(cli.command, folder);
         break;
-      case 'restart':
-        exit = await (await import('./commands/restart.ts')).restartCommand(folder, cli.target!, { author: cli.flags.author, reviewer: cli.flags.reviewer, reviewer2: cli.flags['reviewer-2'], reviewer3: cli.flags['reviewer-3'], reviewer4: cli.flags['reviewer-4'], lead: cli.flags.lead, from: cli.flags.from as 'ship' | 'review' | 'fix' | undefined, extraRounds: cli.flags['extra-rounds'] === undefined ? undefined : Number(cli.flags['extra-rounds']) });
+      case 'restart': {
+        const extras = extraReviewerOptionsOf(cli.flags['extra-reviewer-option']); // checked when the line was parsed
+        exit = await (await import('./commands/restart.ts')).restartCommand(folder, cli.target!, { author: cli.flags.author, reviewer: cli.flags.reviewer, lead: cli.flags.lead, extraReviewers: extras.ok ? extras.options : undefined, from: cli.flags.from as 'ship' | 'review' | 'fix' | undefined, extraRounds: cli.flags['extra-rounds'] === undefined ? undefined : Number(cli.flags['extra-rounds']) });
         break;
+      }
       case 'recover':
         exit = await (await import('./commands/recover.ts')).recoverCommand(folder, cli.target!);
         break;

@@ -138,10 +138,11 @@ describe('GitWorkspaces against a local bare remote', () => {
     const clone = await ws.prepareAuthor(repo, 3);
 
     const mandatory = await ws.prepareReviewer(repo, 3, 7);
-    const second = await ws.prepareReviewer(repo, 3, 7, { slot: 'reviewer-2', commit: first });
+    const second = await ws.prepareReviewer(repo, 3, 7, { slot: 'seguridad-api', commit: first });
     const lead = await ws.prepareReviewer(repo, 3, 7, { slot: 'lead' });
     const paths = [mandatory.path, second.path, lead.path];
     expect(mandatory.path).toBe(join(root, 'engine', 'reviews', 'demo', '3'));
+    expect(second.path).toBe(`${mandatory.path}--seguridad-api`); // an extra reviewer's folder is named with its key
     expect(new Set(paths).size).toBe(3);
     for (const a of paths) for (const b of [...paths, clone]) if (a !== b) expect(a.startsWith(`${b}/`)).toBe(false);
     for (const p of paths) expect(git(p, 'rev-parse', 'HEAD')).toBe(first);
@@ -150,9 +151,9 @@ describe('GitWorkspaces against a local bare remote', () => {
     // The head moves: a slot asked for the new head is there, and one asked for the old commit stays on it.
     const moved = commit('fix');
     openPr(7, moved);
-    expect(await ws.prepareReviewer(repo, 3, 7, { slot: 'reviewer-2' })).toEqual({ path: second.path, commit: moved });
+    expect(await ws.prepareReviewer(repo, 3, 7, { slot: 'seguridad-api' })).toEqual({ path: second.path, commit: moved });
     expect(git(second.path, 'rev-parse', 'HEAD')).toBe(moved);
-    expect(await ws.prepareReviewer(repo, 3, 7, { slot: 'reviewer-2', commit: first })).toEqual({ path: second.path, commit: first });
+    expect(await ws.prepareReviewer(repo, 3, 7, { slot: 'seguridad-api', commit: first })).toEqual({ path: second.path, commit: first });
     expect(git(second.path, 'rev-parse', 'HEAD')).toBe(first);
   });
 
@@ -160,7 +161,7 @@ describe('GitWorkspaces against a local bare remote', () => {
     const ws = workspaces();
     const sha = git(work, 'rev-parse', 'HEAD');
     openPr(7, sha);
-    const slots = ['reviewer', 'reviewer-2', 'reviewer-3', 'reviewer-4'];
+    const slots = ['reviewer', 'seguridad-api', 'usabilidad', 'rendimiento'];
     const results = await Promise.all(slots.map((slot) => ws.prepareReviewer(repo, 3, 7, { slot, commit: sha })));
     expect(new Set(results.map((r) => r.path)).size).toBe(4);
     for (const r of results) expect(git(r.path, 'rev-parse', 'HEAD')).toBe(sha);
@@ -169,8 +170,8 @@ describe('GitWorkspaces against a local bare remote', () => {
   test('cleanUp removes the checkouts of every slot, dirty ones too, and leaves another epic alone', async () => {
     const ws = workspaces();
     openPr(7, git(work, 'rev-parse', 'HEAD'));
-    const mine = await Promise.all(['reviewer', 'reviewer-2', 'reviewer-3', 'lead'].map((slot) => ws.prepareReviewer(repo, 3, 7, { slot })));
-    const other = await ws.prepareReviewer(repo, 4, 7, { slot: 'reviewer-2' });
+    const mine = await Promise.all(['reviewer', 'seguridad-api', 'usabilidad', 'lead'].map((slot) => ws.prepareReviewer(repo, 3, 7, { slot })));
+    const other = await ws.prepareReviewer(repo, 4, 7, { slot: 'seguridad-api' });
     writeFileSync(join(mine[1]!.path, 'one'), 'dirty');
 
     expect(await ws.cleanUp(repo, 3, null)).toEqual({ kept: [] });
@@ -182,6 +183,8 @@ describe('GitWorkspaces against a local bare remote', () => {
   test('a slot that is not a reviewer slot, or a commit that is not a sha, is refused before the disk', async () => {
     const ws = workspaces();
     await expect(ws.prepareReviewer(repo, 1, 7, { slot: '../x' })).rejects.toThrow('invalid slot');
+    await expect(ws.prepareReviewer(repo, 1, 7, { slot: 'Seguridad' })).rejects.toThrow('invalid slot');
+    await expect(ws.prepareReviewer(repo, 1, 7, { slot: '2a' })).rejects.toThrow('invalid slot');
     await expect(ws.prepareReviewer(repo, 1, 7, { commit: '--help' })).rejects.toThrow('invalid commit');
     expect(existsSync(root)).toBe(false);
   });

@@ -13,13 +13,16 @@ import { epics } from '../storage/schema.ts';
 import type { ControlSnapshot, EpicOptions, PanelAgent, PanelAgents, PanelEpic, PanelReviewers, PanelSession } from './types.ts';
 
 const agentOf = ({ harness, model, provider }: EffectiveRepoConfig['agents']['author']): PanelAgent => ({ harness, model, provider: provider ?? null });
+/** An extra reviewer beside its harness, model and provider: its key, name and type, which an epic saved before the names lacks. */
+const extraAgentOf = (extra: NonNullable<EffectiveRepoConfig['agents']['extraReviewers']>[number]): PanelAgent => ({ ...agentOf(extra), ...(typeof extra.key === 'string' && { key: extra.key, name: extra.name, type: extra.type }) });
 const agentsOf = (config: EffectiveRepoConfig): PanelAgents => ({ author: agentOf(config.agents.author), reviewer: agentOf(config.agents.reviewer), ...(config.agents.leadReviewer && { lead: agentOf(config.agents.leadReviewer) }) });
 
 /** The options of an epic as the panel and the epic's reply list them; undefined for one saved before options existed. */
 export const optionsOf = ({ config, authorOption, reviewerOption }: { config: EffectiveRepoConfig | null; authorOption: string | null; reviewerOption: string | null }): EpicOptions | undefined => {
   const directory = config?.providers ?? config?.options;
   const { extraReviewers = [], leadReviewer } = config?.agents ?? {};
-  return directory && { names: Object.keys(directory), author: authorOption, reviewer: reviewerOption, ...(extraReviewers.length > 0 && { extraReviewers: extraReviewers.map((extra) => extra.option ?? null) }), ...(leadReviewer && { lead: leadReviewer.option ?? null }) };
+  const keyed = extraReviewers.filter((extra) => typeof extra.key === 'string'); // an epic saved before the names has none
+  return directory && { names: Object.keys(directory), author: authorOption, reviewer: reviewerOption, ...(keyed.length > 0 && { extraReviewers: Object.fromEntries(keyed.map((extra) => [extra.key, extra.option ?? null])) }), ...(leadReviewer && { lead: leadReviewer.option ?? null }) };
 };
 
 /** One row per watched repo: the agents it resolves to and its last poll (not checked yet: null and ok). */
@@ -88,7 +91,7 @@ export function buildSnapshot(
   };
   const epicAgents = (e: { config: EffectiveRepoConfig | null }): PanelAgents | null => {
     const extra = e.config?.agents.extraReviewers ?? [];
-    return e.config && { ...agentsOf(e.config), ...(extra.length > 0 && { extraReviewers: extra.map(agentOf) }) };
+    return e.config && { ...agentsOf(e.config), ...(extra.length > 0 && { extraReviewers: extra.map(extraAgentOf) }) };
   };
   // A session for each running execution of a running epic, in the order they were launched; the harness and the model are the ones the execution ran with, and the saved role's agent only for a row that has none.
   const sessions = shown.flatMap((e) => {

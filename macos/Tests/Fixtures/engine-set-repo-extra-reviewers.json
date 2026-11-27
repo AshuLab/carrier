@@ -1,0 +1,58 @@
+{
+  "request": {
+    "cmd": "setRepoExtraReviewers",
+    "repo": "acme/web",
+    "reviewers": {
+      "seguridad-api": {
+        "type": "security",
+        "name": "Seguridad API",
+        "profile": "author-bot",
+        "provider": "claude",
+        "model": "sonnet",
+        "effort": "high"
+      },
+      "usabilidad": {
+        "type": "ux",
+        "name": "Usabilidad",
+        "profile": "reviewer-bot",
+        "provider": "codex",
+        "model": "gpt-5"
+      }
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "repos": [
+          {
+            "name": "acme/web",
+            "agents": {
+              "author": {
+                "model": "opus"
+              },
+              "extraReviewers": {
+                "seguridad-api": {
+                  "type": "security",
+                  "name": "Seguridad API",
+                  "profile": "author-bot",
+                  "provider": "claude",
+                  "model": "sonnet",
+                  "effort": "high"
+                },
+                "usabilidad": {
+                  "type": "ux",
+                  "name": "Usabilidad",
+                  "profile": "reviewer-bot",
+                  "provider": "codex",
+                  "model": "gpt-5"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "engine": "applied"
+    }
+  }
+}

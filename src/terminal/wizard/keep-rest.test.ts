@@ -30,7 +30,7 @@ const rich = {
     author: { profile: 'tassadar-agent', provider: 'claude', model: 'opus', skills: { ship: 'role-ship' } },
     reviewer: { profile: 'gh', provider: 'codex', model: 'gpt-test' },
     leadReviewer: { profile: 'gh', provider: 'claude', model: 'opus', skills: { lead: { review: 'lead-review' } } },
-    extraReviewers: [{ profile: 'gh', provider: 'codex', model: 'gpt-x' }],
+    extraReviewers: { 'seguridad-api': { type: 'security', name: 'Seguridad API', profile: 'gh', provider: 'codex', model: 'gpt-x', skills: { review: { review: 'x-review' } } } },
   },
 };
 const accounts = { claude: { harness: 'claude' }, codex: { harness: 'codex' } };

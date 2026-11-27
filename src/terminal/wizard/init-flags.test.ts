@@ -31,6 +31,15 @@ test.each([
   ['--yes with no --repo', { yes: true }, '--repo'],
   ['a malformed failover step', { authorFailover: ['codex:'] }, '--author-failover "codex:"'],
   ['a third failover step', { reviewerFailover: ['a', 'b', 'c'] }, '--reviewer-failover: at most 2 steps'],
+  ['an extra reviewer flag that names no reviewer', { extraReviewerType: ['Ghost=ux'] }, '--extra-reviewer-type "Ghost=ux"'],
+  ['a fourth extra reviewer', { extraReviewer: ['a=claude:m', 'b=claude:m', 'c=claude:m', 'd=claude:m'] }, '--extra-reviewer: at most 3'],
+  ['an extra reviewer name given twice without regard to case', { extraReviewer: ['Seg=claude:m', 'seg=claude:m'] }, '--extra-reviewer "seg=claude:m"'],
+  ['a blank extra reviewer name', { extraReviewer: [' =claude:m'] }, '--extra-reviewer " =claude:m"'],
+  ['an extra reviewer name over 40 characters', { extraReviewer: [`${'a'.repeat(41)}=claude:m`] }, '--extra-reviewer'],
+  ['an extra reviewer name with a line break', { extraReviewer: ['a\nb=claude:m'] }, '--extra-reviewer'],
+  ['an extra reviewer flag value with no =', { extraReviewer: ['A=claude:m'], extraReviewerEffort: ['high'] }, '--extra-reviewer-effort "high"'],
+  ['an extra reviewer type that is not a slug', { extraReviewer: ['A=claude:m'], extraReviewerType: ['A=Not A Slug'] }, '--extra-reviewer-type'],
+  ['an extra reviewer effort that is not a level', { extraReviewer: ['A=claude:m'], extraReviewerEffort: ['A=turbo'] }, '--extra-reviewer-effort "turbo"'],
 ] as [string, InitFlags, string][])('%s is refused naming its flag before anything is probed, shown or written', async (_name, flags, expected) => {
   const { deps, written, calls, ui, asked, notes } = counted();
   await expect(runInit({ out: join(dir, 'never.json'), ...flags }, ui, deps)).rejects.toThrow(expected);
@@ -46,6 +55,14 @@ test('a failover account that does not exist is refused before the first questio
   expect(calls.some((call) => call.startsWith('machine.'))).toBe(true); // the accounts come from the machine
   expect(calls).not.toContain('listRepos'); // the repos are listed last
   expect(calls).not.toContain('forgeAgents');
+  expect(asked).toEqual([]);
+  expect(written).toEqual({});
+});
+
+test('an extra reviewer failover account that does not exist is refused before the first question, once the accounts are known', async () => {
+  const { deps, written, calls, ui, asked } = counted();
+  await expect(runInit({ out: join(dir, 'ghost-extra.json'), extraReviewer: ['Seg=claude:m'], extraReviewerFailover: ['Seg=ghost:m'] }, ui, deps)).rejects.toThrow('--extra-reviewer-failover "ghost:m": there is no account named "ghost" (accounts: claude, codex)');
+  expect(calls).not.toContain('listRepos');
   expect(asked).toEqual([]);
   expect(written).toEqual({});
 });

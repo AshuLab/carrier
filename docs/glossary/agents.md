@@ -40,7 +40,7 @@ _Avoid_: single login, same-account mode, bot-less mode.
 **Persona** - What a role (author or reviewer) is given besides its harness and model: a name the user chooses and an optional prompt that says who the agent is and how it behaves. Carrier adds it to the agent's prompt in either identity setup. It is not a GitHub profile: the profile says which account posts, the persona says who is speaking.
 _Avoid_: identity (it is ambiguous with the GitHub profile), system prompt, bot name.
 
-**Signature** - The closing line a role puts on everything it publishes under a shared identity: `🤖 <Role> [NAME] via Carrier`, with the persona's name in the brackets. It is mandatory, the user cannot turn it off, and it is what tells the agent's words from the user's own when both come from one account.
+**Signature** - The closing line a role puts on everything it publishes under a shared identity: `🤖 <Role> [NAME] via Carrier`, with the persona's name in the brackets, or, for an extra reviewer whose persona has no name, its own name. It is mandatory, the user cannot turn it off, and it is what tells the agent's words from the user's own when both come from one account.
 _Avoid_: watermark, marker, footer.
 
 **Agent option** - The older name of what a role runs on: a harness, its config folder and a model, declared once in the config and chosen for each epic. It is replaced by an account of the config (a harness and where its login lives) and the model set on the role or on a failover step; an epic no longer chooses ([0021](../adr/agents/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)).
@@ -51,7 +51,7 @@ _Avoid_: fallback, automatic retry (an execution retry repeats the same provider
 
 **Failover step** - One entry of a role's failover chain: a provider, an account of the config, and optionally a model; without a model it is the account's, then the harness's. A role has as many as the config lists, and the app offers two.
 
-**Role** - One of the jobs of an epic: Author, Reviewer, up to three extra reviewers beside it, and the Lead reviewer (optional).
+**Role** - One of the jobs of an epic: Author, Reviewer, up to three extra reviewers the user names, and the Lead reviewer (optional).
 Each has a GitHub profile, an account, a model, an effort and an optional persona, and its own failover chain (an extra reviewer that declares none uses the Reviewer's).
 The user cannot make other kinds of job; the same role can differ for one repo.
 _Avoid_: agent (the AI that runs a role; and in Agent Forge, a bot), persona (a role's name and prompt, not the role).

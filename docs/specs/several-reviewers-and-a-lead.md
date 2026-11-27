@@ -21,7 +21,7 @@ The decision is [ADR 0048](../adr/review/0048-a-review-round-has-several-reviewe
 
 An epic has one mandatory reviewer, `agents.reviewer`, and up to three more in `agents.extraReviewers`, each with its own profile, provider, model, effort, persona and, if it wants, its own review skill and its own failover steps.
 A repo overrides the list as it overrides the other roles, and a list replaces the whole list, so a repo can also set it to empty.
-In the engine, in the options of `carrier restart` and in the stored executions a reviewer is named by its slot: `reviewer`, `reviewer-2`, `reviewer-3`, `reviewer-4`, and `lead` for the lead.
+In the engine, in the options of `carrier restart` and in the stored executions a reviewer is named by its slot: `reviewer`, an extra reviewer's key ([0057](../adr/review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md) replaced the positions `reviewer-2` to `reviewer-4`, which no longer exist), and `lead` for the lead.
 
 A review round runs every reviewer on the same head, in parallel, each in its own detached checkout of that head, and ends when every reviewer has settled.
 A reviewer settles with a verdict (it completed, or it asked for changes), with an answer that it cannot conclude, with a technical failure it could not recover from (its retries and failover steps are out), or, for an extra reviewer, with a skill the person named that does not exist for its harness and account.
@@ -34,7 +34,7 @@ The mandatory reviewer does stop the epic with `skill_missing` when a skill the 
 
 The verdicts combine in one way.
 If any reviewer asks for changes the author fixes once, with the latest open blockers of every reviewer, each blocker keeping its reviewer's id, and the next round runs every reviewer on the new head.
-A blocker is shown to the author with its reviewer as a prefix (`reviewer-2:B1`), so the ids of two reviewers never collide, and each reviewer is given in the next round only its own blockers, with its own ids, and is the only one that can resolve them.
+A blocker is shown to the author with its reviewer as a prefix (an extra reviewer's key, as in `seguridad-api:B1`), so the ids of two reviewers never collide, and each reviewer is given in the next round only its own blockers, with its own ids, and is the only one that can resolve them.
 The prefix is added when the epic has several reviewers, and it is only how a blocker is shown and told to the author: a blocker's `id` is optional in a result, and one that has none is matched by its title, as it is today; with one reviewer the ids are the reviewer's own.
 When two reviewers' blockers contradict each other the author decides, and says in its summary which blocker it did not follow and why; the reviewers read the summaries of the round before in their next one, and the epic has no stop for a contradiction.
 If every verdict is a completed review the observations of all go to the author in the one pass the epic has, each with its reviewer, and the head that does not change after it is the head the reviewers agreed on.
@@ -47,7 +47,7 @@ Each extra reviewer keeps its own option, failover and retry state, as the autho
 A failover step list is its own `failover` when it declares one and `failover.roles.reviewer` when it does not; the retries are counted per reviewer, so one reviewer's failures never break another's streak, and an extra reviewer that runs out of retries or of failover steps is a reviewer with no verdict.
 When a round ends with no verdict and every failure was `usage_limit` (reviewers that share a provider account run out together), the epic stops with `usage_limit` and not with `reviewers_failed`, so the wake-up on quota applies, and it resumes at the time the last of the exhausted windows comes back.
 An authentication signal of the profile of any role, an extra reviewer or the lead included, counts as the rule of [ADR 0050](../adr/agents/0050-one-authentication-signal-is-a-technical-failure-of-its-epic-and-a-profile-stops-when-it-repeats.md) says (the first is a technical failure of that execution, the second stops the profile), and stopping a profile stops the epics that use it in any role.
-`carrier restart` takes an option for each reviewer with `--reviewer-2` to `--reviewer-4` where it takes `--author` and `--reviewer`.
+`carrier restart` takes an option for each extra reviewer, by its key, where it takes `--author` and `--reviewer`.
 
 Every reviewer publishes its own comments on the pull request with its review skill, by default `code-review` and `code-post`, and a profile may be shared between roles; what tells two reviewers apart is the prefix of the blocker's id, not the account that wrote the comment.
 A reviewer whose profile is the author's has the prompt of a shared identity, as the reviewer has today; it is a property of each task, not of the epic.
@@ -107,7 +107,7 @@ A timer to wake an epic that stopped in `reviewers_failed` lost, because the sto
 10. As the person, a head that moves during a round stops the round's other running reviewers and repeats the round on the new head without counting it, and after two repeats in a row, counted by round and not by reviewer, the epic stops in `pr_invalid`.
 11. As the person, each extra reviewer and the lead have their own option, failover and retry state, an extra reviewer that runs out of retries is a reviewer with no verdict, and the lead running out stops the epic naming it.
 12. As the person, an authentication failure of the profile of any role stops the epics that use it, as ADR 0050 says, an extra reviewer or the lead included.
-13. As the person, `carrier restart` takes an option for `--reviewer-2` to `--reviewer-4` and `--lead` as it does for `--author` and `--reviewer`, and a restart or a resume keeps the extra reviewers and the lead of the epic.
+13. As the person, `carrier restart` takes an option for each extra reviewer, by its key, and for `--lead` as it does for `--author` and `--reviewer`, and a restart or a resume keeps the extra reviewers and the lead of the epic.
 14. As the person, with a lead reviewer configured it runs once after the reviewers agree, and when it completes the epic is ready for test, with the approval its result says it submitted shown, and not required to go on.
 15. As the person, when the lead asks for changes the author fixes and only the lead reviews again, up to `limits.maxLeadRounds`, and then the epic stops in needs-human with `lead_limit`.
 16. As the person, a lead that cannot conclude, runs out of retries or lacks a skill I named stops the epic with `agent_needs_human`, `retries_exhausted` or `skill_missing`, naming the lead.
@@ -192,7 +192,7 @@ An epic still takes one slot of `limits.maxConcurrentEpics`, whatever its review
 `failover.roles.leadReviewer` is the lead's steps, and it takes `failover.roles.reviewer` when it declares none.
 
 The control socket and the CLI. `resumeEpic` takes an option for each extra reviewer and the lead (`reviewer2`, `reviewer3`, `reviewer4`, `lead`), announced as a new capability that the CLI checks before it sends them, so an engine that lacks it is not asked and the replies the app reads gain nothing the app must know.
-`carrier restart` and its prompt for options (`--reviewer-2` to `--reviewer-4` and `--lead`) use it.
+`carrier restart` and its prompt for options (an option for each extra reviewer by its key, and `--lead`) use it.
 The restart of an option today rebuilds the roles from the author and the reviewer only, and drops the lead: it keeps every role, the extra reviewers and the lead, whichever is changed.
 Every change to a reply or a config field follows the checklists of `src/control/AGENTS.md` and `src/config/AGENTS.md`: the schema, the defaults, the resolution, the JSON schema, the settings, the contract test and the fixtures under `macos/Tests/Fixtures`; the macOS tests pass without `EngineConfig.swift` carrying the fields.
 

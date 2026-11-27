@@ -799,7 +799,7 @@ describe('the words of the text codes', () => {
   const unused: Record<string, string[]> = {
     'account.harnessTakesOne': ['harness'],
     'doctor.labelsMissing': ['count'],
-    'epic.stop.usageLimitWakeRefused': ['ranOut'],
+    'epic.stop.usageLimitWakeRefused': ['ranOut', 'role'],
     'session.notice.actionWentOn': ['reasonCode'],
     'session.notice.projectNotAdded': ['reasonCode'],
     'session.notice.startedFromFetched': ['reasonCode'],

@@ -19,19 +19,19 @@ const context = (ui: RoleContext['ui']): RoleContext => ({
   said: { failover: false },
 });
 
-test('the table of slots has the six roles, in the order a person meets them', () => {
-  expect(roleSlots).toEqual(['author', 'reviewer', 'reviewer-2', 'reviewer-3', 'reviewer-4', 'lead-reviewer']);
+test('the table of slots has the three roles that have flags, in the order a person meets them', () => {
+  expect(roleSlots).toEqual(['author', 'reviewer', 'lead-reviewer']);
 });
 
-test('the block takes a slot and asks the same questions named for it: reviewer-2 is the "reviewer 2"', async () => {
+test('the block of an extra reviewer asks the same questions, calling it the "extra reviewer" and never by its name or place', async () => {
   const { ui, asked } = quietUi();
-  const { role } = await askRole(context(ui), 'reviewer-2');
+  const { role } = await askRole(context(ui), 'extra-reviewer');
   expect(asked).toEqual([
-    'GitHub profile for the reviewer 2',
-    'Which account runs the reviewer 2?',
+    'GitHub profile for the extra reviewer',
+    'Which account runs the extra reviewer?',
     'Model and effort: sonnet at high, change them?',
-    "Customise the reviewer 2's persona?",
-    'Turn failover on for the reviewer 2? When it runs out of credits it moves to the steps you list, each an account and a model.',
+    "Customise the extra reviewer's persona?",
+    'Turn failover on for the extra reviewer? When it runs out of credits it moves to the steps you list, each an account and a model.',
   ]);
   expect(role).toEqual({ identity: { kind: 'forge', agent: 'artanis-agent' }, provider: 'claude', model: 'sonnet', effort: 'high' });
 });
@@ -68,20 +68,20 @@ test('in edit mode the block starts from the file: its model, effort and persona
   expect(asked.findIndex((m) => m.startsWith('Keep the failover'))).toBeGreaterThan(asked.indexOf("Customise the author's persona?"));
 });
 
-test('the journal serves a block of any slot: reviewer-2 goes back one question and asks only that one again, with no per-role code', async () => {
-  const { ui, asked } = quietUi({ 'Which account runs the reviewer 2?': 'codex' });
+test('the journal serves a block of any slot: an extra reviewer goes back one question and asks only that one again, with no per-role code', async () => {
+  const { ui, asked } = quietUi({ 'Which account runs the extra reviewer?': 'codex' });
   let thrown = false;
   const spy: RoleContext['ui'] = {
     ...ui,
     confirm: async (m, i) => {
-      if (m === "Customise the reviewer 2's persona?" && !thrown) ((thrown = true), (() => { throw new Back(); })());
+      if (m === "Customise the extra reviewer's persona?" && !thrown) ((thrown = true), (() => { throw new Back(); })());
       return ui.confirm(m, i);
     },
   };
   const journal = journaled(spy);
   const block = () => {
-    journal.at('reviewer-2');
-    return askRole(context(journal.ui), 'reviewer-2');
+    journal.at('extra-reviewer');
+    return askRole(context(journal.ui), 'extra-reviewer');
   };
   const done = await block().catch((error) => {
     expect(error).toBeInstanceOf(Back);
@@ -89,12 +89,12 @@ test('the journal serves a block of any slot: reviewer-2 goes back one question 
     return block();
   });
   expect(asked).toEqual([
-    'GitHub profile for the reviewer 2',
-    'Which account runs the reviewer 2?',
+    'GitHub profile for the extra reviewer',
+    'Which account runs the extra reviewer?',
     'Model and effort: gpt-test at high, change them?',
     'Model and effort: gpt-test at high, change them?', // the only one shown again: Esc at the persona went back to it, not to the profile or the account
-    "Customise the reviewer 2's persona?",
-    'Turn failover on for the reviewer 2? When it runs out of credits it moves to the steps you list, each an account and a model.',
+    "Customise the extra reviewer's persona?",
+    'Turn failover on for the extra reviewer? When it runs out of credits it moves to the steps you list, each an account and a model.',
   ]);
   expect(done.role.provider).toBe('codex');
 });

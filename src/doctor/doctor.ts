@@ -301,13 +301,13 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
   for (const repo of repos) {
     const clone = join(enginePlacesOf(folder).repos, repo.name);
     const invoked = [
-      { role: 'author', agent: repo.agents.author, skills: [repo.skills!.ship, repo.skills!.fix] },
-      { role: 'reviewer', agent: repo.agents.reviewer, skills: [repo.skills!.review.review, repo.skills!.review.publish] },
-      // The slots the engine names them by: `reviewer-2` to `reviewer-4`, and `lead`.
-      ...(repo.agents.extraReviewers ?? []).map((agent, i) => ({ role: `reviewer-${i + 2}`, agent, skills: [agent.skills.review, agent.skills.publish] })),
-      ...(repo.agents.leadReviewer && repo.skills!.lead ? [{ role: 'lead', agent: repo.agents.leadReviewer, skills: [repo.skills!.lead.review, repo.skills!.lead.publish] }] : []),
+      { role: 'author', who: 'author', agent: repo.agents.author, skills: [repo.skills!.ship, repo.skills!.fix] },
+      { role: 'reviewer', who: 'reviewer', agent: repo.agents.reviewer, skills: [repo.skills!.review.review, repo.skills!.review.publish] },
+      // The checks carry the slot the engine names them by (each extra reviewer's key, and `lead`); the words of a failure name an extra reviewer by its name.
+      ...(repo.agents.extraReviewers ?? []).map((agent) => ({ role: agent.key, who: agent.name, agent, skills: [agent.skills.review, agent.skills.publish] })),
+      ...(repo.agents.leadReviewer && repo.skills!.lead ? [{ role: 'lead', who: 'lead', agent: repo.agents.leadReviewer, skills: [repo.skills!.lead.review, repo.skills!.lead.publish] }] : []),
     ];
-    for (const { role, agent, skills } of invoked) {
+    for (const { role, who, agent, skills } of invoked) {
       for (const skill of skills) {
         if (skill === null) continue;
         const name = `${repo.name} ${role} can use the skill ${skill.name}`;
@@ -316,8 +316,8 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
         const where = { repo: repo.name, profiles: [agent.profile] };
         if (answer === 'present') report({ name, status: 'ok', ...where });
         else if (answer === 'cannot-tell') report({ name, status: 'warn', ...said({ code: 'doctor.skillUnreadable', text: `could not tell whether ${harnessLabel[agent.harness]} finds it: some place it looks could not be read`, params: { harness: harnessLabel[agent.harness] } }), ...remedy(fixes.skillUnread), ...where });
-        else if (skill.named) report({ name, status: 'fail', ...said({ code: 'doctor.skillNotFound', text: `${harnessLabel[agent.harness]} does not find it for the account of the ${role}`, params: { harness: harnessLabel[agent.harness], role } }), ...remedy(fixes.skill(skill.name)), ...where });
-        else report({ name, status: 'warn', ...said({ code: 'doctor.skillNotFoundDefault', text: `${harnessLabel[agent.harness]} does not find it for the account of the ${role} (it is Solve's default, so the epic runs anyway)`, params: { harness: harnessLabel[agent.harness], role } }), ...remedy(fixes.skill(skill.name)), ...where });
+        else if (skill.named) report({ name, status: 'fail', ...said({ code: 'doctor.skillNotFound', text: `${harnessLabel[agent.harness]} does not find it for the account of the ${who}`, params: { harness: harnessLabel[agent.harness], role: who } }), ...remedy(fixes.skill(skill.name)), ...where });
+        else report({ name, status: 'warn', ...said({ code: 'doctor.skillNotFoundDefault', text: `${harnessLabel[agent.harness]} does not find it for the account of the ${who} (it is Solve's default, so the epic runs anyway)`, params: { harness: harnessLabel[agent.harness], role: who } }), ...remedy(fixes.skill(skill.name)), ...where });
       }
     }
   }

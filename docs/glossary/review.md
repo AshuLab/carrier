@@ -17,11 +17,6 @@ _Avoid_: issue, comment, error.
 **Observation** - A finding of a review that does not stop its approval: a nitpick or a suggestion. The reviewer lists observations in a `completed` result, with a title and a stable id like a blocker; when there are any, the author answers them in one resolve pass before the epic is ready for test ([0009](../adr/review/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md)).
 _Avoid_: nitpick (one kind of observation), comment, blocker (the one that stops approval).
 
-**Extra reviewer** - A reviewer beyond the mandatory one (`agents.extraReviewers`), up to three, named `reviewer-2` to `reviewer-4` in the engine, in `carrier restart` and in the stored executions.
-It runs in the same review round as the Reviewer, with its own GitHub profile, account, model, effort, persona, skill and failover steps, and one verdict among all the reviewers is enough for a round to count.
-See [ADR 0048](../adr/review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md).
-_Avoid_: second reviewer, co-reviewer, reviewer slot (a slot is a place where an epic runs).
-
 **Lead reviewer** - The optional role (`leadReviewer`) that reviews last, once, after the reviewers agree, on the head they agreed on and in its own checkout, and gives the pull request its formal approval when it finds no blocker.
 The engine runs it: the epic goes to the stage `lead` and, when the lead completes, to ready for test with the head the lead approved kept beside the head the reviewers agreed on; a head that moves while it reviews repeats its review.
 It has its own skill (`skills.lead`), and the approval it says it submitted is recorded and shown, never required.
@@ -34,6 +29,17 @@ The limit is read when the lead's answer is decided, and a lead that asks for ch
 It does not count toward `maxReviews` and does not change the epic's review round, and the other reviewers do not see the commits it makes.
 A resume at a stage starts it over: the lead gets its rounds again once the reviewers agree.
 _Avoid_: round (that is a review round).
+
+**Extra reviewer** - A reviewer beyond the mandatory one, up to three, held in `agents.extraReviewers` as a map from its key to its entry ([0057](../adr/review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md)). It reviews every round with the others, on the same head, and one verdict among all the reviewers is enough for a round to count ([ADR 0048](../adr/review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md)).
+It takes the Reviewer's failover steps when it declares none.
+The engine names it by its key everywhere: in its stored executions, its blockers' ids, its checkout, `carrier restart`, the epic's status and the doctor.
+Its key is a unique slug that addresses it in the file and in the engine's requests; its name is a unique text the app shows; its type is a label for what it looks at (Reviewer type).
+It signs `🤖 Reviewer [NAME] via Carrier` with its persona's name when it has one and its name otherwise.
+Removing one removes its entry and nothing else: the GitHub profile it signed with stays.
+_Avoid_: second reviewer, co-reviewer, reviewer 2 to reviewer 4 (the names of a position in the earlier list, which no longer exist).
+
+**Reviewer type** - The label of an extra reviewer that says what kind of review it does: `general`, `ux`, `security`, or any slug a person writes. It is only a label, the engine runs nothing different for it, and several reviewers can share one type.
+_Avoid_: role (the Author, the Reviewer, an extra reviewer and the Lead reviewer are roles), category.
 
 **Re-review (of a moved head)** - A review made again on the new head, without counting a round, because the pull request's head moved while the review ran; at most twice in a row, then the epic stops in `pr_invalid`.
 It is not a review round: the round count is about how many times the author and the reviewer disagree.

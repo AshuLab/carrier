@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import type { InitFlags } from './flags.ts';
-import { failoverProblem, failoverSteps, flagProblem } from './validate-flags.ts';
+import { extraFailoverProblem, failoverProblem, failoverSteps, flagProblem, parseExtras } from './validate-flags.ts';
 
 const ok: InitFlags = { repo: ['A/b'], yes: true };
 
@@ -22,19 +22,10 @@ test.each([
   ['a persona prompt that is blank', { reviewerPersonaPrompt: '  ' }, '--reviewer-persona-prompt: '],
   ['an orchestrator profile that is neither forge:<agent> nor gh', { orchestratorProfile: 'me' }, '--orchestrator-profile: '],
   ['a repo that is not owner/name', { repo: ['A/b', 'ab'] }, '--repo "ab": must be owner/name'],
-  ['an extra reviewer with none before it', { reviewer3: 'codex:x' }, '--reviewer-3: there is no place for reviewer-3 without --reviewer-2'],
-  ['the last extra reviewer with the second missing', { reviewer2Profile: 'gh', reviewer4Effort: 'low' }, 'without --reviewer-3'],
-  ['an extra reviewer\'s failover with none before it', { reviewer3Failover: ['codex'] }, 'without --reviewer-2'],
-  ['an extra reviewer\'s own effort', { reviewer2: 'codex:x', reviewer2Effort: 'turbo' }, '--reviewer-2-effort "turbo"'],
   ['--yes with no repo', { yes: true }, '--repo'],
   ['--yes with an empty repo list', { yes: true, repo: [] }, '--repo'],
 ] as [string, InitFlags, string][])('%s is refused naming its flag', (_name, flags, expected) => {
   expect(flagProblem(flags)).toContain(expected);
-});
-
-test('extra reviewers named one after the other are fine, and none is fine', () => {
-  expect(flagProblem({ ...ok, reviewer2: 'codex:x', reviewer3Profile: 'gh' })).toBeUndefined();
-  expect(flagProblem({ ...ok, reviewer2Failover: ['claude'], reviewer3: 'claude:m', reviewer4Effort: 'high' })).toBeUndefined();
 });
 
 test('the first problem found is the one reported', () => {
@@ -88,4 +79,61 @@ test('failover: a step with the role\'s own account and model is refused, and a 
   expect(failoverProblem({ authorFailover: ['claude:opus'] }, ['claude'], own)).toBeUndefined();
   expect(failoverProblem({ leadReviewerFailover: ['claude:sonnet'] }, ['claude'], { 'lead-reviewer': { provider: 'claude', model: 'sonnet' } })).toContain('the lead reviewer\'s own account');
   expect(failoverProblem({ reviewerFailover: ['claude:sonnet'] }, ['claude'], own)).toBeUndefined(); // the author's pair is not the reviewer's
+});
+
+// The flags that name an extra reviewer.
+
+test('--extra-reviewer creates the reviewers in the order given, and each field flag sets that field of the reviewer it names and no other', () => {
+  const flags: InitFlags = {
+    ...ok,
+    extraReviewer: ['Seguridad API=claude:sonnet', 'Usabilidad=codex:gpt-5'],
+    extraReviewerType: ['usabilidad=ux'], // a name is compared without regard to case
+    extraReviewerProfile: ['Seguridad API=forge:sentinel'],
+    extraReviewerEffort: ['Usabilidad=high'],
+    extraReviewerProvider: ['Seguridad API=ollama'],
+    extraReviewerPersonaName: ['Usabilidad=Ada'],
+    extraReviewerPersonaPrompt: ['Usabilidad=Be terse. a=b'],
+    extraReviewerFailover: ['Seguridad API=codex:gpt-5', 'Usabilidad=claude', 'Seguridad API=claude'],
+  };
+  expect(flagProblem(flags)).toBeUndefined();
+  expect(parseExtras(flags).reviewers).toEqual([
+    { name: 'Seguridad API', agent: 'claude:sonnet', profile: 'forge:sentinel', provider: 'ollama', failover: ['codex:gpt-5', 'claude'] },
+    { name: 'Usabilidad', agent: 'codex:gpt-5', type: 'ux', effort: 'high', personaName: 'Ada', personaPrompt: 'Be terse. a=b', failover: ['claude'] },
+  ]);
+});
+
+test('the name is everything before the first =, and what follows may hold more', () => {
+  expect(parseExtras({ extraReviewer: ['a=claude:m=1'] }).reviewers).toEqual([{ name: 'a', agent: 'claude:m=1', failover: [] }]);
+});
+
+test.each([
+  ['a field flag that names no reviewer', { extraReviewer: ['A=claude:m'], extraReviewerType: ['B=ux'] }, '--extra-reviewer-type "B=ux": no --extra-reviewer is named "B"'],
+  ['a field flag with no --extra-reviewer', { extraReviewerEffort: ['A=high'] }, '--extra-reviewer-effort "A=high": no --extra-reviewer'],
+  ['a fourth --extra-reviewer', { extraReviewer: ['a=claude:m', 'b=claude:m', 'c=claude:m', 'd=claude:m'] }, '--extra-reviewer: at most 3 extra reviewers, 4 were given'],
+  ['a name given twice without regard to case', { extraReviewer: ['Seg=claude:m', 'SEG=codex:m'] }, '--extra-reviewer "SEG=codex:m": another extra reviewer already has that name'],
+  ['a blank name', { extraReviewer: ['  =claude:m'] }, '--extra-reviewer "  =claude:m": a name is required'],
+  ['a name over 40 characters', { extraReviewer: [`${'a'.repeat(41)}=claude:m`] }, '--extra-reviewer'],
+  ['a name with a line break', { extraReviewer: ['a\nb=claude:m'] }, 'must be one line'],
+  ['a value with no =', { extraReviewer: ['claude:m'] }, '--extra-reviewer "claude:m": expected "<name>=<value>"'],
+  ['a field value with no =', { extraReviewer: ['A=claude:m'], extraReviewerType: ['ux'] }, '--extra-reviewer-type "ux": expected "<name>=<value>"'],
+  ['an agent that is not <harness>:<model>', { extraReviewer: ['A=claude'] }, '--extra-reviewer: '],
+  ['a type that is not a slug', { extraReviewer: ['A=claude:m'], extraReviewerType: ['A=Not A Slug'] }, '--extra-reviewer-type "Not A Slug"'],
+  ['a type given twice for one reviewer', { extraReviewer: ['A=claude:m'], extraReviewerType: ['A=ux', 'a=ui'] }, '--extra-reviewer-type "a=ui": "A" already has one'],
+  ['an effort that is not a level', { extraReviewer: ['A=claude:m'], extraReviewerEffort: ['A=turbo'] }, '--extra-reviewer-effort "turbo"'],
+  ['a profile that is neither forge:<agent> nor gh', { extraReviewer: ['A=claude:m'], extraReviewerProfile: ['A=me'] }, '--extra-reviewer-profile: '],
+  ['a provider that is not a local server', { extraReviewer: ['A=claude:m'], extraReviewerProvider: ['A=cloud'] }, '--extra-reviewer-provider: '],
+  ['a persona that is empty', { extraReviewer: ['A=claude:m'], extraReviewerPersonaName: ['A='] }, '--extra-reviewer-persona-name: '],
+  ['a malformed failover step', { extraReviewer: ['A=claude:m'], extraReviewerFailover: ['A=codex:'] }, '--extra-reviewer-failover "codex:"'],
+  ['a third failover step', { extraReviewer: ['A=claude:m'], extraReviewerFailover: ['A=a', 'A=b', 'A=c'] }, '--extra-reviewer-failover: at most 2 steps'],
+] as [string, InitFlags, string][])('extra reviewer flags: %s is refused, naming its flag', (_name, flags, expected) => {
+  expect(flagProblem({ ...ok, ...flags })).toContain(expected);
+  expect(parseExtras(flags).reviewers).toEqual([]);
+});
+
+test('extra reviewer failover: an account that is not known is refused naming the flag, and a step that is the reviewer\'s own account and model', () => {
+  const { reviewers } = parseExtras({ extraReviewer: ['A=claude:m', 'B=codex:n'], extraReviewerFailover: ['B=ghost:m'] });
+  expect(extraFailoverProblem(reviewers, ['claude', 'codex'], [{ provider: 'claude', model: 'm' }, { provider: 'codex', model: 'n' }])).toBe('--extra-reviewer-failover "ghost:m": there is no account named "ghost" (accounts: claude, codex)');
+  expect(extraFailoverProblem(reviewers, ['claude', 'codex', 'ghost'], [{ provider: 'claude', model: 'm' }, { provider: 'codex', model: 'n' }])).toBeUndefined();
+  const own = parseExtras({ extraReviewer: ['A=claude:m'], extraReviewerFailover: ['A=claude:m'] }).reviewers;
+  expect(extraFailoverProblem(own, ['claude'], [{ provider: 'claude', model: 'm' }])).toContain("that is the extra reviewer A's own account and model");
 });

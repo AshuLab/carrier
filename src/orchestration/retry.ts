@@ -1,6 +1,8 @@
 import { desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../storage/db.ts';
-import { executions, reviewerSlots, slotOf, type Slot } from '../storage/executions.ts';
+import type { EffectiveRepoConfig } from '../config/resolve.ts';
+import { executions, slotOf, type Slot } from '../storage/executions.ts';
+import { roundSlots } from './slots.ts';
 
 /**
  * Is the execution of the epic's current attempt? The attempt starts when the engine reserves the epic, and a resume reserves it again,
@@ -25,16 +27,21 @@ export function failureStreak(db: Db, epic: { id: number; startedAt: number | nu
   return streak;
 }
 
-const slotRank = (slot: Slot | null) => (slot === null ? -1 : reviewerSlots.indexOf(slot));
+/** The author first, then the reviewers in the order of the epic's saved configuration (the mandatory one, the extra ones, the lead); a slot it does not have goes last. */
+const slotRanker = (config: EffectiveRepoConfig | null | undefined) => {
+  const order = [...roundSlots(config ?? null), 'lead'];
+  return (slot: Slot | null) => (slot === null ? -1 : order.includes(slot) ? order.indexOf(slot) : order.length);
+};
 
 /** The newest execution of each slot in the epic's current attempt (`ended`: leaving out one still running), the author's first, then by slot. */
-export function lastBySlot(db: Db, epic: { id: number; startedAt: number | null }, { ended = false } = {}) {
+export function lastBySlot(db: Db, epic: { id: number; startedAt: number | null; config?: EffectiveRepoConfig | null }, { ended = false } = {}) {
   const last = new Map<Slot | null, typeof executions.$inferSelect>();
   for (const execution of db.select().from(executions).where(eq(executions.epicId, epic.id)).orderBy(desc(sql`rowid`)).all()) {
     const slot = slotOf(execution);
     if (isOfAttempt(execution, epic) && !(ended && execution.status === 'running') && !last.has(slot)) last.set(slot, execution);
   }
-  return [...last.values()].sort((a, b) => slotRank(slotOf(a)) - slotRank(slotOf(b)));
+  const rank = slotRanker(epic.config);
+  return [...last.values()].sort((a, b) => rank(slotOf(a)) - rank(slotOf(b)));
 }
 
 /**

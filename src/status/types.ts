@@ -8,9 +8,9 @@ export type UnansweredObservations = { count: number; reason: (typeof unanswered
 
 /**
  * The agent options of an epic: the accounts it can restart on, the option each role runs on.
- * `extraReviewers` (the option of each, `reviewer-2` first) and `lead` are there only when the epic has them, and `failed`, the role of the execution that stopped a stopped epic with either.
+ * `extraReviewers` (the option of each, by the key of the reviewer, in the order of the epic's saved configuration) and `lead` are there only when the epic has them, and `failed`, the role of the execution that stopped a stopped epic with either.
  */
-export type EpicOptions = { names: string[]; author: string | null; reviewer: string | null; extraReviewers?: (string | null)[]; lead?: string | null; failed?: 'author' | Slot };
+export type EpicOptions = { names: string[]; author: string | null; reviewer: string | null; extraReviewers?: Record<string, string | null>; lead?: string | null; failed?: 'author' | Slot };
 
 /** How the latest decided round of an epic with several reviewers came out: how many gave a verdict out of how many were configured, and why each other gave none (cut and redacted). */
 export type PanelReviewers = { given: number; of: number; none: { slot: Slot; why: string }[] };
@@ -93,8 +93,9 @@ export type PanelFinished = {
 
 // What the control socket serves: the panel's snapshot plus what the macOS app draws. Everything here is additive (protocol 1),
 // and the terminal panel keeps reading `PanelSnapshot`, of which this is a superset.
-export type PanelAgent = { harness: 'claude' | 'codex' | 'agy'; model: string; provider: string | null };
-/** The agents of an epic; `extraReviewers` (`reviewer-2` first) and `lead` are there only when it has them. */
+/** `key`, `name` and `type` are an extra reviewer's; an epic saved before the reviewers had names gives them without. */
+export type PanelAgent = { harness: 'claude' | 'codex' | 'agy'; model: string; provider: string | null; key?: string; name?: string; type?: string };
+/** The agents of an epic; `extraReviewers` (in the order of the epic's saved configuration) and `lead` are there only when it has them. */
 export type PanelAgents = { author: PanelAgent; reviewer: PanelAgent; extraReviewers?: PanelAgent[]; lead?: PanelAgent };
 export type NeedsHumanKind = (typeof needsHumanKinds)[number];
 
@@ -132,7 +133,7 @@ export type PanelSession = {
   /** The harness and the model the execution ran with, from its own record. */
   harness: PanelAgent['harness'];
   model: string;
-  /** The slot of a review (`reviewer`, `reviewer-2`...); absent for the author's. */
+  /** The slot of a review (`reviewer`, an extra reviewer's key, or `lead`); absent for the author's. */
   reviewer?: Slot;
   startedAt: number;
   /** The newest event of the execution; null until events are recorded. */

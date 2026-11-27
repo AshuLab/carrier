@@ -60,7 +60,8 @@ func subagentsListRowKeepsOneHeightInEveryStateAndWidth(width: CGFloat) throws {
 }
 
 @MainActor @Test func subagentsListRowDistinguishesStatesWithoutColourAlone() throws {
-    let clock = Date(timeIntervalSince1970: 31)
+    // the clock is the end of the finished runs, so every row reads the same timer and what differs is the lead mark and the dimming
+    let clock = Date(timeIntervalSince1970: 61)
     let running = SubagentsListRow(subagent: subagent(nil, title: "Find adapter", step: "src/chat/claude.ts"), clock: clock, action: {})
     let finished = SubagentsListRow(subagent: subagent("completed", title: "Find adapter", step: "src/chat/claude.ts"), clock: clock, action: {})
     let failed = SubagentsListRow(subagent: subagent("failed", title: "Find adapter", step: "src/chat/claude.ts"), clock: clock, action: {})

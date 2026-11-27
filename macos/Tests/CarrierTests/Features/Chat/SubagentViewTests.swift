@@ -96,16 +96,19 @@ func aSubagentBriefCardFoldsLongBriefsToTwoLinesAndHidesItsControlForOneOrTwoLin
 }
 
 @MainActor @Test(arguments: [CGFloat(480), 560, 900])
-func aSubagentViewRendersWithAndWithoutABriefInConversationAndSliceViews(width: CGFloat) throws {
+func aSubagentViewDrawsTheBriefCardOnlyWhenItHasABrief(width: CGFloat) throws {
     let header = SubagentHeader(title: "Find adapter", type: "Explore", state: .completed, startedAt: 1_000, durationMs: 4_000)
-    let sliceHeader = SubagentHeader(title: "Slice #1", type: "Builder", state: .completed, startedAt: 1_000, durationMs: 4_000, epic: "Epic")
-    let withBrief = SubagentView(work: SubagentWork(header: header, brief: "Line 1\nLine 2\nLine 3", items: []), backToChat: {}).frame(width: width, height: 600)
-    let withoutBrief = SubagentView(work: SubagentWork(header: header, brief: nil, items: []), backToChat: {}).frame(width: width, height: 600)
-    let sliceView = SubagentView(work: SubagentWork(header: sliceHeader, brief: nil, items: []), backToChat: {}).frame(width: width, height: 600)
-
-    for view in [AnyView(withBrief), AnyView(withoutBrief), AnyView(sliceView)] {
-        let renderer = ImageRenderer(content: view)
+    func pixels(_ brief: String?) throws -> [UInt8] {
+        let renderer = ImageRenderer(content: SubagentView(work: SubagentWork(header: header, brief: brief, items: []), backToChat: {}).frame(width: width, height: 600))
         renderer.scale = 2
-        #expect(try #require(renderer.cgImage).height == 1200)
+        let image = try #require(renderer.cgImage)
+        #expect(image.height == 1200)
+        let data = try #require(image.dataProvider?.data)
+        var bytes = [UInt8](repeating: 0, count: CFDataGetLength(data))
+        CFDataGetBytes(data, CFRange(location: 0, length: bytes.count), &bytes)
+        return bytes
     }
+    let withBrief = try pixels("Line 1\nLine 2\nLine 3")
+    #expect(withBrief != (try pixels(nil)))
+    #expect(withBrief != (try pixels("Another brief")))
 }

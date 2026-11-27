@@ -57,6 +57,11 @@ describe('what a subagent made is stored with the call that launched it, bounded
       expect((stored.summary as string).length).toBe(chatCaps.message);
       expect((stored.summary as string).endsWith('…')).toBe(true);
     }
+    // a cut inside an emoji must not leave half of it: JSON writes it as a lone surrogate and Swift's decoder refuses the whole reply
+    const emoji = boundEvent({ kind: 'task', callId: 'c1', taskId: 't1', state: 'completed', summary: `${'a'.repeat(chatCaps.message - 2)}😀${'b'.repeat(10)}` })!;
+    expect((emoji.summary as string).isWellFormed()).toBe(true);
+    expect((emoji.summary as string).length).toBeLessThanOrEqual(chatCaps.message);
+    expect((emoji.summary as string).endsWith('…')).toBe(true);
     const started = boundEvent({ kind: 'task', callId: 'c1', taskId: 't1', state: 'started', summary: 'ignored on started' })!;
     expect(started).not.toHaveProperty('summary');
   });

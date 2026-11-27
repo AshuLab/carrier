@@ -1455,7 +1455,6 @@
   "epicsToolbarBackToOutput": "Back to Agent output",
   "epicsToolbarInspector": "Inspector",
   "epicsToolbarInspectorHelp": "Show or hide the inspector",
-  "epicsToolbarBackToSubagent": "Back to the subagent that launched this one",
   "epicsToolbarBackToConversation": "Back to the conversation",
   "epicsToolbarStop": "Stop",
   "epicsToolbarStopSubagentHelp": "Stop this subagent; the main agent goes on",

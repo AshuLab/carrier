@@ -1455,7 +1455,6 @@
   "epicsToolbarBackToOutput": "Volver a la salida del agente",
   "epicsToolbarInspector": "Inspector",
   "epicsToolbarInspectorHelp": "Mostrar u ocultar el inspector",
-  "epicsToolbarBackToSubagent": "Volver al subagente que lanzó este",
   "epicsToolbarBackToConversation": "Volver a la conversación",
   "epicsToolbarStop": "Detener",
   "epicsToolbarStopSubagentHelp": "Detén este subagente; el agente principal sigue",

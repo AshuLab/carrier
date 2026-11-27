@@ -30062,23 +30062,6 @@
         }
       }
     },
-    "epicsToolbarBackToSubagent": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Back to the subagent that launched this one"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Volver al subagente que lanzó este"
-          }
-        }
-      }
-    },
     "epicsToolbarCheckGithub": {
       "extractionState": "manual",
       "localizations": {

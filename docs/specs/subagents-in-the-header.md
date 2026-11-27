@@ -12,7 +12,7 @@ Two facts of the current build shape the answer. A row is where the subagent was
 
 ## Solution
 
-A subagent stops being a row of the conversation and becomes an entity of the window's header, in the shape [ADR 0056](../adr/app/0056-subagents-live-in-the-window-header-and-a-conversation-keeps-only-the-run-line.md) records.
+A subagent stops being a row of the conversation and becomes an entity of the window's header, in the shape [ADR 0058](../adr/app/0058-subagents-live-in-the-window-header-and-a-conversation-keeps-only-the-run-line.md) records.
 
 **The Subagents button.** A round glass button joins the toolbar of a session next to the worktree pill, and it exists from the first subagent the session launches (a session with none has no button, and so does a session stored before the host linked subagents to their calls). It shows two figures and a count. While any subagent runs, a thin arc turns around it and the count is that of the subagents of the launches that still have one running, so a launch that finished has left the header. When nothing runs, the button is one quiet button, with no arc, that counts every subagent the session launched and carries a small red dot if any of them failed. A failure of a launch that finished while another still runs leaves no mark. No subagent has a colour or an avatar of its own: the only colour is that red dot, and a finished subagent has no mark at all.
 
@@ -84,4 +84,4 @@ A Stop all, and anything that stops subagents from the list (Stop stays in the s
 
 ## Open questions
 
-What does the end notification of a subagent that failed carry in its `summary`? None of the recorded sessions has one, so the failed subagent's block shows what the provider sends and "Failed" alone when it sends nothing; the first ticket records a real failure to see which it is.
+None. The end notification of a failed subagent carries a `summary` like the completed one's, as the recording in [chat-subagent-failed](../research/chat-subagent-failed.md) shows; the failed subagent's block shows it, and "Failed" alone when the provider sends nothing.

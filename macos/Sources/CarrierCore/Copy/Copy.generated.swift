@@ -4731,10 +4731,6 @@ public enum Copy {
         String(localized: "epicsToolbarInspectorHelp", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func epicsToolbarBackToSubagent(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "epicsToolbarBackToSubagent", bundle: bundle ?? carrierResources, locale: locale)
-    }
-
     public static func epicsToolbarBackToConversation(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "epicsToolbarBackToConversation", bundle: bundle ?? carrierResources, locale: locale)
     }

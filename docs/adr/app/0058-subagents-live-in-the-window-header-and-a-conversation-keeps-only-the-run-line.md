@@ -1,4 +1,4 @@
-# 0056 - Subagents live in the window header, and a conversation keeps only the run line
+# 0058 - Subagents live in the window header, and a conversation keeps only the run line
 
 - Status: accepted
 - Date: 2026-11-26
@@ -39,6 +39,6 @@ A subagent is a thing of its own, shown by one quiet button, and the header does
 
 The failure of a finished launch is not in the header while a later launch runs; it is in the list only, by the person's choice.
 
-The subagent view is one component that the slice card of the Agent output tab opens too, so the Brief card that replaces its brief bubble shows there as well. The epic's tab, its slice card and the Carrier section are not touched by this record.
+The subagent view is one component that the slice card of the Agent output tab opens too, so the Brief card that replaces its brief bubble is part of it there as well; a slice card shows it once a lane carries a brief, which it does not yet. The epic's tab, its slice card and the Carrier section are not touched by this record.
 
-Showing the result of a subagent or why it failed needs the host to forward what the provider's end notification says, which the host drops today. Until it does, the list and the view show the state, the steps and the time, as they do now.
+The host forwards, redacted and bounded, what the provider's end notification says (`summary` on a `task` that completed, failed or stopped), so the subagent view shows the result of a finished subagent, or why it failed, in a Result block.

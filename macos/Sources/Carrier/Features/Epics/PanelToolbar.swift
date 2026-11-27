@@ -56,7 +56,7 @@ extension PanelView {
                 // a subagent view wears the window's header: Back next to the sidebar's button, its title, the Subagents button, its state and Stop
                 ToolbarItem(placement: .navigation) {
                     Button { shell.leaveSubagent() } label: { Label(Copy.epicsToolbarBack(), systemIcon: .chevronLeft) }
-                        .help(shell.subagents.count > 1 ? Copy.epicsToolbarBackToSubagent() : Copy.epicsToolbarBackToConversation())
+                        .help(Copy.epicsToolbarBackToConversation())
                 }
                 ToolbarItem(placement: .navigation) {
                     SubagentTitle(title: open.title, subtitle: open.subtitle(of: conversationTitle(session)))

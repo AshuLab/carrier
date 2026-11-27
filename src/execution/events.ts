@@ -45,7 +45,22 @@ export const caps = { arg: 1024, summary: 200, text: 4096, output: 4096, diffLin
 /** Redacts first, so a secret is never cut in a way that hides its shape, then cuts. */
 export function clean(text: string, max: number): string {
   const safe = redact(text);
-  return safe.length <= max ? safe : `${safe.slice(0, max - 1)}…`;
+  return safe.length <= max ? safe : `${head(safe, max - 1)}…`;
+}
+
+/** The first `length` UTF-16 units of `text`, without the lone half of a surrogate pair a cut inside an emoji would leave: JSON carries it as an
+ * escape that a strict decoder (Swift's) rejects, and with it the whole reply. */
+function head(text: string, length: number): string {
+  const cut = text.slice(0, length);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
+/** The last `length` UTF-16 units of `text`, without the lone low half of a surrogate pair at its start. */
+function tail(text: string, length: number): string {
+  const cut = text.slice(-length);
+  const first = cut.charCodeAt(0);
+  return first >= 0xdc00 && first <= 0xdfff ? cut.slice(1) : cut;
 }
 
 /** A command's result: all of it when small, else the first and last half of the budget around a gap. */
@@ -54,5 +69,5 @@ export function boundOutput(text: string): string[] {
   if (safe === '') return [];
   if (safe.length <= caps.output) return safe.split('\n');
   const half = Math.floor((caps.output - 3) / 2); // the gap line and its two newlines count too
-  return [...safe.slice(0, half).split('\n'), '…', ...safe.slice(-half).split('\n')];
+  return [...head(safe, half).split('\n'), '…', ...tail(safe, half).split('\n')];
 }

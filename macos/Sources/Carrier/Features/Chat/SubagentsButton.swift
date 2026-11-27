@@ -16,6 +16,7 @@ struct SubagentsButton: View {
     @State private var hovered = false
     @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.pieceTheme) private var theme
 
     var body: some View {
         switch state {
@@ -34,7 +35,15 @@ struct SubagentsButton: View {
                 Glyph(.users, size: 12)
                 Text("\(count)").scaledFont(12, weight: .medium).monospacedDigit()
                 if failed {
-                    Circle().fill(Color.red).frame(width: 6, height: 6).accessibilityHidden(true)
+                    // the failure is a shape when the person asked for states by shape, as in the list's rows
+                    Group {
+                        if theme.statesByShape {
+                            StateMark(shape: .problem, size: 10).foregroundStyle(.red)
+                        } else {
+                            Circle().fill(Color.red).frame(width: 6, height: 6)
+                        }
+                    }
+                    .accessibilityHidden(true)
                 }
             }
             .padding(.horizontal, Tokens.Space.s10)

@@ -42,7 +42,7 @@ The window's header then has a ‹ Back button next to the sidebar's, the subage
 While the subagent runs, a Stop pill sits next to its state: it stops only that subagent and not the main agent, which reads that the subagent was interrupted and goes on.
 The pill asks the host (`stopTask`) and the view says Stopped, as the row does, when the host's `stopped` event arrives and not before; it is not offered once the subagent ended or by a host that does not list `stopTask`.
 The message box's Stop, which shows while the session works, interrupts the turn and then asks the host to stop each subagent still running (a host that does not list `stopTask` gets only the interrupt); the Subagents list rows say Stopped as the events arrive.
-Back leaves one level, and so does choosing another session or page.
+Back leaves for the conversation, and so does choosing another session or page.
 Back from the last level puts the cursor in the message box again, as when the session opened.
 The place of the message box holds "Subagent work is read-only." and a ‹ Back to chat button, so nothing can be typed to it.
 A completed subagent whose `task` event carried a `summary` shows it after its work in a Result block (the same card as the work cards, folded at six lines with a control to open the rest).

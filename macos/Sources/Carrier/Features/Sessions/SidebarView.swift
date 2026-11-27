@@ -2,7 +2,7 @@ import CarrierCore
 import CarrierUI
 import SwiftUI
 
-/// The sidebar: Home, Sessions, Terminal and Carrier stacked in that order, then Settings and Usage. The open section takes the room that is
+/// The sidebar: Home, Sessions, Terminal and Carrier stacked in that order, then Settings and Usage as two icon buttons at the foot. The open section takes the room that is
 /// left and scrolls its own list; the sections above it are rows at the top and the ones under it rows at the foot (Archive closes Sessions' panel).
 /// The rows draw their own fill, selected or hovered, so what is under a section is plain rows and not a `List`.
 struct SidebarView: View {
@@ -183,9 +183,11 @@ struct SidebarView: View {
             }
             .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, Tokens.Space.s8)
             Divider()
-            VStack(spacing: SidebarMetrics.rowGap) {
-                SidebarSectionRow(title: Copy.sidebarSettings(), icon: .settings, selected: false, action: openSettings)
-                SidebarSectionRow(title: Copy.sidebarUsage(), icon: .chartBar, selected: selection == .usage, action: { selection = .usage })
+            // two icon buttons at the two ends, no words: the name is the tooltip and the accessible label
+            HStack(spacing: Tokens.Space.none) {
+                IconButton(icon: .settings, name: Copy.sidebarSettings(), action: openSettings)
+                Spacer(minLength: 0)
+                IconButton(icon: .chartBar, name: Copy.sidebarUsage(), pressed: selection == .usage, action: { selection = .usage })
             }
             .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, Tokens.Space.s8)
         }

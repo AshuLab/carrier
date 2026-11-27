@@ -128,6 +128,7 @@ public enum AppIcon: String, CaseIterable, Sendable {
     case sleep
     case sliders
     case sparkles
+    case squareTerminal
     case stack
     case star
     case starFilled

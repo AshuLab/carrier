@@ -103,10 +103,22 @@ private func openGroups(_ rows: [FeedRow], flipped: Set<String>) -> [Bool] {
 @Test func theDraftOfANewSessionTakesOnlyTheActionsThatAreAboutItsBox() {
     let shell = WindowShell()
     shell.selection = .newSession
-    for action in [ConversationAction.stopAgent, .jumpToLatest, .toggleToolFolds, .copyLastAnswer, .stopSubagent] { shell.perform(.conversation(action)) }
+    for action in [ConversationAction.stopAgent, .jumpToLatest, .toggleToolFolds, .copyLastAnswer, .stopSubagent, .stopProcess("p1"), .stopProcesses] { shell.perform(.conversation(action)) }
     #expect(shell.conversationRequest == nil)
     shell.perform(.conversation(.dictate))
     #expect(shell.conversationRequest == ConversationRequest(action: .dictate, count: 1))
     shell.perform(.conversation(.focusBox))
     #expect(shell.conversationRequest == ConversationRequest(action: .focusBox, count: 2))
+}
+
+@Test func theProcessesStopsAreRequestsOfTheOpenConversationAndTheProcessesGoWithTheSession() {
+    let shell = WindowShell()
+    shell.selection = .session(id: "s1")
+    shell.processes = ProcessesCard([BackgroundTask(id: "p1", kind: "local_bash", description: "pnpm dev", agentWork: false)], canStop: true)
+    shell.perform(.conversation(.stopProcess("p1")))
+    #expect(shell.conversationRequest == ConversationRequest(action: .stopProcess("p1"), count: 1))
+    shell.perform(.conversation(.stopProcesses))
+    #expect(shell.conversationRequest == ConversationRequest(action: .stopProcesses, count: 2))
+    shell.selection = .session(id: "s2")
+    #expect(shell.processes == nil)
 }

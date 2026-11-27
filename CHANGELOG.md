@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- A session's background processes are a button in the window header, beside Subagents, with a list of them under it (name, how long it has run, Stop and Stop all), instead of a card over the message box.
+- The header's terminal button is a square with a prompt, so it is not taken for the Processes button.
 - The sidebar's foot is two icon buttons, Settings at the left and Usage at the right, instead of two rows with words; their names show as tooltips.
 
 ## [0.21.0] - 2026-11-27

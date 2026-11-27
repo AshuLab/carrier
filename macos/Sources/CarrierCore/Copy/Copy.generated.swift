@@ -2793,22 +2793,6 @@ public enum Copy {
         String(localized: "chatProcessesTitle \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
-    public static func chatProcessesHintHide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "chatProcessesHintHide", bundle: bundle ?? carrierResources, locale: locale)
-    }
-
-    public static func chatProcessesHintShow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "chatProcessesHintShow", bundle: bundle ?? carrierResources, locale: locale)
-    }
-
-    public static func chatProcessesExpanded(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "chatProcessesExpanded", bundle: bundle ?? carrierResources, locale: locale)
-    }
-
-    public static func chatProcessesCollapsed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "chatProcessesCollapsed", bundle: bundle ?? carrierResources, locale: locale)
-    }
-
     public static func chatProcessesStopHelp(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatProcessesStopHelp \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -12374,10 +12358,6 @@ public enum Copy {
 
     public static func noticesGalleryCaptionBackground(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "noticesGalleryCaptionBackground", bundle: bundle ?? carrierResources, locale: locale)
-    }
-
-    public static func noticesGalleryCaptionProcesses(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        String(localized: "noticesGalleryCaptionProcesses", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func noticesGalleryCaptionUncommitted(bundle: Bundle? = nil, locale: Locale = .current) -> String {

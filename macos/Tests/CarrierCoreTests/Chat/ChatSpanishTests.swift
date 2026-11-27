@@ -96,6 +96,16 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     #expect(archiveBlock(row("a"), bundle: es.bundle, locale: es.locale) == nil)
 }
 
+@Test func whatArchivingASessionWithProcessesStopsIsAskedInSpanish() {
+    let processes = ["pnpm dev", "tsc", "vitest", "build"].enumerated().map { BackgroundTask(id: "\($0.offset)", kind: "local_bash", description: $0.element, agentWork: false) }
+    var running = row("a")
+    running.background = Array(processes.prefix(1))
+    #expect(archiveStopsQuestion(running, bundle: es.bundle, locale: es.locale) == Question(title: "¿Archivar «ta»?", message: "Esto detiene pnpm dev", confirm: "Archivar"))
+    running.background = processes
+    #expect(archiveStopsQuestion(running, bundle: es.bundle, locale: es.locale)?.message == "Esto detiene pnpm dev, tsc, vitest +1 más")
+    #expect(deleteSessionQuestion(running, bundle: es.bundle, locale: es.locale).message.hasPrefix("Esto detiene pnpm dev, tsc, vitest +1 más\n"))
+}
+
 @Test func theMenuOfASessionRowIsSpanish() {
     func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.map { $0.map(\.title) } }
     #expect(titles(sessionMenu(row("a"), bundle: es.bundle, locale: es.locale)) == [["Fijar", "Mandar a dormir"], ["Renombrar…"], ["Abrir en Terminal", "Copiar"], ["Archivar", "Eliminar…"]])
@@ -362,4 +372,16 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     #expect(Copy.chatToolDoingLive(doing: "Leyendo a.ts", bundle: es.bundle, locale: es.locale) == "Leyendo a.ts…")
     #expect(Copy.chatContextTokens(count: "900", bundle: es.bundle, locale: es.locale) == "900 de contexto")
     #expect(Copy.chatToolUnnamed(bundle: es.bundle, locale: es.locale) == "herramienta" && Copy.chatSubagentTypeDefault(bundle: es.bundle, locale: es.locale) == "Agente")
+}
+
+@Test func theProcessesCardIsSpanishWithAndWithoutStopInItsSingularAndPluralCases() {
+    let build = BackgroundTask(id: "p1", kind: "local_bash", description: "pnpm build", agentWork: false)
+    let watch = BackgroundTask(id: "p2", kind: "local_bash", description: "pnpm test", agentWork: false)
+    let one = ProcessesCard([build], canStop: true, bundle: es.bundle, locale: es.locale)
+    #expect(one?.title == "1 proceso sigue en marcha" && one?.stop == "Detener" && one?.stopHelp == "Detener el proceso")
+    let several = ProcessesCard([build, watch], canStop: true, bundle: es.bundle, locale: es.locale)
+    #expect(several?.title == "2 procesos siguen en marcha" && several?.stop == "Detener todo" && several?.stopHelp == "Detener todos los procesos")
+    #expect(ProcessesCard([build], canStop: false, bundle: es.bundle, locale: es.locale)?.stop == nil)
+    #expect(Copy.chatProcessesHintShow(bundle: es.bundle, locale: es.locale) == "Muestra los procesos" && Copy.chatProcessesHintHide(bundle: es.bundle, locale: es.locale) == "Oculta los procesos")
+    #expect(Copy.chatProcessesExpanded(bundle: es.bundle, locale: es.locale) == "Expandido" && Copy.chatProcessesCollapsed(bundle: es.bundle, locale: es.locale) == "Contraído")
 }

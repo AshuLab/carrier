@@ -2,7 +2,7 @@ import CarrierCore
 import CarrierUI
 import SwiftUI
 
-/// What the agent waits for after its turn ended, as one line of the glass the agent's runs have: it opens to the tasks, and while it is shut the
+/// The agent work the agent waits for after its turn ended (a subagent, a workflow; the background processes have their own grey card), as one line of the glass the agent's runs have: it opens to the tasks, and while it is shut the
 /// line names one task at a time and rolls to the next every few seconds, as the line of a run rolls from step to step. Cyan, the colour of the
 /// ring of a session that waits for something it started: a ring that turns, a glow that runs round the edge and a shimmer over the words (all
 /// of them still with Reduce Motion), the time since the oldest began, and Stop, which stops them all (the host's `interrupt`, which with no turn

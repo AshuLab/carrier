@@ -69,6 +69,49 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(waiting.status == .needsYou && waiting.isWorking == false)
 }
 
+@Test func aBackgroundTaskDecodedWithAgentWorkTrueWithItFalseAndWithoutTheFieldIsAgentWorkAProcessAndAgentWorkInThatOrder() throws {
+    func decoded(_ extra: String) throws -> BackgroundTask {
+        try JSONDecoder().decode(BackgroundTask.self, from: Data(#"{"id":"b","kind":"local_agent","description":"review"\#(extra)}"#.utf8))
+    }
+    #expect(try decoded(#","agentWork":true"#).agentWork)
+    #expect(try decoded(#","agentWork":false"#).agentWork == false)
+    // a host that predates the field says nothing, and the app reads that as it did before: agent work
+    #expect(try decoded("").agentWork)
+}
+
+@Test func aSessionWithOnlyProcessesIsNotWorkingAndOneWithAgentWorkIs() throws {
+    let process = BackgroundTask(id: "p", kind: "local_bash", description: "pnpm dev", agentWork: false)
+    let agent = BackgroundTask(id: "a", kind: "local_agent", description: "review", agentWork: true)
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    func row(_ state: SessionState, _ tasks: [BackgroundTask], unread: Bool = false) -> SessionRow {
+        SessionRow(id: "s", title: "s", workspace: "w", agent: "a", state: state, updatedAt: now, unread: unread, background: tasks)
+    }
+    // only processes: the turn ended, so it reads as Done while unread and idle after, with no clock
+    var only = row(.idle, [process], unread: true)
+    #expect(only.isWorking == false && only.status == .unread && only.processes == [process])
+    only.unread = false
+    #expect(only.status == .idle)
+    var keeper = WorkingOrder()
+    var rows = [only]
+    keeper.apply(to: &rows)
+    #expect(rows[0].workingSince == nil && rows[0].orderedAt == nil)
+    // it lands in its age group and in no Working one
+    let groups = sessionGroups(rows, by: .status, now: now, bundle: english.bundle, locale: english.locale)
+    #expect(groups.map(\.title) == ["Idle"])
+    #expect(sessionGroups(rows, by: .age, now: now, bundle: english.bundle, locale: english.locale).map(\.title) == ["Today"])
+    // one agent-work task keeps it working, as before, and so do both kinds together
+    for tasks in [[agent], [process, agent]] {
+        var working = [row(.idle, tasks)]
+        keeper.apply(to: &working)
+        #expect(working[0].isWorking && working[0].status == .working && working[0].workingSince != nil)
+        #expect(sessionGroups(working, by: .status, now: now, bundle: english.bundle, locale: english.locale).map(\.title) == ["Working"])
+    }
+    #expect(row(.idle, [process, agent]).processes == [process])
+    // a session that waits for the person still waits, and one in a turn still works, whatever its tasks are
+    #expect(row(.waiting, [agent]).status == .needsYou && row(.waiting, [agent]).isWorking == false)
+    #expect(row(.working, [process]).isWorking && row(.working, [process]).status == .working)
+}
+
 @Test func aSessionSaysWhatItWaitsForInOneLineAndANilWhenItWaitsForNothing() {
     func task(_ description: String, kind: String = "local_bash") -> BackgroundTask { BackgroundTask(id: description, kind: kind, description: description) }
     #expect(waitingOnText([], bundle: english.bundle, locale: english.locale) == nil)
@@ -76,6 +119,22 @@ private func decodedSession(_ extra: String, state: String = "idle", live: Bool 
     #expect(waitingOnText([task("pnpm build"), task("pnpm test"), task("review", kind: "local_agent")], bundle: english.bundle, locale: english.locale) == "Waiting on pnpm build and 2 more")
     // a task with no description is named by its kind
     #expect(waitingOnText([task("", kind: "monitor")], bundle: english.bundle, locale: english.locale) == "Waiting on monitor")
+}
+
+@Test func theLineOfWhatAWorkingSessionWaitsForNamesAgentWorkAndNeverAProcess() {
+    let process = BackgroundTask(id: "p", kind: "local_bash", description: "pnpm dev", agentWork: false)
+    let agent = BackgroundTask(id: "a", kind: "local_agent", description: "review")
+    func row(_ state: SessionState, _ tasks: [BackgroundTask]) -> SessionRow {
+        SessionRow(id: "s", title: "s", workspace: "w", agent: "a", state: state, updatedAt: Date(timeIntervalSince1970: 1), background: tasks)
+    }
+    func line(_ row: SessionRow) -> String? { row.waitingOn(bundle: english.bundle, locale: english.locale) }
+    // in a turn with a process, or idle with only a process, the line is the status's own words, not "Waiting on pnpm dev"
+    #expect(line(row(.working, [process])) == nil && line(row(.idle, [process])) == nil)
+    // mixed, it names the agent work and counts only it
+    #expect(line(row(.idle, [process, agent])) == "Waiting on review")
+    #expect(line(row(.idle, [process, agent, BackgroundTask(id: "b", kind: "local_agent", description: "tests")])) == "Waiting on review and 1 more")
+    // a session that waits for the person says nothing of its tasks
+    #expect(line(row(.waiting, [agent])) == nil)
 }
 
 @Test func twoSessionsThatWorkKeepTheirPlaceWhateverTheirAgentsDoAndTakeItOnceWhenTheyStop() {
@@ -1061,6 +1120,17 @@ private func freshPreferences() -> AppPreferences { AppPreferences(defaults: Use
     preferences.confirmDelete = true
     #expect(await actions.confirmDelete(row("a", "Fix login")) != .proceed)
     #expect(host.previewed == [["a"]])
+}
+
+@MainActor @Test func aDeleteThatStopsProcessesAsksEvenWithTheQuestionSwitchedOff() async {
+    let host = FakeHost()
+    let preferences = freshPreferences()
+    let actions = SessionActions(host: host, preferences: preferences, log: { _ in })
+    preferences.confirmDelete = false
+    var running = row("a", "Dev")
+    running.background = [BackgroundTask(id: "p", kind: "local_bash", description: "pnpm dev", agentWork: false)]
+    guard case .ask(let question) = await actions.confirmDelete(running) else { Issue.record("a delete that stops a process must ask"); return }
+    #expect(question.message.hasPrefix("This stops pnpm dev"))
 }
 
 @MainActor @Test func cancellingTheQuestionDeletesNothingBecauseOnlyTheCallerDeletes() async {

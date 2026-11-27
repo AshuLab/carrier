@@ -69,7 +69,7 @@ public enum Copy {
         }
     }
 
-    public enum PieceState: Sendable { case atEnd; case bold; case byShape; case changes; case checking; case closed; case danger; case disabled; case done; case empty; case error; case failed; case finished; case folded; case high; case idle; case image; case info; case initials; case large; case loading; case long; case noResults; case normal; case open; case plain; case quiet; case record; case selected; case sets; case small; case still; case symbol; case tinted; case tool; case waiting; case warning; case withActions; case withBadge; case withDetail; case withFooter; case withIcon; case withLeadingCell; case withLink; case withoutDetail; case working }
+    public enum PieceState: Sendable { case atEnd; case bold; case byShape; case changes; case checking; case closed; case danger; case disabled; case done; case empty; case error; case failed; case finished; case folded; case high; case idle; case image; case info; case initials; case inline; case large; case loading; case long; case noResults; case normal; case open; case plain; case quiet; case record; case selected; case sets; case small; case still; case symbol; case tinted; case tool; case waiting; case warning; case withActions; case withBadge; case withDetail; case withFooter; case withIcon; case withLeadingCell; case withLink; case withoutDetail; case working }
     public static func pieceState(which: PieceState, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         switch which {
         case .atEnd: return String(localized: "pieceState.atEnd", bundle: bundle ?? carrierResources, locale: locale)
@@ -91,6 +91,7 @@ public enum Copy {
         case .image: return String(localized: "pieceState.image", bundle: bundle ?? carrierResources, locale: locale)
         case .info: return String(localized: "pieceState.info", bundle: bundle ?? carrierResources, locale: locale)
         case .initials: return String(localized: "pieceState.initials", bundle: bundle ?? carrierResources, locale: locale)
+        case .inline: return String(localized: "pieceState.inline", bundle: bundle ?? carrierResources, locale: locale)
         case .large: return String(localized: "pieceState.large", bundle: bundle ?? carrierResources, locale: locale)
         case .loading: return String(localized: "pieceState.loading", bundle: bundle ?? carrierResources, locale: locale)
         case .long: return String(localized: "pieceState.long", bundle: bundle ?? carrierResources, locale: locale)
@@ -1188,6 +1189,10 @@ public enum Copy {
         String(localized: "sessionBackgroundCount \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func sessionProcessesSpoken(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "sessionProcessesSpoken \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func sessionOpenLabel(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "sessionOpenLabel \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -2096,6 +2101,14 @@ public enum Copy {
         String(localized: "archiveDeleteMessageWorktree", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func archiveStopsTitle(title: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveStopsTitle \(title)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func archiveStopsMessage(names: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "archiveStopsMessage \(names)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func archiveBlockWorking(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "archiveBlockWorking", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -2776,6 +2789,30 @@ public enum Copy {
         String(localized: "chatBackgroundSpoken \(count) \(names)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func chatProcessesTitle(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatProcessesTitle \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatProcessesHintHide(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatProcessesHintHide", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatProcessesHintShow(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatProcessesHintShow", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatProcessesExpanded(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatProcessesExpanded", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatProcessesCollapsed(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatProcessesCollapsed", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatProcessesStopHelp(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatProcessesStopHelp \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func chatApprovalMoreWaiting(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatApprovalMoreWaiting \(count)", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -3346,6 +3383,10 @@ public enum Copy {
 
     public static func chatPeekWaitingOn(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatPeekWaitingOn", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatPeekRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatPeekRunning", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func chatPeekMoreTasks(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -11929,6 +11970,10 @@ public enum Copy {
 
     public static func noticesGalleryCaptionBackground(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "noticesGalleryCaptionBackground", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func noticesGalleryCaptionProcesses(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "noticesGalleryCaptionProcesses", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func noticesGalleryCaptionUncommitted(bundle: Bundle? = nil, locale: Locale = .current) -> String {

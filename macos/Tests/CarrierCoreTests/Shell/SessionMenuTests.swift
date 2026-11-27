@@ -118,13 +118,43 @@ private func titles(_ sections: [[SessionMenuItem]]) -> [[String]] { sections.ma
     #expect(sessionMenu(row("a", state: .working), bundle: english.bundle, locale: english.locale).flatMap { $0 }.first { $0.title == "Stop" }?.disabledReason == nil)
 }
 
-@Test func aSessionThatWaitsForBackgroundWorkCannotBeArchivedAndCanBeStopped() {
+private func process(_ id: String, _ description: String) -> BackgroundTask { BackgroundTask(id: id, kind: "local_bash", description: description, agentWork: false) }
+
+@Test func aSessionThatWaitsForAgentWorkCannotBeArchivedOrDeletedAndCanBeStopped() {
     var waiting = row("a")
-    waiting.background = [BackgroundTask(id: "b", kind: "local_bash", description: "pnpm build")]
+    waiting.background = [BackgroundTask(id: "b", kind: "local_agent", description: "review")]
     #expect(archiveBlock(waiting, bundle: english.bundle, locale: english.locale) == "Stop the background task to archive it")
-    waiting.background.append(BackgroundTask(id: "c", kind: "local_agent", description: "review"))
+    #expect(deleteBlock(waiting, bundle: english.bundle, locale: english.locale) == "Stop the background task to delete it")
+    waiting.background.append(BackgroundTask(id: "c", kind: "local_workflow", description: "build"))
     #expect(archiveBlock(waiting, bundle: english.bundle, locale: english.locale) == "Stop the background tasks to archive it")
+    // a process beside the agent work is not counted: the words are the ones of the agent work alone
+    waiting.background = [BackgroundTask(id: "b", kind: "local_agent", description: "review"), process("p", "pnpm dev"), process("q", "tsc")]
+    #expect(archiveBlock(waiting, bundle: english.bundle, locale: english.locale) == "Stop the background task to archive it")
+    #expect(processesStopped(waiting).isEmpty)
     let items = sessionMenu(waiting, bundle: english.bundle, locale: english.locale).flatMap { $0 }
     #expect(items.first { $0.title == "Stop" }?.action == .stop)
-    #expect(items.first { $0.title == "Archive" }?.disabledReason == "Stop the background tasks to archive it")
+    #expect(items.first { $0.title == "Archive" }?.disabledReason == "Stop the background task to archive it")
+}
+
+@Test func aSessionWithOnlyProcessesCanBeArchivedAndDeletedAndNamesWhatThatStops() {
+    var running = row("a")
+    #expect(processesStopped(running).isEmpty && archiveStopsQuestion(running, bundle: english.bundle, locale: english.locale) == nil)
+    running.background = [process("p", "pnpm dev")]
+    #expect(archiveBlock(running, bundle: english.bundle, locale: english.locale) == nil && deleteBlock(running, bundle: english.bundle, locale: english.locale) == nil)
+    #expect(processesStopped(running).map(\.id) == ["p"])
+    let question = archiveStopsQuestion(running, bundle: english.bundle, locale: english.locale)
+    #expect(question == Question(title: "Archive \u{201C}t\u{201D}?", message: "This stops pnpm dev", confirm: "Archive"))
+    #expect(deleteSessionQuestion(running, bundle: english.bundle, locale: english.locale).message == "This stops pnpm dev\nIts transcript is removed and cannot be brought back.")
+    running.background = [process("p", "pnpm dev"), process("q", "tsc"), process("r", "vitest")]
+    #expect(processesStopped(running).map(\.id) == ["p", "q", "r"])
+    #expect(archiveStopsQuestion(running, bundle: english.bundle, locale: english.locale)?.message == "This stops pnpm dev, tsc, vitest")
+    running.background.append(process("s", "build"))
+    running.background.append(process("u", "watch"))
+    #expect(archiveStopsQuestion(running, bundle: english.bundle, locale: english.locale)?.message == "This stops pnpm dev, tsc, vitest +2 more")
+    // a session the host refuses anyway stops nothing
+    running.state = .working
+    #expect(processesStopped(running).isEmpty)
+    running.state = .waiting
+    #expect(processesStopped(running).isEmpty)
+    #expect(sessionMenu(row("a"), bundle: english.bundle, locale: english.locale).flatMap { $0 }.first { $0.title == "Archive" }?.disabledReason == nil)
 }

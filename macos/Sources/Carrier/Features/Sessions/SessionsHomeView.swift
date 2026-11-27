@@ -273,7 +273,7 @@ private struct SessionHomeRow: View {
 
     /// What the session is doing, or the last thing the agent said.
     @ViewBuilder private var status: some View {
-        if let waiting = waitingOnText(row.background), row.state != .waiting {
+        if let waiting = row.waitingOn() {
             Text(waiting).foregroundStyle(Color.backgroundWork).font(.callout).lineLimit(1).truncationMode(.tail)
         } else {
             switch row.state {
@@ -317,7 +317,7 @@ private struct SessionHomeRow: View {
             if row.archived {
                 RowIconButton(symbol: .undo, title: Copy.sessionRestore()) { Task { if let refusal = await actions.restore(row.id) { tell(refusal) } } }
             } else {
-                RowIconButton(symbol: .archive, title: Copy.sessionArchive(), why: archiveBlock(row)) { Task { if let refusal = await actions.archive(row.id) { tell(refusal) } } }
+                RowIconButton(symbol: .archive, title: Copy.sessionArchive(), why: archiveBlock(row)) { Task { if let refusal = await archiveAsking(row, actions) { tell(refusal) } } }
             }
         }
     }

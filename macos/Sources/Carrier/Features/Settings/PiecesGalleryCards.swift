@@ -15,6 +15,7 @@ struct PiecesGalleryCards: View {
                 GalleryState(.warning) { notice(.orange, .exclamation, detail: true).frame(width: wide) }
                 GalleryState(.error) { notice(.red, .exclamation, detail: true).frame(width: wide) }
                 GalleryState(.withoutDetail) { notice(.blue, .info, detail: false).frame(width: wide) }
+                GalleryState(.inline) { NoticeCard(symbol: .exclamation, tint: .gray, title: sample(.title), detail: sample(.detail), inline: true) {}.frame(width: wide) }
                 GalleryState(.withActions) {
                     NoticeCard(symbol: .exclamation, tint: .orange, title: sample(.title), detail: sample(.detail)) {
                         Button(sample(.cancel)) {}.buttonStyle(NoticeActionStyle(quiet: true))

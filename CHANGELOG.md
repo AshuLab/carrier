@@ -25,6 +25,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Ctrl+C at "Start Carrier now?" counts as no and prints what to run.
 - Every `init` question has a flag, built from the same table of roles (`--<role>`, `--<role>-profile`, `--<role>-provider`, `--<role>-effort`, `--<role>-persona-name`, `--<role>-persona-prompt`, repeatable `--<role>-failover`, plus `--orchestrator-profile`), and a mistake in a flag is reported naming it before the wizard looks at the machine or GitHub.
   `--yes` prints what it chose and now always needs `--repo`.
+- A session is working only while the model acts or has agent work (a subagent, a workflow, a teammate or a remote agent) running.
+  A dev server, a watcher or any other background process left running no longer keeps it as working: the session reads Done or idle, its stopwatch stops, and it can be archived.
+  The row carries a small grey mark with the number of processes (also while the model works), the hover card names them, and VoiceOver says "N background processes".
+  In the chat they are one grey card over the message box with their names, Stop all, and a chevron that opens a row for each with how long it has run and its own Stop.
+  Archiving or deleting a session that has only processes asks first, saying which ones it stops, and stops them; a session with agent work is still refused.
 
 ### Fixed
 

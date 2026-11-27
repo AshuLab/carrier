@@ -33,8 +33,8 @@ export type ChatQuestion = { question: string; header: string; options: { label:
 /** As the provider reports it. */
 export type ChatUsage = Record<string, number>;
 
-/** One thing the agent started and is waiting on after its turn ended. */
-export type BackgroundTask = { id: string; kind: string; description: string };
+/** One thing the agent started and is waiting on after its turn ended. `agentWork`: the model goes on working while it runs (a subagent, a workflow), as the adapter decides; false is a background process (a command, a monitor). */
+export type BackgroundTask = { id: string; kind: string; description: string; agentWork: boolean };
 
 export type ChatEvent =
   | { kind: 'user'; text: string; /** The name of the command invoked, when the message invoked one. */ command?: string }

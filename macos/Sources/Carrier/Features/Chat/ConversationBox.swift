@@ -26,8 +26,12 @@ struct ConversationBox: View {
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            if model.background.isEmpty == false {
-                BackgroundWorkCard(tasks: model.background, stop: { Task { await model.stop() } }, stopTask: model.canStopTask ? { id in Task { await model.stopTask(id) } } : nil).transition(.move(edge: .bottom).combined(with: .opacity))
+            if model.agentWork.isEmpty == false {
+                BackgroundWorkCard(tasks: model.agentWork, stop: { Task { await model.stop() } }, stopTask: model.canStopTask ? { id in Task { await model.stopTask(id) } } : nil).transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            if let card = model.processesCard {
+                ProcessesCardView(card: card, stopAll: { Task { await model.stopProcesses() } }, stopOne: { id in Task { await model.stopTask(id) } })
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             if model.folderGone { FolderGoneNotice().transition(.opacity) }
             else if model.asleep { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }

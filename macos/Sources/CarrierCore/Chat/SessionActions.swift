@@ -106,7 +106,8 @@ public enum SessionRemovalKind: Sendable {
     /// Asks the host what deleting the session would discard and builds its question; the deletion must not go ahead without it,
     /// unless the person switched the question off.
     public func confirmDelete(_ row: SessionRow) async -> Confirmation {
-        guard preferences.confirmDelete else { return .proceed }
+        // a delete that stops processes says so even when the person switched the question off
+        guard preferences.confirmDelete || processesStopped(row).isEmpty == false else { return .proceed }
         switch await preview("delete \(row.id)", [row.id]) {
         case .success(let previews): return .ask(deleteSessionQuestion(row, worktree: previews.first { $0.sessionId == row.id }?.worktree))
         case .failure(let refusal): return .refused(refusal.words)

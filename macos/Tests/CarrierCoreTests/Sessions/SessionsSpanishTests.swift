@@ -68,6 +68,18 @@ private func row(
     #expect(waitingOnText(three, bundle: es.bundle, locale: es.locale) == "Esperando a pnpm build y 2 más")
 }
 
+@Test func theBackgroundProcessesOfARowAreSpokenInSpanishInSingularAndPlural() {
+    let process = { (id: String) in BackgroundTask(id: id, kind: "local_bash", description: "pnpm dev", agentWork: false) }
+    func spoken(_ count: Int) -> String? {
+        var processes = row("p")
+        processes.background = (1...count).map { process("\($0)") }
+        return SessionRowContent(processes, showsWorkspace: false, parts: SessionRowParts(), now: now).processesSpoken(bundle: es.bundle, locale: es.locale)
+    }
+    #expect(spoken(1) == "1 proceso en segundo plano")
+    #expect(spoken(2) == "2 procesos en segundo plano")
+    #expect(Copy.chatPeekRunning(bundle: es.bundle, locale: es.locale) == "En ejecución")
+}
+
 // MARK: the lists
 
 @Test func theOpenCountsNameIsSpanishInSingularAndPlural() {

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The sidebar's foot is two icon buttons, Settings at the left and Usage at the right, instead of two rows with words; their names show as tooltips.
+
 ## [0.21.0] - 2026-11-27
 
 Roles and Identities in Settings with extra reviewers you name, a Subagents button in the window header, eleven more themes, Send to sleep, and sessions that stop counting background processes as work.

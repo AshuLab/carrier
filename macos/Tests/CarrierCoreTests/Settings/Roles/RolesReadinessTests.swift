@@ -21,7 +21,7 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Roles
 @Test func threeRolesThatAreWholeAreSetUp() throws {
     let found = try readiness(config())
     #expect(found.tone == .ready && found.title == "All three roles are set up")
-    #expect(found.notes == ["Each has an identity, an account and a model."] && found.problems.isEmpty && found.fix == nil)
+    #expect(found.notes == ["Each has an identity, an account and a model."] && found.problems.isEmpty && found.problems.first == nil)
 }
 
 @Test func aLeadReviewerThatIsOffIsSaidAndIsNotAProblem() throws {
@@ -31,13 +31,13 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Roles
 
 @Test func anIdentityNotInTheRegistryNeedsAttentionAndPointsToItsRole() throws {
     let found = try readiness(config(reviewer: #"{"profile": "gone", "provider": "codex", "model": "gpt-5"}"#).replacingOccurrences(of: #""me""#, with: #""gone": {"kind": "forge", "agent": "gone"}, "me""#))
-    #expect(found.tone == .attention && found.title == "One role needs attention" && found.fix == .reviewer)
+    #expect(found.tone == .attention && found.title == "One role needs attention" && found.problems.first?.role == .reviewer)
     #expect(found.notes.first == "Reviewer: the identity “gone” is not in Agent Forge or in profiles. Choose another.")
 }
 
 @Test func anAccountThatIsNotInProvidersJsonNeedsAttention() throws {
     let found = try readiness(config(), providers: #"{"providers": {"claude": {"harness": "claude"}}}"#)
-    #expect(found.problems.map(\.role) == [.reviewer] && found.fix == .reviewer)
+    #expect(found.problems.map(\.role) == [.reviewer] && found.problems.first?.role == .reviewer)
     #expect(found.problems.contains { $0.text == "the account “codex” is not in providers.json." })
 }
 
@@ -45,7 +45,7 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Roles
     let found = try readiness(config(author: #"{}"#))
     let texts = found.problems.filter { $0.role == .author }.map(\.text)
     #expect(texts == ["it has no identity yet.", "it has no account yet.", "it has no model yet."])
-    #expect(found.title == "One role needs attention" && found.fix == .author)
+    #expect(found.title == "One role needs attention" && found.problems.first?.role == .author)
 }
 
 @Test func twoRolesInTroubleAreCountedByRoleNotByProblem() throws {

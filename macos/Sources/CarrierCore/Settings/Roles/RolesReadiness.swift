@@ -30,8 +30,6 @@ public struct RolesReadiness: Equatable {
     /// What the card says under its title: what is wrong, one line each, or what is fine and what is off.
     public let notes: [String]
     public let problems: [RoleProblem]
-    /// The role to open to fix the first problem.
-    public var fix: RoleSlot? { problems.first?.role }
 }
 
 /// Whether Author, Reviewer, every extra reviewer and (when it is on) the Lead reviewer each have an identity, an account of `providers.json` and a model. It says nothing

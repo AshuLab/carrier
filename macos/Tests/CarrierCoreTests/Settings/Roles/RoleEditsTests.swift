@@ -49,13 +49,17 @@ private actor Sent {
     func add(_ command: String) { commands.append(command) }
 }
 
-@Test func addAReviewerIsOfferedOnlyToAnEngineThatAnnouncesExtraReviewersAndNotAtThree() {
-    #expect(ExtraReviewerOffer(canEdit: false, count: 0).showsAdd == false && ExtraReviewerOffer(canEdit: false, count: 0).canAdd == false)
+@Test func addAReviewerIsOnlyForAnEngineThatAnnouncesExtraReviewersAndNotAtThreeAndSaysWhyItIsOff() {
+    let off = ExtraReviewerOffer(canEdit: false, count: 0)
+    #expect(off.canAdd == false)
+    // the row is there, off, with the reason, in both languages
+    #expect(off.addDetail(bundle: english.bundle, locale: english.locale) == "The engine that is running does not edit reviewers. Set agents.extraReviewers in engine.json.")
+    #expect(off.addDetail(bundle: spanish.bundle, locale: spanish.locale) == "El motor que está corriendo no edita revisores. Define agents.extraReviewers en engine.json.")
     let none = ExtraReviewerOffer(canEdit: true, count: 0)
-    #expect(none.showsAdd && none.canAdd && none.addDetail(bundle: english.bundle, locale: english.locale) == "3 more reviewers can run")
+    #expect(none.canAdd && none.addDetail(bundle: english.bundle, locale: english.locale) == "3 more reviewers can run")
     #expect(ExtraReviewerOffer(canEdit: true, count: 2).addDetail(bundle: english.bundle, locale: english.locale) == "1 more reviewer can run")
     let full = ExtraReviewerOffer(canEdit: true, count: 3)
-    #expect(full.showsAdd && full.canAdd == false && full.addDetail(bundle: english.bundle, locale: english.locale) == "Four reviewers is the most")
+    #expect(full.canAdd == false && full.addDetail(bundle: english.bundle, locale: english.locale) == "Four reviewers is the most")
     #expect(full.addDetail(bundle: spanish.bundle, locale: spanish.locale) == "Cuatro revisores es el máximo")
 }
 

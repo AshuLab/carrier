@@ -36,12 +36,12 @@ private func page() throws -> RolesPage {
 
 @Test func theScreenSaysWhatIsMissingAndThatNothingIsWrittenUntilThen() {
     var draft = NewExtraReviewer()
-    #expect(draft.hint(bundle: english.bundle, locale: english.locale) == "Not saved yet. It needs a name, an identity, an account and a model; nothing is written until it has them.")
-    #expect(draft.hint(bundle: spanish.bundle, locale: spanish.locale) == "Sin guardar todavía. Necesita un nombre, una identidad, una cuenta y un modelo; no se escribe nada hasta que los tenga.")
+    #expect(draft.hint(bundle: english.bundle, locale: english.locale) == "Not saved yet. It needs a name, an identity, an account and a model; nothing is written until it has them, and leaving this screen drops it.")
+    #expect(draft.hint(bundle: spanish.bundle, locale: spanish.locale) == "Sin guardar todavía. Necesita un nombre, una identidad, una cuenta y un modelo; no se escribe nada hasta que los tenga, y al salir de esta pantalla se descarta.")
     draft.name = "Docs"
     draft.apply(.gh)
     draft.apply(.provider("codex"))
-    #expect(draft.hint(bundle: english.bundle, locale: english.locale) == "Not saved yet. It needs a model; nothing is written until it has them.")
+    #expect(draft.hint(bundle: english.bundle, locale: english.locale) == "Not saved yet. It needs a model; nothing is written until it has them, and leaving this screen drops it.")
     draft.apply(.model("gpt-5"))
     #expect(draft.hint(bundle: english.bundle, locale: english.locale) == nil)
 }
@@ -57,4 +57,28 @@ private func page() throws -> RolesPage {
     #expect(found.adding(shown).rows.map(\.slot) == [.author, .reviewer, .extra(key: "seguridad"), .draft, .lead])
     // a place's name that is the draft's can never be a key
     #expect(RoleSlot(name: RoleSlot.draftPlaceName) == nil)
+}
+
+@Test func aNameAnotherReviewerHasIsRefusedBeforeAnythingIsSentWhateverItsCaseAndSaysSo() throws {
+    var draft = NewExtraReviewer()
+    draft.apply(.gh)
+    draft.apply(.provider("codex"))
+    draft.apply(.model("gpt-5"))
+    let found = try page()
+    // the name of the Reviewer or of the Author is not another reviewer's: the engine's rule is among the extra reviewers
+    for name in ["Reviewer", "", "Seguridad API"] {
+        draft.name = name
+        #expect(draft.nameTaken(in: found) == false)
+    }
+    for name in ["Seguridad", " seguridad ", "SEGURIDAD"] {
+        draft.name = name
+        #expect(draft.nameTaken(in: found) && draft.isComplete)
+        #expect(draft.hint(in: found, bundle: english.bundle, locale: english.locale) == "Another reviewer here is already called \(name.trimmingCharacters(in: .whitespaces)). Pick another name.")
+    }
+    // the reviewer being added is not a reviewer of the page: the shown draft never collides with itself
+    draft.name = "Docs"
+    #expect(draft.nameTaken(in: found.adding(draft.row(in: found))) == false && draft.hint(in: found) == nil)
+    #expect(draft.hint(in: found, bundle: spanish.bundle, locale: spanish.locale) == nil)
+    draft.name = "seguridad"
+    #expect(draft.hint(in: found, bundle: spanish.bundle, locale: spanish.locale) == "Otro revisor de aquí ya se llama seguridad. Elige otro nombre.")
 }

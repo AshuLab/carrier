@@ -11,8 +11,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Settings shows every role that runs on an epic, globally and for each repo: Roles lists the Author, the Reviewer, each extra reviewer by the name you gave it and the Lead reviewer, on a rail that draws the reviewers as one step in parallel.
   You add, change and remove extra reviewers from Roles without editing `engine.json`: a new one has a name, a type, an identity, an account and a model and is saved whole once they are set, and Remove asks first.
   The Lead reviewer's screen shows its skills and its failover steps (the Reviewer's while it has none), and Behavior has Lead rounds beside Review rounds.
+  A role's screen lists the other roles that work as the same account, and warns when the Lead reviewer works as the Author's account, since GitHub will not let it approve its own pull request.
   In Watching a repo's screen has More reviewers here: the roles of the app, an own list of reviewers or none.
-- Identities is a page of its own in Settings: every bot and your `gh` login with the roles that sign as it and whether it can sign in each watched repo.
+- Identities is a page of its own in Settings: every bot and your `gh` login with the roles (the extra reviewers too) that sign as it and whether it can sign in each watched repo.
 - The engine adds, changes and removes an extra reviewer and sets a repo's own list of them (`addExtraReviewer`, `removeExtraReviewer`, `setRepoExtraReviewers`, and `editRole`, `editPersona` and `editFailover` with `{ "extraReviewer": "<key>" }`), announced with the capability `extraReviewers`, so the app can edit them without touching the file by hand.
   `carrier config` accepts the same requests.
 - `carrier init` takes extra reviewers by flags that name them: `--extra-reviewer "<name>=<harness>:<model>"`, repeatable, and `--extra-reviewer-profile`, `-provider`, `-effort`, `-type`, `-persona-name`, `-persona-prompt` and `-failover`, each as `"<name>=<value>"`.

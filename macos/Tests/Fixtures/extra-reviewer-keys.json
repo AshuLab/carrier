@@ -1,0 +1,124 @@
+[
+  {
+    "name": "Seguridad API",
+    "taken": [],
+    "key": "seguridad-api"
+  },
+  {
+    "name": "Seguridad API",
+    "taken": [
+      "seguridad-api"
+    ],
+    "key": "seguridad-api-2"
+  },
+  {
+    "name": "Seguridad API",
+    "taken": [
+      "seguridad-api",
+      "seguridad-api-2"
+    ],
+    "key": "seguridad-api-3"
+  },
+  {
+    "name": "Ñandú",
+    "taken": [],
+    "key": "nandu"
+  },
+  {
+    "name": "Revisión de Diseño",
+    "taken": [],
+    "key": "revision-de-diseno"
+  },
+  {
+    "name": "123",
+    "taken": [],
+    "key": "r-123"
+  },
+  {
+    "name": "3D",
+    "taken": [],
+    "key": "r-3d"
+  },
+  {
+    "name": "!!!",
+    "taken": [],
+    "key": "extra"
+  },
+  {
+    "name": "",
+    "taken": [],
+    "key": "extra"
+  },
+  {
+    "name": "  --UX & a11y--  ",
+    "taken": [],
+    "key": "ux-a11y"
+  },
+  {
+    "name": "Lead",
+    "taken": [],
+    "key": "lead-2"
+  },
+  {
+    "name": "Lead",
+    "taken": [
+      "lead-2"
+    ],
+    "key": "lead-3"
+  },
+  {
+    "name": "Author",
+    "taken": [],
+    "key": "author-2"
+  },
+  {
+    "name": "Reviewer",
+    "taken": [],
+    "key": "reviewer-2"
+  },
+  {
+    "name": "Lead Reviewer",
+    "taken": [],
+    "key": "lead-reviewer-2"
+  },
+  {
+    "name": "日本語",
+    "taken": [],
+    "key": "extra"
+  },
+  {
+    "name": "Straße",
+    "taken": [],
+    "key": "stra-e"
+  },
+  {
+    "name": "İstanbul",
+    "taken": [],
+    "key": "istanbul"
+  },
+  {
+    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "taken": [],
+    "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  {
+    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "taken": [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ],
+    "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-2"
+  },
+  {
+    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "taken": [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-2"
+    ],
+    "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-3"
+  },
+  {
+    "name": "123123123123123123123123123123123123123123123123123123123123123123123123123123123123123123",
+    "taken": [],
+    "key": "r-12312312312312312312312312312312312312"
+  }
+]

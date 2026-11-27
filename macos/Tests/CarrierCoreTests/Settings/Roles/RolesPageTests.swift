@@ -140,6 +140,44 @@ private func row(_ page: RolesPage, _ role: AgentRole) throws -> RoleRow { try #
     #expect(try page(apart).sharedNote == nil)
 }
 
+@Test func eachRoleListsTheOthersThatWorkAsTheSameAccountAndTheLeadOnTheAuthorsAccountIsWarned() throws {
+    let json = #"{"profiles": {"a": {"kind": "forge", "agent": "acme-author"}, "a2": {"kind": "forge", "agent": "acme-author"}, "r": {"kind": "forge", "agent": "acme-reviewer"}, "me": {"kind": "gh"}, "me2": {"kind": "gh"}}, "agents": {"author": {"profile": "a"}, "reviewer": {"profile": "r"}, "leadReviewer": {"profile": "a2"}, "extraReviewers": {"uno": {"type": "t", "name": "Uno", "profile": "me"}, "dos": {"type": "t", "name": "Dos", "profile": "me2"}}}}"#
+    let found = try page(json)
+    func shares(_ slot: RoleSlot) throws -> [RoleSlot] { found.sharing(with: try #require(found.rows.first { $0.slot == slot })).map(\.slot) }
+    // two profiles of one bot are one account, and so are two gh logins, whatever the profiles are called
+    #expect(try shares(.author) == [.lead] && shares(.lead) == [.author] && shares(.reviewer).isEmpty)
+    #expect(try shares(.extra(key: "uno")) == [.extra(key: "dos")] && shares(.extra(key: "dos")) == [.extra(key: "uno")])
+    // the lead signing as the Author's account is the one GitHub refuses to approve with; the others have nothing to warn
+    let lead = try #require(found.rows.first { $0.slot == .lead })
+    #expect(found.leadSignsAsAuthor(lead) && found.identityFooter(for: lead, bundle: english.bundle, locale: english.locale) == "The Lead reviewer works as the Author\u{2019}s account: GitHub will not let an account approve its own pull request.")
+    #expect(found.identityFooter(for: lead, bundle: spanish.bundle, locale: spanish.locale) == "El revisor líder trabaja con la cuenta del autor: GitHub no deja que una cuenta apruebe su propio pull request.")
+    for slot in [RoleSlot.author, .reviewer, .extra(key: "uno")] {
+        let other = try #require(found.rows.first { $0.slot == slot })
+        #expect(found.leadSignsAsAuthor(other) == false && found.identityFooter(for: other, bundle: english.bundle, locale: english.locale) == nil)
+    }
+    // the Author and Reviewer on one account keep their own line, and the lead's warning is added to the lead's, not to theirs
+    let shared = try page(#"{"profiles": {"a": {"kind": "forge", "agent": "acme-author"}}, "agents": {"author": {"profile": "a"}, "reviewer": {"profile": "a"}, "leadReviewer": {"profile": "a"}}}"#)
+    let reviewer = try #require(shared.rows.first { $0.slot == .reviewer })
+    #expect(shared.identityFooter(for: reviewer, bundle: english.bundle, locale: english.locale) == shared.sharedNote && shared.sharedNote != nil)
+    #expect(shared.sharing(with: reviewer).map(\.slot) == [.author, .lead])
+    #expect(shared.identityFooter(for: try #require(shared.rows.first { $0.slot == .lead }), bundle: english.bundle, locale: english.locale)?.contains("approve its own pull request") == true)
+}
+
+@Test func aLeadThatIsOffDoesNotRunSoItSharesNothingUntilItIsBeingTurnedOnAndTheDraftIsWarnedToo() throws {
+    let json = #"{"profiles": {"a": {"kind": "forge", "agent": "acme-author"}}, "agents": {"author": {"profile": "a"}, "reviewer": {"profile": "a"}}}"#
+    let found = try page(json)
+    let off = try #require(found.rows.first { $0.slot == .lead })
+    #expect(off.off && found.sharing(with: off).isEmpty && found.leadSignsAsAuthor(off) == false)
+    #expect(found.sharing(with: try #require(found.rows.first { $0.slot == .author })).map(\.slot) == [.reviewer])
+    // choosing the Author's bot for the lead being turned on warns before anything is written
+    var draft = LeadReviewerDraft()
+    draft.apply(.bot("acme-author"))
+    let shown = draft.shown(in: off)
+    #expect(found.leadSignsAsAuthor(shown) && found.sharing(with: shown).map(\.slot) == [.author, .reviewer])
+    draft.apply(.gh)
+    #expect(found.leadSignsAsAuthor(draft.shown(in: off)) == false)
+}
+
 @Test func aConfigThatIsMissingOrNotAJSONObjectIsNotConfigured() {
     #expect(rolesPage(config: Data("[]".utf8), providers: nil, bots: bots) == nil)
     #expect(rolesPage(config: Data("nope".utf8), providers: nil, bots: bots) == nil)

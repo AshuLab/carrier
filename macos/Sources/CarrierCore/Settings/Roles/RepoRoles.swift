@@ -170,8 +170,8 @@ private func repoPage(config: Data, providers: Data?, bots: ForgeBots, repo: Str
         for (key, value) in mine { merged[key] = value }
         agents[role] = merged
     }
-    // the map replaces the global one whole, and keeps the order of the repo's own
-    var extraKeys: [String]?
+    // the map replaces the global one whole, and keeps the order of the repo's own; with none the global one's order is the file's, which the merged copy below has lost
+    var extraKeys = jsonKeys(in: config, at: ["agents", "extraReviewers"])
     if let map = own["extraReviewers"] as? [String: Any], let position {
         agents["extraReviewers"] = map
         extraKeys = jsonKeys(in: config, at: ["repos", String(position), "agents", "extraReviewers"])

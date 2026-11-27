@@ -179,6 +179,29 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
     #expect(engine.order == ["start editPersona", "end editPersona", "start setOrchestratorProfile", "end setOrchestratorProfile"])
 }
 
+@MainActor @Test func aChangeBuiltInTheQueueStartsFromWhatTheOnesBeforeItLeft() async {
+    // the file, as the engine leaves it: each change adds its name to the list, so a change built from a list read earlier would overwrite the one before it
+    final class File: @unchecked Sendable {
+        let lock = NSLock()
+        var names: [String] = []
+        func send(_ change: EngineConfigChange) async throws -> EngineConfigReply {
+            if case .persona(_, let name?, _) = change { try? await Task.sleep(for: .milliseconds(40)); lock.withLock { names.append(name) } }
+            return EngineConfigReply(engine: .applied)
+        }
+        var read: [String] { lock.withLock { names } }
+    }
+    let file = File()
+    let queue = EngineConfigQueue()
+    let status = ReloadStatus(reload: { .nobody })
+    var built: [[String]] = []
+    // the second is asked while the first is still in flight; it is built only when the first has been written
+    let first = Task { @MainActor in await queue.save(building: { built.append(file.read); return .persona(role: .author, name: "a", prompt: nil) }, send: file.send, status: status) }
+    let second = Task { @MainActor in await queue.save(building: { built.append(file.read); return .persona(role: .author, name: "b", prompt: nil) }, send: file.send, status: status) }
+    let nothing = Task { @MainActor in await queue.save(building: { nil }, send: file.send, status: status) }
+    #expect(await [first.value, second.value, nothing.value] == [.saved, .saved, nil])
+    #expect(built == [[], ["a"]] && file.read == ["a", "b"])
+}
+
 @Test func theSocketGetsTheGoldenRequestWithAnIdWhenTheHelloListsConfig() async throws {
     let (request, reply) = try golden("engine-set-watched-repos.json")
     let asked = Asked()

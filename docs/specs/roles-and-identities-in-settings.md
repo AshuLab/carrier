@@ -1,6 +1,6 @@
 # Roles and identities in Settings
 
-Status: spec
+Status: implemented (unreleased)
 
 ## Problem
 

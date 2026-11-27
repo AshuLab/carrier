@@ -210,7 +210,7 @@ struct WatchingTabView: View {
         guard canEditExtras, let configData else { return nil }
         return ExtrasEditor(
             own: repoOwnEntries(config: configData, repo: repo.name), roles: rolesExtraEntries(config: configData), profiles: profiles, accounts: declaredAccounts(providersJSON: providersData),
-            save: { await saveExtras($0) }
+            save: { await saveExtras($0) }, edit: { await editExtras(repo: repo.name, $0) }
         )
     }
 
@@ -227,8 +227,14 @@ struct WatchingTabView: View {
             },
             icons: accountIcons(providersJSON: providersData), editor: extrasEditor(of: row, profiles: roles?.profiles ?? []), refusal: refusal,
             openProject: { owner.map { go(SettingsPlace(.projects, path: [$0.path])) } ?? go(SettingsPlace(.projects)) },
-            openRole: { go(SettingsPlace(.watching, path: [row.name, $0.name])) }, stop: { removing = row.name }
+            openRole: { openRole($0, in: row, page: page) }, stop: { removing = row.name }
         )
+    }
+
+    /// A role of the repo opens its screen there; a Lead reviewer that is off is not a role of the repo (a repo cannot turn it on), so it opens Roles', where the switch is.
+    private func openRole(_ slot: RoleSlot, in repo: RepoRow, page: RolesPage?) {
+        let off = page?.rows.first { $0.slot == slot }?.off == true
+        go(off ? SettingsPlace(.roles, path: [slot.name]) : SettingsPlace(.watching, path: [repo.name, slot.name]))
     }
 
     /// A role's screen in the repo.
@@ -236,7 +242,7 @@ struct WatchingTabView: View {
         if let role = row.role, let mine = configData.flatMap({ repoRoles(json: $0, repo: repo.name) })?.rows.first(where: { $0.role == role }), let roles = configData.flatMap({ repoRoles(json: $0, repo: repo.name) }) {
             RepoRoleScreen(
                 row: row, mine: mine, page: page, profiles: roles.profiles, accounts: declaredAccounts(providersJSON: providersData), icons: accountIcons(providersJSON: providersData),
-                save: { await saveRole($0, role: role, repo: repo.name) }, open: { go(SettingsPlace(.watching, path: [repo.name, $0.name])) }
+                save: { await saveRole($0, role: role, repo: repo.name) }, open: { openRole($0, in: repo, page: page) }
             )
             .id("\(repo.name)/\(row.id)")
         }
@@ -266,6 +272,22 @@ struct WatchingTabView: View {
     /// Sends the repo's list (`setRepoExtraReviewers`), then reads the file back and asks the doctor, whose reason is shown when the engine refuses what was written.
     private func saveExtras(_ change: EngineConfigChange) async -> RoleSave {
         let result = await saveToEngine(change)
+        load()
+        if result == .saved {
+            failure = nil
+            runDoctor()
+        }
+        return result
+    }
+
+    /// Sends the repo's list as `change` makes it from the file as it is when the request's turn comes (`EngineConfigQueue`), then reads the file back and asks the doctor like `saveExtras`.
+    private func editExtras(repo: String, _ change: @escaping @MainActor (RepoOwnList) -> RepoOwnList?) async -> RoleSave? {
+        let file = path
+        let result = await saveToEngine(building: {
+            let entries = (try? Data(contentsOf: URL(fileURLWithPath: file))).map { repoOwnEntries(config: $0, repo: repo) } ?? []
+            return change(RepoOwnList(entries))?.request(repo: repo)
+        })
+        guard let result else { return nil }
         load()
         if result == .saved {
             failure = nil

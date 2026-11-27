@@ -154,7 +154,6 @@ private struct RoleRailRow: View {
     }
 }
 
-/// The stretch of the rail between two roles: a line through the middle of a column as wide as the avatars, and under it what goes on.
 /// Roles that run at the same time: a tinted box around their rows, under a line that says so.
 private struct ParallelStep<Content: View>: View {
     @Environment(\.pieceTheme) private var theme
@@ -173,6 +172,7 @@ private struct ParallelStep<Content: View>: View {
     }
 }
 
+/// The stretch of the rail between two roles: a line through the middle of a column as wide as the avatars, and under it what goes on.
 private struct RailLink<Caption: View>: View {
     let dashed: Bool
     @ViewBuilder let caption: Caption

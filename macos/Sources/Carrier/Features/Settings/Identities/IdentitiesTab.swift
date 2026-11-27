@@ -92,10 +92,8 @@ struct IdentitiesTabView: View {
         }
     }
 
-    /// A role that signs as the identity opens its screen: Roles' own, or the repo's for a role the repo has of its own.
-    private func open(_ link: IdentityRoleLink) {
-        go(link.repo.map { SettingsPlace(.watching, path: [$0, link.role.rawValue]) } ?? SettingsPlace(.roles, path: [link.role.rawValue]))
-    }
+    /// A role that signs as the identity opens its screen: Roles' own, or the repo's for a role (or a list of extra reviewers) the repo has of its own.
+    private func open(_ link: IdentityRoleLink) { go(link.place) }
 
     /// One watched repo: whether the identity can mint a token there, with what the doctor said and its fix when it cannot.
     private func repoRow(_ repo: IdentityRepo, first: Bool, checking: Bool) -> some View {

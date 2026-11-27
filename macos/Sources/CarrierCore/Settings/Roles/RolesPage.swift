@@ -269,6 +269,27 @@ public func rolesPage(config: Data, providers: Data?, bots: ForgeBots, extraKeys
     return RolesPage(rows: rows, bots: bots, accounts: accounts, sharedNote: shared, leadRounds: EngineConfig(json: config).maxLeadRounds)
 }
 
+extension RolesPage {
+    /// The other roles that work as the same account as `row` (the engine's `sameAccount`: two gh logins, or two profiles of the same bot), in the order of the page.
+    /// A Lead reviewer that is off does not run, and the reviewer being added is not a role yet.
+    public func sharing(with row: RoleRow) -> [RoleRow] {
+        guard let key = row.identity.key, row.off == false || row.drafting else { return [] }
+        return rows.filter { $0.slot != row.slot && $0.slot != .draft && $0.off == false && $0.identity.key == key }
+    }
+
+    /// The Lead reviewer works as the Author's account: GitHub will not let an account approve its own pull request.
+    public func leadSignsAsAuthor(_ row: RoleRow) -> Bool { row.slot == .lead && sharing(with: row).contains { $0.slot == .author } }
+
+    /// What is said under Identity where the person chooses it: that Author and Reviewer sign as one account, that the lead's approval would be refused, and why the list of bots is empty
+    /// (no registry, or one that does not read).
+    public func identityFooter(for row: RoleRow, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        let shared = row.slot == .lead || row.slot.isExtra ? nil : sharedNote
+        let lead = leadSignsAsAuthor(row) ? Copy.rolesLeadSignsAsAuthor(bundle: bundle, locale: locale) : nil
+        let lines = [shared, lead, bots.note].compactMap { $0 }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+}
+
 /// Each extra reviewer of `config` as a place the Settings search can open, by the name the person gave it and its type (the static index cannot know them).
 public func rolesSearchEntries(config: Data, bundle: Bundle? = nil, locale: Locale = .current) -> [SettingsEntry] {
     let rows = rolesPage(config: config, providers: nil, bots: ForgeBots(names: []), bundle: bundle, locale: locale)?.rows ?? []

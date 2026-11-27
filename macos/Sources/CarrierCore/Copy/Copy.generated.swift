@@ -9406,6 +9406,18 @@ public enum Copy {
         String(localized: "rolesSharedOne \(author) \(reviewer)", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func rolesSharedWithTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSharedWithTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesSharedWithDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesSharedWithDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesLeadSignsAsAuthor(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesLeadSignsAsAuthor", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func rolesNoRegistry(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "rolesNoRegistry", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -9572,6 +9584,22 @@ public enum Copy {
 
     public static func rolesAddReviewerFull(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "rolesAddReviewerFull", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesAddReviewerReadOnly(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesAddReviewerReadOnly", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesDraftAddTitle(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesDraftAddTitle", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesDraftAddDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesDraftAddDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func rolesDraftAddButton(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "rolesDraftAddButton", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func rolesNewReviewer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
@@ -10172,6 +10200,26 @@ public enum Copy {
 
     public static func watchingOwnRemoveButton(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "watchingOwnRemoveButton", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnRemoveAlert(name: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnRemoveAlert \(name)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnRemoveLast(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnRemoveLast", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnDropAlert(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnDropAlert", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnDropMessage(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnDropMessage", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnDropConfirm(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnDropConfirm", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func watchingOwnDiscard(bundle: Bundle? = nil, locale: Locale = .current) -> String {

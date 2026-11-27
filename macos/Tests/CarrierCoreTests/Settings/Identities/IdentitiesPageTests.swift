@@ -36,12 +36,14 @@ private func signs(_ row: IdentityRow) -> [String] { row.signsAs.map { $0.title(
     #expect(signs(try row("bot:acme-author", in: found)) == ["Author"])
     #expect(signs(try row("bot:acme-reviewer", in: found)) == ["Reviewer"])
     #expect(signs(try row("bot:acme-lead", in: found)) == ["Lead reviewer"])
-    #expect(try row("bot:acme-spare", in: found).signsAs.isEmpty && row("gh", in: found).signsAs.isEmpty)
+    // the extra reviewers sign too: the fixture's Usabilidad works as the person's own login, and Seguridad API as its own bot
+    #expect(try signs(row("bot:acme-seguridad-api", in: found)) == ["Seguridad API", "Rendimiento in acme/web"] && signs(row("gh", in: found)) == ["Usabilidad"])
+    #expect(try row("bot:acme-spare", in: found).signsAs.isEmpty)
 }
 
 @Test func theLeadReviewerSignsOnlyWhileTheFileHasOne() throws {
     let config = fixtureConfig.replacingOccurrences(of: #""leadReviewer": {"profile": "acme-lead", "provider": "claude", "model": "claude-opus-5"}"#, with: "\"x\": 1")
-    #expect(try page(config).rows.allSatisfy { $0.signsAs.allSatisfy { $0.role != .leadReviewer } })
+    #expect(try page(config).rows.allSatisfy { $0.signsAs.allSatisfy { $0.slot != .lead } })
 }
 
 @Test func aRepoOwnRoleSignsAsItsOwnIdentityAndIsListedWithTheRepo() throws {
@@ -50,7 +52,7 @@ private func signs(_ row: IdentityRow) -> [String] { row.signsAs.map { $0.title(
         .replacingOccurrences(of: #""acme-lead": {"kind": "forge", "agent": "acme-lead"}"#, with: #""acme-lead": {"kind": "forge", "agent": "acme-lead"}, "acme-spare": {"kind": "forge", "agent": "acme-spare"}"#)
     let found = try page(config)
     let spare = try row("bot:acme-spare", in: found)
-    #expect(signs(spare) == ["Reviewer in acme/api"] && spare.signsAs.first?.repo == "acme/api" && spare.signsAs.first?.role == .reviewer)
+    #expect(signs(spare) == ["Reviewer in acme/api"] && spare.signsAs.first?.repo == "acme/api" && spare.signsAs.first?.slot == .reviewer)
     // the global role is still the reviewer's identity everywhere else
     #expect(signs(try row("bot:acme-reviewer", in: found)) == ["Reviewer"])
 }
@@ -62,7 +64,9 @@ private func signs(_ row: IdentityRow) -> [String] { row.signsAs.map { $0.title(
 
 @Test func aProfileWhoseBotTheRegistryDoesNotHaveBelongsToNoIdentity() throws {
     let found = try page(fixtureConfig, bots: ForgeBots(names: ["acme-author"]))
-    #expect(found.rows.map(\.id) == ["bot:acme-author", "gh"] && found.rows.allSatisfy { $0.id == "bot:acme-author" || $0.signsAs.isEmpty })
+    #expect(found.rows.map(\.id) == ["bot:acme-author", "gh"] && found.rows.allSatisfy { $0.id == "bot:acme-author" || $0.id == "gh" || $0.signsAs.isEmpty })
+    // the extra reviewer whose bot is not there signs as nothing; Usabilidad, on the person's login, still does
+    #expect(signs(try row("gh", in: found)) == ["Usabilidad"])
 }
 
 @Test func theGoldenDoctorOutputSaysTheReviewerCannotMintATokenInAcmeApiOnlyAndItsRowSaysSo() throws {
@@ -85,11 +89,44 @@ private func signs(_ row: IdentityRow) -> [String] { row.signsAs.map { $0.title(
 
 @Test func anIdentityNoRoleUsesInARepoIsNotCheckedThereAndSaysNothingOnItsRow() throws {
     let found = try page(doctor: try goldenDoctor())
-    for key in ["bot:acme-spare", "gh"] {
+    for key in ["bot:acme-spare"] {
         let unused = try row(key, in: found)
         #expect(unused.standing == .unchecked && unused.repos.count == 3 && unused.repos.allSatisfy { $0.unused && $0.check.status == .waiting }, Comment(rawValue: key))
         #expect(unused.repos.first?.check.detail == "No role signs as it here, so it is not checked")
     }
+}
+
+@Test func anIdentityOnlyAnExtraReviewerUsesIsChecksInTheReposWhereThatReviewerRuns() throws {
+    // the engine's doctor makes one mint check for each identity a repo's roles use, the extra reviewers' too
+    let mint = { (repo: String, status: String, extra: String) in
+        #"{"name": "acme-seguridad-api can mint a token for \#(repo)", "status": "\#(status)", "repo": "\#(repo)", "profiles": ["acme-seguridad-api"]\#(extra)}"#
+    }
+    let output = "[" + [mint("acme/web", "fail", #", "detail": "no installation", "detailCode": "doctor.mintFailed""#), mint("acme/api", "ok", "")].joined(separator: ",") + "]"
+    let found = try page(doctor: doctorState(from: ProcessOutcome(exitCode: 1, stdout: output)))
+    let security = try row("bot:acme-seguridad-api", in: found)
+    // the global reviewer and the repo's own, each with the repo it belongs to and where its link opens
+    #expect(security.signsAs.map(\.slot) == [.extra(key: "seguridad-api"), .extra(key: "rendimiento")] && security.signsAs.map(\.repo) == [nil, "acme/web"])
+    #expect(security.signsAs.map { $0.name } == ["Seguridad API", "Rendimiento"] && signs(security) == ["Seguridad API", "Rendimiento in acme/web"])
+    #expect(security.signsAs.map(\.place) == [SettingsPlace(.roles, path: ["seguridad-api"]), SettingsPlace(.watching, path: ["acme/web"])])
+    #expect(security.signsAs.map(\.id) == ["seguridad-api", "acme/web/rendimiento"])
+    // acme/web runs Rendimiento (its own map), acme/api follows Roles and so runs Seguridad API, and the repo with `{}` runs no extra reviewer
+    #expect(security.repos.map { "\($0.id): \($0.check.status) \($0.unused)" } == [
+        "acme/web: fail false", "acme/api: ok false", "acme/a-really-long-repository-name-for-the-sidebar: waiting true",
+    ])
+    #expect(security.standing == .cannotSign(["acme/web"]))
+    // the person's own login signs as Usabilidad in the repo that follows Roles only
+    #expect(try row("gh", in: found).repos.map(\.unused) == [true, false, true])
+}
+
+@Test func aRepoOwnMapReplacesTheGlobalOneForWhoSignsWhereAndAnEmptyMapMeansNoExtraSigner() throws {
+    let config = #"{"profiles": {"me": {"kind": "gh"}, "bot": {"kind": "forge", "agent": "acme-spare"}}, "agents": {"author": {"profile": "me"}, "extraReviewers": {"uno": {"type": "t", "name": "Uno", "profile": "bot"}}}, "repos": [{"name": "a/b", "agents": {"extraReviewers": {"dos": {"type": "t", "name": "Dos", "profile": "bot"}, "tres": {"type": "t", "name": "Tres", "profile": "me"}}}}, {"name": "c/d", "agents": {"extraReviewers": {}}}, {"name": "e/f"}]}"#
+    let found = try page(config)
+    let spare = try row("bot:acme-spare", in: found)
+    #expect(spare.signsAs.map(\.id) == ["uno", "a/b/dos"] && spare.repos.map(\.unused) == [false, true, false])
+    // the name falls back to the key while the entry has none
+    #expect(IdentityRoleLink(slot: .extra(key: "uno")).title(bundle: english.bundle, locale: english.locale) == "uno")
+    #expect(IdentityRoleLink(slot: .extra(key: "uno"), name: "", repo: "a/b").title(bundle: english.bundle, locale: english.locale) == "uno in a/b")
+    #expect(IdentityRoleLink(slot: .reviewer, repo: "a/b").place == SettingsPlace(.watching, path: ["a/b", "reviewer"]) && IdentityRoleLink(slot: .lead).place == SettingsPlace(.roles, path: ["leadReviewer"]))
 }
 
 @Test func aRepoWhereTheIdentityWorksButTheDoctorHasNoCheckReadsAsWaitingNeverAsFailed() throws {

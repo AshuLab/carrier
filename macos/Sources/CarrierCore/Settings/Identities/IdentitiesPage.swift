@@ -1,7 +1,7 @@
 import Foundation
 
 // The Identities page of Settings (docs/macos/settings-carrier.md#identities): every GitHub profile a role can sign as (the bots of the Agent Forge
-// registry and the person's own gh login), the roles that sign as each one, globally and as a repo's own role, and the repos where it can mint a token,
+// registry and the person's own gh login), the roles that sign as each one (the extra reviewers too), globally and as a repo's own role, and the repos where it can mint a token,
 // from the doctor's checks as Watching reads them. This only reads; the page writes nothing, a role picks its identity on its own screen.
 
 extension RoleIdentity {
@@ -15,20 +15,33 @@ extension RoleIdentity {
     }
 }
 
-/// A role that signs as an identity: the global role (`repo` is nil) or the role a repo has of its own.
+/// A role that signs as an identity: the global role (`repo` is nil) or the role a repo has of its own. An extra reviewer is a role too, by its key, in the global map or in a repo's own.
 public struct IdentityRoleLink: Equatable, Identifiable, Sendable {
-    public var role: AgentRole
+    public var slot: RoleSlot
+    /// what an extra reviewer is called; nil for the fixed roles
+    public var name: String?
     public var repo: String?
-    public var id: String { repo.map { "\($0)/\(role.rawValue)" } ?? role.rawValue }
+    public var id: String { repo.map { "\($0)/\(slot.name)" } ?? slot.name }
 
-    /// `Reviewer`, or `Reviewer in acme/api` for a repo's own.
+    public init(slot: RoleSlot, name: String? = nil, repo: String? = nil) { (self.slot, self.name, self.repo) = (slot, name, repo) }
+
+    /// `Reviewer`, or `Reviewer in acme/api` for a repo's own; an extra reviewer by its name (its key while the entry has none).
     public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        let name = role.title(bundle: bundle, locale: locale)
+        let name = slot.agentRole?.title(bundle: bundle, locale: locale) ?? (self.name.flatMap { $0.isEmpty ? nil : $0 } ?? slot.name)
         return repo.map { Copy.identitiesRoleIn(role: name, repo: $0, bundle: bundle, locale: locale) } ?? name
     }
 
     public func detail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         repo == nil ? Copy.identitiesGlobalSetting(bundle: bundle, locale: locale) : Copy.identitiesRepoSetting(bundle: bundle, locale: locale)
+    }
+
+    /// Where the link opens: Roles' screen of the role, the repo's screen of a fixed role the repo has of its own, or the repo's screen for an entry of its own list of extra reviewers.
+    public var place: SettingsPlace {
+        switch (repo, slot.agentRole) {
+        case (nil, _): SettingsPlace(.roles, path: [slot.name])
+        case (let repo?, let role?): SettingsPlace(.watching, path: [repo, role.rawValue])
+        case (let repo?, nil): SettingsPlace(.watching, path: [repo])
+        }
     }
 }
 
@@ -120,21 +133,36 @@ public func identitiesPage(config: Data, bots: ForgeBots, doctor: DoctorState, b
         }
     }
 
+    /// The entries of a map of extra reviewers in the order of the file (`jsonKeys` reads it, since a dictionary has none).
+    func extras(_ map: [String: Any], at path: [String]) -> [(key: String, name: String, profile: String?)] {
+        (jsonKeys(in: config, at: path) ?? []).compactMap { key in
+            (map[key] as? [String: Any]).map { (key, $0["name"] as? String ?? "", $0["profile"] as? String) }
+        }
+    }
+    let globalExtras = (global["extraReviewers"] as? [String: Any]).map { extras($0, at: ["agents", "extraReviewers"]) } ?? []
+
     let identities: [(identity: RoleIdentity, bot: String?)] = bots.names.map { (.forge($0), $0) } + [(.gh, nil)]
     let rows = identities.map { entry -> IdentityRow in
         let identityKey = entry.identity.key
         let names = Set(profiles.keys.filter { key(of: $0) == identityKey })
         var links: [IdentityRoleLink] = []
         var used: Set<String> = []
-        for role in roles where key(of: roleFields(global[role.rawValue]).profile) == identityKey { links.append(IdentityRoleLink(role: role)) }
-        for repo in repos {
+        for role in roles where key(of: roleFields(global[role.rawValue]).profile) == identityKey { links.append(IdentityRoleLink(slot: RoleSlot(role))) }
+        for extra in globalExtras where key(of: extra.profile) == identityKey { links.append(IdentityRoleLink(slot: .extra(key: extra.key), name: extra.name)) }
+        for (position, repo) in repos.enumerated() {
             guard let name = repo["name"] as? String else { continue }
             let own = repo["agents"] as? [String: Any] ?? [:]
             for role in roles {
                 let profile = roleFields(own[role.rawValue]).profile ?? roleFields(global[role.rawValue]).profile
                 guard key(of: profile) == identityKey else { continue }
                 used.insert(name)
-                if roleFields(own[role.rawValue]).profile != nil { links.append(IdentityRoleLink(role: role, repo: name)) }
+                if roleFields(own[role.rawValue]).profile != nil { links.append(IdentityRoleLink(slot: RoleSlot(role), repo: name)) }
+            }
+            // a repo's own map replaces the global one whole, an empty one included
+            let ownMap = own["extraReviewers"] as? [String: Any]
+            for extra in ownMap.map({ extras($0, at: ["repos", String(position), "agents", "extraReviewers"]) }) ?? globalExtras where key(of: extra.profile) == identityKey {
+                used.insert(name)
+                if ownMap != nil { links.append(IdentityRoleLink(slot: .extra(key: extra.key), name: extra.name, repo: name)) }
             }
         }
         var checks: [DoctorCheck] = []

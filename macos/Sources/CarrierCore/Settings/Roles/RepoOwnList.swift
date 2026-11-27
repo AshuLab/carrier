@@ -44,28 +44,6 @@ extension RepoExtraReviewers {
     }
 }
 
-/// What the person has chosen for the reviewer they are adding to a repo's own list, while it is not in the file yet: nothing is sent until it has a name, a type, an identity, an account and a model.
-public struct RepoReviewerDraft: Equatable, Sendable {
-    public var name = ""
-    /// A slug that says what it looks at; `general` until the person writes another.
-    public var type = "general"
-    /// The name of one of the file's profiles.
-    public var profile: String?
-    public var provider: String?
-    public var model = ""
-    public var effort: String?
-
-    public init() {}
-
-    /// Which of the five things the entry needs are still to choose, in the screen's order.
-    public var missing: [NewExtraReviewer.Field] {
-        func empty(_ text: String) -> Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        return [empty(name) ? .name : nil, empty(type) ? .type : nil, profile == nil ? .identity : nil, provider == nil ? .account : nil, empty(model) ? .model : nil].compactMap { $0 }
-    }
-
-    public var isComplete: Bool { missing.isEmpty }
-}
-
 /// One field of an entry of an own list, as its screen changes it: the name, the type, the identity (the name of a profile of the file), the account with the model chosen on it, or the effort (nil takes it out).
 public enum RepoReviewerEdit: Equatable, Sendable {
     case name(String)
@@ -76,7 +54,18 @@ public enum RepoReviewerEdit: Equatable, Sendable {
 }
 
 extension RepoExtraReviewer {
-    fileprivate func applying(_ edit: RepoReviewerEdit) -> RepoExtraReviewer {
+    /// The reviewer being added to a repo's own list, while it is not in the file yet: no key (the list gives it one when it is added), a `general` type, and nothing else. It is an entry with its
+    /// fields empty, which is what a file's entry that lacks them reads as, so one type and one `applying` serve the entries and the draft.
+    public static var draft: RepoExtraReviewer { RepoExtraReviewer(key: "", type: "general", name: "", profile: "", provider: "", model: "") }
+
+    /// Which of the five things the entry needs are still to choose, in the screen's order.
+    public var missing: [NewExtraReviewer.Field] {
+        NewExtraReviewer.missing(name: name, type: type, hasIdentity: profile.isEmpty == false, hasAccount: provider.isEmpty == false, model: model)
+    }
+
+    public var isComplete: Bool { missing.isEmpty }
+
+    public func applying(_ edit: RepoReviewerEdit) -> RepoExtraReviewer {
         var next = self
         switch edit {
         case .name(let name): next.name = name
@@ -88,20 +77,6 @@ extension RepoExtraReviewer {
         case .effort(let effort): next.effort = effort
         }
         return next
-    }
-}
-
-extension RepoReviewerDraft {
-    public mutating func apply(_ edit: RepoReviewerEdit) {
-        switch edit {
-        case .name(let name): self.name = name
-        case .type(let type): self.type = type
-        case .profile(let profile): self.profile = profile
-        case .account(let provider, let model):
-            self.provider = provider
-            if let model { self.model = model }
-        case .effort(let effort): self.effort = effort
-        }
     }
 }
 
@@ -131,15 +106,16 @@ public struct RepoOwnList: Equatable, Sendable {
     public func removing(_ key: String) -> RepoOwnList { RepoOwnList(entries.filter { $0.key != key }) }
 
     /// The list with the draft at the end, under the key its name gives it; nil while the draft is not complete, its name is another's or there are three already.
-    public func adding(_ draft: RepoReviewerDraft) -> RepoOwnList? {
-        guard canAdd, draft.isComplete, nameTaken(draft.name) == false, let profile = draft.profile, let provider = draft.provider else { return nil }
-        let name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let key = extraReviewerKey(name, taken: Set(entries.map(\.key)))
-        return RepoOwnList(entries + [RepoExtraReviewer(key: key, type: draft.type, name: name, profile: profile, provider: provider, model: draft.model, effort: draft.effort)])
+    public func adding(_ draft: RepoExtraReviewer) -> RepoOwnList? {
+        guard canAdd, draft.isComplete, nameTaken(draft.name) == false else { return nil }
+        var entry = draft
+        entry.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        entry.key = extraReviewerKey(entry.name, taken: Set(entries.map(\.key)))
+        return RepoOwnList(entries + [entry])
     }
 
     /// Said on the screen while the draft is not saved: what it still needs, or that its name is another's.
-    public func hint(for draft: RepoReviewerDraft, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+    public func hint(for draft: RepoExtraReviewer, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
         if draft.missing.isEmpty == false { return NewExtraReviewer.hint(missing: draft.missing, bundle: bundle, locale: locale) }
         return nameTaken(draft.name) ? Copy.watchingOwnNameTaken(name: draft.name.trimmingCharacters(in: .whitespacesAndNewlines), bundle: bundle, locale: locale) : nil
     }

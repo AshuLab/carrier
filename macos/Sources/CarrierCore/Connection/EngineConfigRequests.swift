@@ -271,6 +271,21 @@ public typealias SendEngineConfig = (EngineConfigChange) async throws -> EngineC
         last = Task { _ = await mine.value }
         return await mine.value
     }
+
+    /// Like `save`, but the change is built when its turn comes, after the saves asked before it have reached the file: an edit that sends a whole value again (a repo's list of reviewers) starts from
+    /// what those left and does not overwrite them, however fast the edits were made. `build` answers nil when there is nothing to send, and then so does this.
+    public func save(
+        building build: @escaping @MainActor () -> EngineConfigChange?, send: @escaping SendEngineConfig, status: ReloadStatus? = nil
+    ) async -> RoleSave? {
+        let before = last
+        let mine = Task { () -> RoleSave? in
+            await before?.value
+            guard let change = build() else { return nil }
+            return await saveEngineConfig(change, send: send, status: status)
+        }
+        last = Task { _ = await mine.value }
+        return await mine.value
+    }
 }
 
 /// The calls that wait on the engine run here and not on a thread of the cooperative pool, which they would hold.

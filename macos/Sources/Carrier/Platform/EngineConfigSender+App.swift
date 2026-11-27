@@ -21,3 +21,8 @@ extension EngineConfigSender {
 @MainActor func saveToEngine(_ change: EngineConfigChange) async -> RoleSave {
     await roleEdits.save(change, send: EngineConfigSender.app.send)
 }
+
+/// Like `saveToEngine`, for a change that sends a whole value again: it is built when its turn in the queue comes, from the file as the saves before it left it. nil when `build` has nothing to send.
+@MainActor func saveToEngine(building build: @escaping @MainActor () -> EngineConfigChange?) async -> RoleSave? {
+    await roleEdits.save(building: build, send: EngineConfigSender.app.send)
+}

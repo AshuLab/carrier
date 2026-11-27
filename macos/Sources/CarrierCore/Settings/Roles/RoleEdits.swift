@@ -53,7 +53,7 @@ extension RoleSlot {
     }
 }
 
-/// What the Roles page offers for the extra reviewers. The engine announces `extraReviewers` when it has the requests that edit them; without it the fields are read only and there is no Add a reviewer.
+/// What the Roles page offers for the extra reviewers. The engine announces `extraReviewers` when it has the requests that edit them; without it the fields are read only and Add a reviewer is off, saying why.
 public struct ExtraReviewerOffer: Equatable, Sendable {
     /// The hello of the engine lists `extraReviewers`.
     public var canEdit: Bool
@@ -63,14 +63,12 @@ public struct ExtraReviewerOffer: Equatable, Sendable {
 
     public init(canEdit: Bool, page: RolesPage) { self.init(canEdit: canEdit, count: page.rows.filter { $0.slot.isExtra }.count) }
 
-    /// Add a reviewer is on the page only for an engine that can write it.
-    public var showsAdd: Bool { canEdit }
-
     /// It is on while fewer than three extra reviewers (four reviewers with the Reviewer) are in the file.
     public var canAdd: Bool { canEdit && count < RoleSlot.maxExtra }
 
-    /// Under Add a reviewer: how many more can run, or that four is the most.
+    /// Under Add a reviewer: why it is off (the engine that is running does not edit reviewers), how many more can run, or that four is the most.
     public func addDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
-        count < RoleSlot.maxExtra ? Copy.rolesAddReviewerCan(count: RoleSlot.maxExtra - count, bundle: bundle, locale: locale) : Copy.rolesAddReviewerFull(bundle: bundle, locale: locale)
+        if canEdit == false { return Copy.rolesAddReviewerReadOnly(bundle: bundle, locale: locale) }
+        return count < RoleSlot.maxExtra ? Copy.rolesAddReviewerCan(count: RoleSlot.maxExtra - count, bundle: bundle, locale: locale) : Copy.rolesAddReviewerFull(bundle: bundle, locale: locale)
     }
 }

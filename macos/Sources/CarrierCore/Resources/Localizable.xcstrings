@@ -3729,7 +3729,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abrir Revisor líder"
+            "value": "Abrir el revisor líder"
           }
         }
       }
@@ -47189,6 +47189,23 @@
         }
       }
     },
+    "rolesAddReviewerReadOnly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The engine that is running does not edit reviewers. Set agents.extraReviewers in engine.json."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El motor que está corriendo no edita revisores. Define agents.extraReviewers en engine.json."
+          }
+        }
+      }
+    },
     "rolesAllSet": {
       "extractionState": "manual",
       "localizations": {
@@ -47352,19 +47369,70 @@
         }
       }
     },
+    "rolesDraftAddButton": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir"
+          }
+        }
+      }
+    },
+    "rolesDraftAddDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Writes it to engine.json once it has everything it needs"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo escribe en engine.json cuando tiene todo lo que necesita"
+          }
+        }
+      }
+    },
+    "rolesDraftAddTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add this reviewer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir este revisor"
+          }
+        }
+      }
+    },
     "rolesDraftHint %@": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Not saved yet. It needs %1$@; nothing is written until it has them."
+            "value": "Not saved yet. It needs %1$@; nothing is written until it has them, and leaving this screen drops it."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sin guardar todavía. Necesita %1$@; no se escribe nada hasta que los tenga."
+            "value": "Sin guardar todavía. Necesita %1$@; no se escribe nada hasta que los tenga, y al salir de esta pantalla se descarta."
           }
         }
       }
@@ -47845,6 +47913,23 @@
         }
       }
     },
+    "rolesLeadSignsAsAuthor": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Lead reviewer works as the Author’s account: GitHub will not let an account approve its own pull request."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El revisor líder trabaja con la cuenta del autor: GitHub no deja que una cuenta apruebe su propio pull request."
+          }
+        }
+      }
+    },
     "rolesMissingProfile %@": {
       "extractionState": "manual",
       "localizations": {
@@ -48166,7 +48251,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ninguna"
+            "value": "Ninguno"
           }
         }
       }
@@ -48585,13 +48670,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Each reviewer is one more agent on every epic."
+            "value": "Each reviewer is one more agent on every epic. A repo can run other roles from Watching."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cada revisor es un agente más en cada epic."
+            "value": "Cada revisor es un agente más en cada epic. Un repositorio puede correr otros roles desde Vigilancia."
           }
         }
       }
@@ -49010,6 +49095,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "El autor y el revisor trabajan los dos como %1$@: la firma lo mostrará."
+          }
+        }
+      }
+    },
+    "rolesSharedWithDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These roles work as the same account"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estos roles trabajan con la misma cuenta"
+          }
+        }
+      }
+    },
+    "rolesSharedWithTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shared with"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartida con"
           }
         }
       }
@@ -73406,6 +73525,57 @@
         }
       }
     },
+    "watchingOwnDropAlert": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leave this repository’s own list?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Dejar la lista propia de este repositorio?"
+          }
+        }
+      }
+    },
+    "watchingOwnDropConfirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leave the list"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dejar la lista"
+          }
+        }
+      }
+    },
+    "watchingOwnDropMessage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Its reviewers are taken out of engine.json. Choosing Own list again starts from a copy of Roles."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sus revisores se quitan de engine.json. Si eliges Lista propia otra vez, empieza con una copia de Roles."
+          }
+        }
+      }
+    },
     "watchingOwnEmpty": {
       "extractionState": "manual",
       "localizations": {
@@ -73457,6 +73627,23 @@
         }
       }
     },
+    "watchingOwnRemoveAlert %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %1$@?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Quitar %1$@?"
+          }
+        }
+      }
+    },
     "watchingOwnRemoveButton": {
       "extractionState": "manual",
       "localizations": {
@@ -73480,13 +73667,30 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Takes it out of this repository's own list; the other reviewers stay as they are"
+            "value": "Takes it out of this repository’s own list; the other reviewers stay as they are"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Lo quita de la lista propia de este repositorio; los demás revisores quedan como estaban"
+          }
+        }
+      }
+    },
+    "watchingOwnRemoveLast": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It is the last one, so only the Reviewer will review here."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es el último, así que aquí solo revisará el Revisor."
           }
         }
       }

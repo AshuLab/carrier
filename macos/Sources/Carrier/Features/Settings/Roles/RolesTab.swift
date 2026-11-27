@@ -26,7 +26,11 @@ struct RolesTabView: View {
     @State var leadDraft = LeadReviewerDraft()
     /// Add a reviewer was chosen: what is chosen waits here, as the lead's does, until the reviewer has what the engine needs to write it whole. nil on any other screen.
     @State var newReviewer: NewExtraReviewer?
+    /// the reviewer being added is on its way to the engine: a second request cannot go out (Return and then leaving the field would send one each)
+    @State var addingReviewer = false
     @State var confirmingRemove = false
+    /// `load` has read the files once: until then the page has nothing to say, not even that the engine is not configured
+    @State private var loaded = false
     /// the icon of each account by the harness it runs
     @State var icons: [String: String] = [:]
     let catalog = ModelCatalog.shared
@@ -50,7 +54,7 @@ struct RolesTabView: View {
                     first(page)
                 }
                 ReloadNote(ReloadStatus.shared)
-            } else {
+            } else if loaded {
                 Label(Copy.engineConfigUnreadable(), icon: .warningFilled)
                     .scaledFont(12).foregroundStyle(.orange)
             }
@@ -98,6 +102,11 @@ struct RolesTabView: View {
         problems = [:]
         icons = accountIcons(providersJSON: providers)
         page = currentConfig().flatMap { rolesPage(config: $0, providers: providers, bots: forgeBots(registry: currentForgeRegistry())) }
+        loaded = true
+        // a role that is gone from the file (removed, or the file changed), or a draft that is gone, takes the window back to Roles instead of leaving a screen with no title
+        if let page, let name = place.path.first, name == RoleSlot.draftPlaceName ? newReviewer == nil : page.rows.contains(where: { $0.slot.name == name }) == false {
+            go(SettingsPlace(.roles))
+        }
     }
 
     /// Sends the change, then reads the file back so the page shows what is there, whether it was saved or refused.
@@ -131,19 +140,27 @@ struct RolesTabView: View {
         problems = result.problem.map { ["who": $0] } ?? [:]
     }
 
-    /// A choice for the reviewer being added: kept in the draft, and sent whole only when it has a name, a type, an identity, an account and a model. Once the engine has written it the person
-    /// is on its own screen; when the engine refuses it (a name another reviewer has) the draft stays, with the engine's words.
+    /// A choice for the reviewer being added: kept in the draft, and sent whole once it has everything. A change that arrives while the request is on its way is put back.
     func fillNew(_ change: (inout NewExtraReviewer) -> Void) async -> Bool {
+        if addingReviewer { return false }
         guard var next = newReviewer else { return true }
         change(&next)
         newReviewer = next
-        guard let request = next.request else { return true }
+        return await sendNew()
+    }
+
+    /// Sends the reviewer being added when it has a name, a type, an identity, an account and a model, and its name is not another reviewer's. Once the engine has written it the person is on its own
+    /// screen; when the engine refuses it the draft stays, with the engine's words.
+    func sendNew() async -> Bool {
+        guard addingReviewer == false, let page, let draft = newReviewer, let request = draft.request, draft.nameTaken(in: page) == false else { return true }
+        addingReviewer = true
+        defer { addingReviewer = false }
         let result = await saveToEngine(.addExtraReviewer(request))
         load()
         problems = result.problem.map { ["who": $0] } ?? [:]
         if result == .saved {
             // the engine gave it its key; its name is unique among the reviewers
-            let added = page?.rows.first { $0.name == request.name.trimmingCharacters(in: .whitespacesAndNewlines) }
+            let added = self.page?.rows.first { $0.name == request.name.trimmingCharacters(in: .whitespacesAndNewlines) }
             newReviewer = nil
             go(added.map { SettingsPlace(.roles, path: [$0.slot.name]) } ?? SettingsPlace(.roles))
         }
@@ -181,14 +198,12 @@ struct RolesTabView: View {
         let readiness = rolesReadiness(page)
         let offer = ExtraReviewerOffer(canEdit: canEditExtras, page: page)
         SettingsGroup(title: "") { RolesStatusCard(readiness: readiness, open: open) }
-        SettingsGroup(id: EpicRail.groupID, title: EpicRail.group, footer: page.rows.contains { $0.slot.isExtra } ? Copy.rolesRailFoot() : nil) {
+        SettingsGroup(id: EpicRail.groupID, title: EpicRail.group, footer: Copy.rolesRailFoot()) {
             EpicRail(page: page, readiness: readiness, icons: icons, open: open)
-            // only an engine that announces `extraReviewers` can write one
-            if offer.showsAdd {
-                SettingsTabRow(title: Copy.rolesAddReviewer(), detail: offer.addDetail()) {
-                    Button(action: add) { Label(Copy.rolesAddReviewer(), icon: .plus) }
-                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(offer.canAdd == false)
-                }
+            // an engine that does not announce `extraReviewers` cannot write one: the row says so instead of going missing
+            SettingsTabRow(title: Copy.rolesAddReviewer(), detail: offer.addDetail()) {
+                Button(action: add) { Label(Copy.rolesAddReviewer(), icon: .plus) }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(offer.canAdd == false)
             }
         }
     }
@@ -216,6 +231,8 @@ struct RolesTabView: View {
                     skills(row)
                     tokens(row, role: role, page: page)
                     if row.slot.isExtra { removal(row) }
+                } else if let newReviewer {
+                    draftActions(newReviewer, page: page)
                 }
             }
             // while the lead reviewer is off the rest of its page is shown, dimmed and not usable

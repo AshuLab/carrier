@@ -29,18 +29,33 @@ public struct NewExtraReviewer: Equatable, Sendable {
     /// The five things the entry needs before it is written; `account` is the provider.
     public enum Field: Equatable { case name, type, identity, account, model }
 
-    /// Which of them are still to choose, in the screen's order.
-    public var missing: [Field] {
+    /// Which of them are still to choose, in the screen's order. The one rule of what a reviewer needs, for this draft and for an entry of a repo's own list (`RepoExtraReviewer.missing`).
+    public static func missing(name: String, type: String, hasIdentity: Bool, hasAccount: Bool, model: String) -> [Field] {
         func empty(_ text: String) -> Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        return [empty(name) ? .name : nil, empty(type) ? .type : nil, identity == nil ? .identity : nil, provider == nil ? .account : nil, empty(model) ? .model : nil].compactMap { $0 }
+        return [empty(name) ? .name : nil, empty(type) ? .type : nil, hasIdentity ? nil : .identity, hasAccount ? nil : .account, empty(model) ? .model : nil].compactMap { $0 }
     }
 
+    /// Which of them are still to choose, in the screen's order.
+    public var missing: [Field] { Self.missing(name: name, type: type, hasIdentity: identity != nil, hasAccount: provider != nil, model: model) }
+
     public var isComplete: Bool { missing.isEmpty }
+
+    /// Another reviewer of `page` has this name, whatever its case (the engine's rule): it would be refused, so the app does not send it.
+    public func nameTaken(in page: RolesPage) -> Bool {
+        let wanted = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return wanted.isEmpty == false && page.rows.contains { $0.slot.isExtra && $0.slot != .draft && ($0.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == wanted }
+    }
 
     /// The whole entry for `addExtraReviewer`; nil while something is missing.
     public var request: ExtraReviewerDraft? {
         guard isComplete, let identity, let provider else { return nil }
         return ExtraReviewerDraft(name: name, type: type, identity: identity, provider: provider, model: model, effort: effort)
+    }
+
+    /// Said on the screen while the entry is not saved: what it still needs, or that its name is another reviewer's of `page`.
+    public func hint(in page: RolesPage, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
+        if missing.isEmpty == false { return Self.hint(missing: missing, bundle: bundle, locale: locale) }
+        return nameTaken(in: page) ? Copy.watchingOwnNameTaken(name: name.trimmingCharacters(in: .whitespacesAndNewlines), bundle: bundle, locale: locale) : nil
     }
 
     /// Said on the screen while the entry is not complete: it is not saved and nothing is written until it is.

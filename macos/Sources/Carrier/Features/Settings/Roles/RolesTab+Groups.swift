@@ -13,7 +13,7 @@ extension RolesTabView {
 
     /// Who signs and, for an extra reviewer, what it is called and what it looks at; then its model.
     func who(_ row: RoleRow, role: RoleSlot, page: RolesPage) -> some View {
-        SettingsGroup(id: "who", title: Copy.rolesGroupWho(), footer: newReviewer?.hint() ?? identityFooter(row, page: page)) {
+        SettingsGroup(id: "who", title: Copy.rolesGroupWho(), footer: newReviewer?.hint(in: page) ?? page.identityFooter(for: row)) {
             if row.slot.isExtra {
                 SettingsTabRow(title: Copy.rolesExtraNameTitle(), detail: Copy.rolesExtraNameDetail(), first: true) {
                     CommitField(label: Copy.rolesExtraNameTitle(), text: row.name ?? "", width: settingsSelectWidth, mono: false, prompt: Copy.rolesNewReviewer()) { await rename(role, to: $0) }
@@ -30,6 +30,7 @@ extension RolesTabView {
                     openIdentity(row)
                 }
             }
+            sharedWith(row, page: page)
             SettingsTabRow(id: "model", title: Copy.rolesModel(), detail: row.providerMissing ? Copy.rolesModelNotAccount() : Copy.rolesModelDetail()) {
                 ModelPickerButton(
                     provider: row.fields.provider, model: row.fields.model, effort: row.fields.effort,
@@ -130,6 +131,21 @@ extension RolesTabView {
         }
     }
 
+    /// Add and Discard, the last rows of the reviewer being added: it is added by itself once it has everything, so Add is for sending it again as it stands (when the engine refused it, no field has
+    /// to change first), and Discard drops it.
+    func draftActions(_ draft: NewExtraReviewer, page: RolesPage) -> some View {
+        SettingsGroup(title: "") {
+            SettingsTabRow(title: Copy.rolesDraftAddTitle(), detail: Copy.rolesDraftAddDetail(), first: true) {
+                Button { Task { _ = await sendNew() } } label: { Label(Copy.rolesDraftAddButton(), icon: .plus) }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(draft.isComplete == false || draft.nameTaken(in: page) || addingReviewer)
+            }
+            SettingsTabRow(title: Copy.watchingOwnDiscard(), detail: Copy.watchingOwnDiscardDetail()) {
+                Button { newReviewer = nil; go(SettingsPlace(.roles)) } label: { Text(Copy.watchingOwnDiscard()) }
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+            }
+        }
+    }
+
     /// Remove <name>, the last row of an extra reviewer's screen: it asks first (the alert of `RolesTabView`), says running epics keep it, and takes out the entry and nothing else.
     func removal(_ row: RoleRow) -> some View {
         SettingsGroup(title: "") {
@@ -141,12 +157,19 @@ extension RolesTabView {
         }
     }
 
-    /// What is said under Identity where the person chooses it, not only on the first screen: that Author and Reviewer sign as one account, and why the
-    /// list of bots is empty (no registry, or one that does not read).
-    private func identityFooter(_ row: RoleRow, page: RolesPage) -> String? {
-        let shared = row.slot == .lead || row.slot.isExtra ? nil : page.sharedNote
-        let lines = [shared, page.bots.note].compactMap { $0 }
-        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    /// The other roles that work as the same account as this one, each a link to its screen.
+    @ViewBuilder private func sharedWith(_ row: RoleRow, page: RolesPage) -> some View {
+        let others = page.sharing(with: row)
+        if others.isEmpty == false {
+            SettingsTabRow(title: Copy.rolesSharedWithTitle(), detail: Copy.rolesSharedWithDetail()) {
+                FlowLayout(spacing: Tokens.Space.s4) {
+                    ForEach(others) { other in
+                        Button(other.title()) { open(other.slot) }.buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small)
+                    }
+                }
+                .frame(maxWidth: 280, alignment: .trailing)
+            }
+        }
     }
 
     private func blankIsNil(_ text: String) -> String? {

@@ -47094,6 +47094,101 @@
         }
       }
     },
+    "rolesAddReviewer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a reviewer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Añadir un revisor"
+          }
+        }
+      }
+    },
+    "rolesAddReviewerCan %lld": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg more reviewer can run"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg more reviewers can run"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@count@"
+          },
+          "substitutions": {
+            "count": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "Puede correr %arg revisor más"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "Pueden correr %arg revisores más"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "rolesAddReviewerFull": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Four reviewers is the most"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuatro revisores es el máximo"
+          }
+        }
+      }
+    },
     "rolesAllSet": {
       "extractionState": "manual",
       "localizations": {
@@ -47257,6 +47352,108 @@
         }
       }
     },
+    "rolesDraftHint %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not saved yet. It needs %1$@; nothing is written until it has them."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin guardar todavía. Necesita %1$@; no se escribe nada hasta que los tenga."
+          }
+        }
+      }
+    },
+    "rolesDraftNeeds.account": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "an account"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "una cuenta"
+          }
+        }
+      }
+    },
+    "rolesDraftNeeds.identity": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "an identity"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "una identidad"
+          }
+        }
+      }
+    },
+    "rolesDraftNeeds.model": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a model"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "un modelo"
+          }
+        }
+      }
+    },
+    "rolesDraftNeeds.name": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a name"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "un nombre"
+          }
+        }
+      }
+    },
+    "rolesDraftNeeds.type": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a type"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "un tipo"
+          }
+        }
+      }
+    },
     "rolesEachHas": {
       "extractionState": "manual",
       "localizations": {
@@ -47274,19 +47471,53 @@
         }
       }
     },
+    "rolesExtraNameDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What Carrier calls it, one line up to 40 characters"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cómo lo llama Carrier, una línea de hasta 40 caracteres"
+          }
+        }
+      }
+    },
+    "rolesExtraNameTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombre"
+          }
+        }
+      }
+    },
     "rolesExtraReadOnly": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "An extra reviewer is shown here and cannot be changed yet. It is set in agents.extraReviewers of engine.json."
+            "value": "An extra reviewer is shown here and cannot be changed: the engine that is running does not edit them. It is set in agents.extraReviewers of engine.json."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un revisor extra se muestra aquí y todavía no se puede cambiar. Se define en agents.extraReviewers de engine.json."
+            "value": "Un revisor extra se muestra aquí y no se puede cambiar: el motor que está corriendo no los edita. Se define en agents.extraReviewers de engine.json."
           }
         }
       }
@@ -47304,6 +47535,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tipo: %1$@"
+          }
+        }
+      }
+    },
+    "rolesExtraTypeDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What it looks at: a lowercase word like general, ux or security"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué revisa: una palabra en minúsculas como general, ux o security"
+          }
+        }
+      }
+    },
+    "rolesExtraTypeTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tipo"
           }
         }
       }
@@ -47787,6 +48052,23 @@
         }
       }
     },
+    "rolesNewReviewer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New reviewer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nuevo revisor"
+          }
+        }
+      }
+    },
     "rolesNoIdentity": {
       "extractionState": "manual",
       "localizations": {
@@ -47902,6 +48184,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "No está en Agent Forge"
+          }
+        }
+      }
+    },
+    "rolesNotSavedYet": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not saved yet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin guardar todavía"
           }
         }
       }
@@ -48439,6 +48738,125 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudo leer el registro de Agent Forge, así que solo se ofrece tu sesión de gh."
+          }
+        }
+      }
+    },
+    "rolesRemoveAlert %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %1$@?"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Quitar %1$@?"
+          }
+        }
+      }
+    },
+    "rolesRemoveButton": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove…"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar…"
+          }
+        }
+      }
+    },
+    "rolesRemoveCancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelar"
+          }
+        }
+      }
+    },
+    "rolesRemoveConfirm": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar"
+          }
+        }
+      }
+    },
+    "rolesRemoveDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Takes it out of engine.json; the identity it used stays"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo quita de engine.json; la identidad que usaba se queda"
+          }
+        }
+      }
+    },
+    "rolesRemoveMessage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Epics that are running keep it until they finish. The other reviewers stay as they are."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los epics en marcha lo conservan hasta que terminen. Los demás revisores quedan como estaban."
+          }
+        }
+      }
+    },
+    "rolesRemoveTitle %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove %1$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar %1$@"
           }
         }
       }

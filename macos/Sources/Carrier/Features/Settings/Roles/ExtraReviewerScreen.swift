@@ -2,7 +2,8 @@ import CarrierCore
 import CarrierUI
 import SwiftUI
 
-/// An extra reviewer's screen (`agents.extraReviewers`), read only: the engine has no request that writes one yet, so every field is shown as a value.
+/// An extra reviewer's screen (`agents.extraReviewers`), read only: the engine that is running does not announce `extraReviewers` (the requests that write one), so every field is shown as a value.
+/// With the capability the Roles page draws it as it draws the Reviewer's, editable (`RolesTab+Groups.swift`).
 /// It is the Reviewer's screen with its three differences: the failover steps and the skills say "Same as Reviewer" when the entry has none of its own.
 struct ExtraReviewerScreen: View {
     let row: RoleRow

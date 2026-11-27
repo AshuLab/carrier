@@ -163,11 +163,13 @@ public struct RoleRow: Equatable, Identifiable {
     /// the Lead reviewer while the file has no `agents.leadReviewer`: its page is shown dimmed and not usable
     public var off: Bool
     /// The page shows this row with what the person is choosing for a Lead reviewer they are turning on (`LeadReviewerDraft.shown`): `off` stays, since
-    /// the switch still has to say the file has no role, but it is drawn and worded as a role that is on.
+    /// the switch still has to say the file has no role, but it is drawn and worded as a role that is on. Also the reviewer being added (`NewExtraReviewer.row`): not saved yet.
     public var drafting = false
     public var id: String { slot.name }
-    /// The role's name, or the name the person gave an extra reviewer (its key while the entry has none).
-    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String { name ?? slot.agentRole?.title(bundle: bundle, locale: locale) ?? slot.name }
+    /// The role's name, or the name the person gave an extra reviewer (its key while the entry has none, "New reviewer" for the one being added).
+    public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        name ?? slot.agentRole?.title(bundle: bundle, locale: locale) ?? (slot == .draft ? Copy.rolesNewReviewer(bundle: bundle, locale: locale) : slot.name)
+    }
     /// the Lead reviewer has the switch row on top
     public var hasSwitch: Bool { slot == .lead }
 

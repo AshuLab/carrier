@@ -13,6 +13,8 @@ let settingsColumnWidth: CGFloat = 760
 struct SettingsPages: View {
     let state: ConnectionState?
     let canReload: Bool
+    /// The engine's hello lists `extraReviewers`.
+    var canEditExtraReviewers = false
     var sessions: [SessionRow] = []
     let navigator: SettingsNavigator
     /// The place the search chose: scrolled to and shown for a moment, once the page is drawn.
@@ -103,7 +105,7 @@ struct SettingsPages: View {
         case .engine: EngineTabView(setup: setup)
         case .behavior: BehaviorTabView(go: navigator.go)
         case .watching: WatchingTabView(place: navigator.place, go: navigator.go, state: state, canReload: canReload, openRoles: { navigator.go(.roles) })
-        case .roles: RolesTabView(place: navigator.place, go: navigator.go)
+        case .roles: RolesTabView(place: navigator.place, go: navigator.go, canEditExtras: canEditExtraReviewers)
         case .identities: IdentitiesTabView(place: navigator.place, go: navigator.go)
         case .sessions: SessionsTabView()
         case .projects: ProjectsTabView(place: navigator.place, go: navigator.go, sessions: sessions, state: state, canReload: canReload)

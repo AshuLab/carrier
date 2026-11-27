@@ -380,6 +380,89 @@ private struct ScratchEngine {
     #expect(try Data(contentsOf: URL(fileURLWithPath: engine.file)) == before)
 }
 
+@Test func theFixtureEngineAddsAnExtraReviewerWholeUnderTheKeyItsNameGivesAndRefusesWhatTheEngineRefuses() async throws {
+    let engine = try ScratchEngine()
+    defer { engine.server.stop() }
+    func extras() throws -> [String: Any] { try #require((engine.written()["agents"] as? [String: Any])?["extraReviewers"] as? [String: Any]) }
+    func draft(_ name: String, type: String = "ux", model: String = "gpt-5") -> ExtraReviewerDraft { ExtraReviewerDraft(name: name, type: type, identity: .gh, provider: "codex", model: model) }
+    // refused with the engine's words and the file left as it was: a field left out, a type that is no slug, a bot or an account the engine does not know, a name another has whatever its case
+    let before = try Data(contentsOf: URL(fileURLWithPath: engine.file))
+    for (request, words) in [
+        (draft("  "), "An extra reviewer needs name."),
+        (draft("Docs", model: "  "), "An extra reviewer needs model."),
+        (draft("Docs", type: "Not a slug"), "The type is a slug of up to 40 characters: it starts with a letter and holds lowercase letters, digits and hyphens."),
+        (ExtraReviewerDraft(name: "Docs", type: "ux", identity: .bot("ghost"), provider: "codex", model: "m"), "“ghost” is not in Agent Forge’s list. Pick another one."),
+        (ExtraReviewerDraft(name: "Docs", type: "ux", identity: .gh, provider: "nope", model: "m"), "Provider “nope” is not an account of providers.json. Pick another one."),
+        (draft(" seguridad API "), "“seguridad API” is already another reviewer’s name. Pick another one."),
+    ] {
+        let refusal = try await engine.refusal(.addExtraReviewer(request))
+        #expect(refusal.code == "config.problem" && refusal.text == words, Comment(rawValue: words))
+    }
+    #expect(try Data(contentsOf: URL(fileURLWithPath: engine.file)) == before)
+    // the key comes from the name, and the entry is whole
+    #expect(try await engine.sender.send(.addExtraReviewer(ExtraReviewerDraft(name: " Accesibilidad móvil ", type: "ux", identity: .bot("acme-spare"), provider: "codex", model: " gpt-5 ", effort: "low"))).outcome == .applied)
+    #expect(try extras().keys.sorted() == ["accesibilidad-movil", "seguridad-api", "usabilidad"])
+    #expect(try extras()["accesibilidad-movil"] as? NSDictionary == ["type": "ux", "name": "Accesibilidad móvil", "profile": "acme-spare", "provider": "codex", "model": "gpt-5", "effort": "low"] as NSDictionary)
+    #expect(try (engine.written()["profiles"] as? [String: Any])?["acme-spare"] != nil)
+    #expect(try await engine.refusal(.addExtraReviewer(draft("Docs"))).text == "At most 3 extra reviewers: remove one first.")
+}
+
+@Test func theFixtureEngineEditsAnExtraReviewerByItsKeyAndTheKeyStaysWhenTheNameChanges() async throws {
+    let engine = try ScratchEngine()
+    defer { engine.server.stop() }
+    func extra(_ key: String) throws -> [String: Any] { try #require(((engine.written()["agents"] as? [String: Any])?["extraReviewers"] as? [String: Any])?[key] as? [String: Any]) }
+    let key = "seguridad-api"
+    #expect(try await engine.sender.send(.extraReviewerRole(key: key, name: "Seguridad del front", type: "security-web", [.provider("codex"), .model(" gpt-5 "), .effort(nil)])).outcome == .applied)
+    // it now runs on the provider and model its own step names: the step goes, and the list with it; the key is the one it had
+    #expect(try extra(key) as NSDictionary == ["type": "security-web", "name": "Seguridad del front", "profile": "acme-seguridad-api", "provider": "codex", "model": "gpt-5"] as NSDictionary)
+    #expect(try extra("usabilidad")["name"] as? String == "Usabilidad")
+    #expect(try await engine.sender.send(.extraReviewerPersona(key: key, name: "Ada", prompt: "Be brief.")).outcome == .applied)
+    #expect(try extra(key)["persona"] as? NSDictionary == ["name": "Ada", "prompt": "Be brief."] as NSDictionary)
+    #expect(try await engine.sender.send(.extraReviewerPersona(key: key, name: nil, prompt: nil)).outcome == .applied)
+    #expect(try extra(key)["persona"] == nil)
+    #expect(try await engine.sender.send(.extraReviewerFailover(key: key, first: FailoverStep(provider: "claude-work", model: "claude-sonnet-5-5"), second: FailoverStep(provider: "codex"))).outcome == .applied)
+    #expect(try extra(key)["failover"] as? [NSDictionary] == [["provider": "claude-work", "model": "claude-sonnet-5-5"], ["provider": "codex"]])
+    // Same as Reviewer again: the reviewer's own list goes
+    #expect(try await engine.sender.send(.extraReviewerFailover(key: key, first: nil, second: nil)).outcome == .applied)
+    #expect(try extra(key)["failover"] == nil)
+
+    let before = try Data(contentsOf: URL(fileURLWithPath: engine.file))
+    for (change, words) in [
+        (EngineConfigChange.extraReviewerRole(key: key, name: " usabilidad ", type: nil, []), "“usabilidad” is already another reviewer’s name. Pick another one."),
+        (.extraReviewerRole(key: key, name: " ", type: nil, []), "The name cannot be empty."),
+        (.extraReviewerRole(key: key, name: String(repeating: "x", count: 41), type: nil, []), "The name is one line of up to 40 characters."),
+        (.extraReviewerRole(key: key, name: nil, type: "Security", []), "The type is a slug of up to 40 characters: it starts with a letter and holds lowercase letters, digits and hyphens."),
+        (.extraReviewerRole(key: key, name: nil, type: nil, [.model("  ")]), "The model cannot be empty."),
+        (.extraReviewerRole(key: key, name: nil, type: nil, [.provider("nope")]), "Provider “nope” is not an account of providers.json. Pick another one."),
+        (.extraReviewerRole(key: "ghost", name: nil, type: nil, []), "There is no extra reviewer “ghost” in engine.json."),
+        (.extraReviewerPersona(key: key, name: String(repeating: "x", count: 41), prompt: nil), "The persona’s name is one line of up to 40 characters."),
+        (.extraReviewerPersona(key: "ghost", name: "Ada", prompt: nil), "There is no extra reviewer “ghost” in engine.json."),
+        (.extraReviewerFailover(key: key, first: nil, second: FailoverStep(provider: "codex")), "Then needs a First step."),
+        (.extraReviewerFailover(key: key, first: FailoverStep(provider: "codex", model: "gpt-5"), second: nil), "First is the reviewer’s own provider and model, so it would move nowhere."),
+        (.extraReviewerFailover(key: "ghost", first: FailoverStep(provider: "codex"), second: nil), "There is no extra reviewer “ghost” in engine.json."),
+    ] {
+        let refusal = try await engine.refusal(change)
+        #expect(refusal.code == "config.problem" && refusal.text == words, Comment(rawValue: words))
+    }
+    #expect(try Data(contentsOf: URL(fileURLWithPath: engine.file)) == before)
+}
+
+@Test func theFixtureEngineRemovesAnExtraReviewerAndNothingElse() async throws {
+    let engine = try ScratchEngine()
+    defer { engine.server.stop() }
+    func agents() throws -> [String: Any] { try #require(engine.written()["agents"] as? [String: Any]) }
+    func extras() throws -> [String: Any]? { try agents()["extraReviewers"] as? [String: Any] }
+    let others = try (extras()?["usabilidad"] as? NSDictionary, agents()["author"] as? NSDictionary, agents()["leadReviewer"] as? NSDictionary, engine.written()["profiles"] as? NSDictionary, engine.written()["failover"] as? NSDictionary)
+    #expect(try await engine.sender.send(.removeExtraReviewer(key: "seguridad-api")).outcome == .applied)
+    #expect(try extras()?.keys.sorted() == ["usabilidad"])
+    #expect(try (extras()?["usabilidad"] as? NSDictionary) == others.0 && agents()["author"] as? NSDictionary == others.1 && agents()["leadReviewer"] as? NSDictionary == others.2)
+    // the profile it used stays, and the map goes with the last reviewer
+    #expect(try engine.written()["profiles"] as? NSDictionary == others.3 && engine.written()["failover"] as? NSDictionary == others.4)
+    #expect(try await engine.sender.send(.removeExtraReviewer(key: "usabilidad")).outcome == .applied)
+    #expect(try agents()["extraReviewers"] == nil && agents()["reviewer"] != nil)
+    #expect(try await engine.refusal(.removeExtraReviewer(key: "usabilidad")).text == "There is no extra reviewer “usabilidad” in engine.json.")
+}
+
 @Test func theFixtureEngineTurnsTheLeadReviewerOffAndOnOnlyWithAWholeDraft() async throws {
     let engine = try ScratchEngine()
     defer { engine.server.stop() }

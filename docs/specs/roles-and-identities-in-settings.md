@@ -22,14 +22,14 @@ We know it is solved when every role that runs on an epic is on screen, globally
 
 Agents becomes **Roles**, and **Identities** is a page of its own; the Carrier group of Settings is Roles, Identities, Watching and Behavior.
 Providers stays where it is, in the App group, because the chat host reads its accounts too; a role's model is still picked from its accounts.
-A role holds everything it runs with, and `engine.json` keeps its shape: each role inline, as today, plus the list of extra reviewers ([0056](../adr/app/0056-settings-splits-roles-from-identities-and-a-role-holds-everything-it-runs-with.md)).
+A role holds everything it runs with, and `engine.json` keeps its shape: each role inline, as today, plus the list of extra reviewers ([0058](../adr/app/0058-settings-splits-roles-from-identities-and-a-role-holds-everything-it-runs-with.md)).
 The navigable prototype is [roles-and-identities-prototype.html](../research/macos-app-design/explorations/roles-and-identities-prototype.html); the three ways of placing the model that were compared are in [roles-and-identities-options.html](../research/macos-app-design/explorations/roles-and-identities-options.html).
 
 ### The roles
 
-The roles are the Author, the Reviewer, Reviewer 2 to Reviewer 4 (`agents.extraReviewers`, in their order) and the Lead reviewer.
+The roles are the Author, the Reviewer, each extra reviewer (`agents.extraReviewers`, up to three, each with the name the person gave it, in the order of the map) and the Lead reviewer.
 Each holds its identity (a profile of `profiles`), its account and model, its effort, its persona, its failover steps and its skills.
-The page reads them from `engine.json`, `providers.json` and the Agent Forge registry as the Agents page does today (`agentsPage`), with a row for each extra reviewer in the order of the list.
+The page reads them from `engine.json`, `providers.json` and the Agent Forge registry as the Agents page does today (`agentsPage`), with a row for each extra reviewer in the order of the map, titled by its name.
 
 ### The Roles page
 
@@ -53,13 +53,14 @@ Skills are read only, as today, spelled as the role's harness is told to run the
 An extra reviewer's screen is the Reviewer's with three differences.
 When it runs out of tokens says "Same as Reviewer" and shows the Reviewer's steps while it has none of its own, which is the engine's rule; choosing a step gives it its own, and choosing Same as Reviewer again removes them.
 Its skills say "Same as Reviewer", read only.
-It ends with Remove Reviewer N, which asks first, says running epics keep it, removes the entry and moves the reviewers after it up one; the window goes back to Roles.
+Its name and its type are on its screen and can be changed: the name is the screen's title, and the type is a label (`general`, `ux`, `security` or any slug).
+It ends with Remove <name>, which asks first, says running epics keep it, and removes the entry and nothing else; the window goes back to Roles.
 
 The lead keeps its switch, Use a lead reviewer, and its draft as today (`LeadReviewerSwitch`).
 Its skills are the review skills by default, shown as Lead review and Post and approve, read only, and the sentence that it has no stage goes.
 Its failover says "Same as Reviewer" while `failover.roles.leadReviewer` is empty, as the engine reads it.
 
-Add a reviewer opens the new reviewer's screen as a draft kept in the page, which says it is not saved yet: it is written whole, in one request, once it has an identity, an account and a model, as the lead is today, so the file never holds half a reviewer.
+Add a reviewer opens the new reviewer's screen as a draft kept in the page, which says it is not saved yet: it is written whole, in one request, once it has a name, a type, an identity, an account and a model, as the lead is today, so the file never holds half a reviewer; the name must differ from the other reviewers' and the type starts on `general`.
 Leaving the draft before that drops it.
 
 ### The Identities page
@@ -74,7 +75,7 @@ The page writes nothing: a role picks its identity on its own screen, and pickin
 
 A repo's screen keeps the Author and the Reviewer, each overridden field by field as today, with Same as everywhere or Own.
 Below them, More reviewers here is one choice, because the engine replaces the global list with a repo's whole: Same as everywhere (no key; the list of Roles runs there), Own list (starts as a copy of the list of Roles) or None (`[]`, only the Reviewer reviews there).
-With Own list each entry sets its identity, its model and its effort and can be removed, and Add a reviewer adds one while there are fewer than three; its persona, failover steps and skills come from the Reviewer.
+With Own list each entry sets its name, its type, its identity, its model and its effort and can be removed, and Add a reviewer adds one while there are fewer than three; its persona, failover steps and skills come from the Reviewer.
 The lead has its row, opening its repo role screen as today, and says Off when it is off in Roles.
 The list of repos says which have roles of their own, an own list or no extra reviewers.
 
@@ -96,16 +97,16 @@ A window that remembered the Agents page opens on General, as `SettingsPage(stor
 
 Every change is written by the engine through a request ([0053](../adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)), one at a time through `EngineConfigQueue`.
 The Author, the Reviewer and the lead keep the requests they use today (`editRole`, `editPersona`, `editFailover`, `setLeadReviewer`, `editRepoRole`), and Lead rounds goes through `editBehavior`.
-Adding, changing and removing an extra reviewer, and setting a repo's list, use the requests that the engine work on extra reviewers adds; this epic builds against their golden fixtures and does not define them.
+Adding, changing and removing an extra reviewer, and setting a repo's list, use the requests the engine has since the epic "Extra reviewers with a name, edited through the engine" (`addExtraReviewer`, `editRole`, `editPersona` and `editFailover` pointing at a reviewer by its key, `removeExtraReviewer` and `setRepoExtraReviewers`), which the app's model layer already encodes as their golden fixtures say; the engine announces them with the capability `extraReviewers`, and an engine without it leaves these fields read only.
 
 ## Scope
 
 1. As the person, Settings' Carrier group lists Roles, Identities, Watching and Behavior, and every place that said Agents says Roles.
 2. As the person with extra reviewers in `engine.json`, Roles shows each of them on the rail, in parallel with the Reviewer and in their order, with its model and identity.
 3. As the person, I open any role, an extra reviewer or the lead included, and see who signs, its model and effort, its persona, its failover steps (or Same as Reviewer) and its skills.
-4. As the person, I add a reviewer from Roles, choose its identity and model, and it is saved whole once both are set; until then it says it is not saved, and nothing is written.
-5. As the person, I change an extra reviewer's identity, model, effort, persona and failover steps, each saved as it changes.
-6. As the person, I remove an extra reviewer, after a confirmation, and the ones after it move up one.
+4. As the person, I add a reviewer from Roles, give it a name, choose its type, identity and model, and it is saved whole once all of them are set; until then it says it is not saved, and nothing is written.
+5. As the person, I change an extra reviewer's name, type, identity, model, effort, persona and failover steps, each saved as it changes.
+6. As the person, I remove an extra reviewer, after a confirmation, and nothing else in the file changes.
 7. As the person, Roles' status card names any role, extra reviewer or lead, that lacks an identity, an account or a model.
 8. As the person, a lead that is on shows its skills, read only, and the page no longer says it has no stage.
 9. As the person, Identities lists each bot and my login with the roles that sign as it and whether it can sign in each watched repo, and an identity's screen links to each of those roles.
@@ -115,27 +116,27 @@ Adding, changing and removing an extra reviewer, and setting a repo's list, use 
 
 ## Decisions
 
-The split and the inline shape of the roles are [0056](../adr/app/0056-settings-splits-roles-from-identities-and-a-role-holds-everything-it-runs-with.md); writing through the owner process is [0053](../adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md).
+The split and the inline shape of the roles are [0058](../adr/app/0058-settings-splits-roles-from-identities-and-a-role-holds-everything-it-runs-with.md); writing through the owner process is [0053](../adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md).
 
-A role is named in the app by its slot, as the engine names it ([0048](../adr/review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md)): `author`, `reviewer`, `reviewer-2` to `reviewer-4`, `lead`.
+A role is named in the app as the engine names it ([0057](../adr/review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md)): `author`, `reviewer`, `lead`, and an extra reviewer by its key. The app shows an extra reviewer by its name.
 The page's model gains the extra reviewers as rows, so the role becomes a slot rather than one of three fixed cases:
 
 ```swift
 public enum RoleSlot: Hashable, Sendable {
     case author, reviewer, lead
-    case extra(Int)   // 2...4, the position in agents.extraReviewers plus 2
+    case extra(key: String)   // a key of agents.extraReviewers, never one of the other three names
 }
 ```
 
-The settings place of a role is its slot's name (`SettingsPlace(.roles, path: ["reviewer-3"])`); a place whose reviewer no longer exists (removed, or the file changed) goes back to Roles.
+The settings place of a role is its slot's name, and an extra reviewer's is its key (`SettingsPlace(.roles, path: ["seguridad-api"])`); a place whose reviewer no longer exists (removed, or the file changed) goes back to Roles.
 
 A draft reviewer lives in the page, as `LeadReviewerDraft` does, and is sent in one request only once identity, account and model are set; the check of a complete draft is shared with the lead's.
 
 Testing seams, per story:
 
 - 1: `SettingsPageTests` (the group's pages and their order), `SettingsIndexTests` and `SettingsIndexDriftTests` (the search finds Roles and Identities, and every row's place), and `pnpm design:check` for the copy keys.
-- 2, 3, 7, 8: the page's model, `agentsPage` renamed, in its tests and `AgentsReadinessTests` renamed: a config with extra reviewers and a lead gives the rows in order, the failover and skills that say Same as Reviewer, and the status card's problems. The lead's skills come from the contract fixture as the Author's and Reviewer's do. Views have no test, as today.
-- 4, 5, 6: `EngineConfigRequestsTests` against the golden fixtures of the engine's extra-reviewer requests (`ContractTests` checks that each request the app builds is encoded as its golden says), and a test of the draft (complete only with identity, account and model) beside `LeadReviewerSwitchTests`.
+- 2, 3, 7, 8: the page's model, `agentsPage` renamed, in its tests and `AgentsReadinessTests` renamed: a config whose `extraReviewers` is a map and has a lead gives the rows in the order of the map, titled by name and addressed by key, the failover and skills that say Same as Reviewer, and the status card's problems; a config whose `extraReviewers` is a list gives no row, as the engine refuses it. The lead's skills come from the contract fixture as the Author's and Reviewer's do. Views have no test, as today.
+- 4, 5, 6: a test of the draft (complete only with name, type, identity, account and model, and refused with a name another reviewer has) beside `LeadReviewerSwitchTests`; the page model's tests for the change each edit sends; and `FixtureServerTests`, because the fixture engine answers the extra-reviewer requests as the engine does. The encodings are already tested against the engine's goldens (`EngineConfigRequestsTests`, `ContractTests`).
 - 9, 10: a function from the page's model and the doctor's checks to the identities (roles that sign as each, globally and per repo, and the repos where each can sign), tested in `CarrierCoreTests/Settings` with the doctor fixture.
 - 11: `RepoRolesTests`: the three states of a repo's list (no key, an own list, `[]`) read from the config, and the requests for each from the engine's goldens.
 - 12: `src/config/engine-edit.test.ts` (`editBehavior` takes, refuses and drops at its default `limits.maxLeadRounds`), the golden of `engine-edit-behavior`, and `BehaviorPageTests`.

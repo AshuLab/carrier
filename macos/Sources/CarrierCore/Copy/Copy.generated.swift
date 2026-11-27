@@ -3418,6 +3418,42 @@ public enum Copy {
         String(localized: "chatSubagentsListSpoken", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func chatLaunchRunning(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchRunning", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchFinishedNow(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchFinishedNow \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchFinishedAgo(count: Int, ago: String, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchFinishedAgo \(count) \(ago)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeMinutes(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeMinutes \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeHours(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeHours \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeDays(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeDays \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeMinutesSpoken(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeMinutesSpoken \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeHoursSpoken(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeHoursSpoken \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func chatLaunchAgeDaysSpoken(count: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "chatLaunchAgeDaysSpoken \(count)", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func chatLogNoOutput(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "chatLogNoOutput", bundle: bundle ?? carrierResources, locale: locale)
     }

@@ -225,3 +225,112 @@ private func task(
     ])
     #expect(Copy.chatSubagentsListSpoken(bundle: en.bundle, locale: en.locale) == "Subagents")
 }
+
+@Test func launchesGroupRunningFirstThenFinishedMostRecentFirstWithEmptyLaunchesIgnored() {
+    // Launch 0 has only tool calls (empty launch) -> ignored
+    let emptyLaunch = [
+        ChatEvent(id: 1, at: 0, kind: "user", text: "read"),
+        ChatEvent(id: 2, at: 5_000, kind: "tool_start", callId: "r1", tool: "Read", arg: "a.swift"),
+        ChatEvent(id: 3, at: 10_000, kind: "tool_end", callId: "r1", tool: "Read", status: "ok"),
+        ChatEvent(id: 4, at: 12_000, kind: "assistant", text: "read it"),
+    ]
+    // Launch 1 finished at 100_000
+    let finishedOlder = [
+        ChatEvent(id: 5, at: 20_000, kind: "user", text: "first"),
+        agentStart(6, 30_000, "a1"), task(7, 30_000, "a1", "started", text: "Older"),
+        task(8, 100_000, "a1", "completed", ms: 70_000),
+        ChatEvent(id: 9, at: 105_000, kind: "assistant", text: "done 1"),
+    ]
+    // Launch 2 finished at 220_000
+    let finishedNewer = [
+        ChatEvent(id: 10, at: 150_000, kind: "user", text: "second"),
+        agentStart(11, 160_000, "b1"), task(12, 160_000, "b1", "started", text: "Newer"),
+        task(13, 220_000, "b1", "failed", ms: 60_000),
+        ChatEvent(id: 14, at: 225_000, kind: "assistant", text: "done 2"),
+    ]
+    // Launch 3 is still running (started at 300_000)
+    let running = [
+        ChatEvent(id: 15, at: 290_000, kind: "user", text: "third"),
+        agentStart(16, 300_000, "c1"), task(17, 300_000, "c1", "started", text: "Live"),
+    ]
+
+    let list = subagentsList(in: emptyLaunch + finishedOlder + finishedNewer + running)
+    #expect(list.sessionStartedAt == 0)
+    // running first, then finished most-recent-first
+    #expect(list.launches.map { $0.items[0].id } == ["c1", "b1", "a1"])
+    #expect(list.launches.map(\.isRunning) == [true, false, false])
+    #expect(list.launches.allSatisfy { list.showsBar(for: $0) })
+
+    // A lone running launch shows no bar; a lone finished launch (stored session) shows its bar
+    let loneRunning = subagentsList(in: running)
+    #expect(loneRunning.launches.count == 1)
+    #expect(loneRunning.showsBar(for: loneRunning.launches[0]) == false)
+
+    let loneFinished = subagentsList(in: finishedOlder)
+    #expect(loneFinished.launches.count == 1)
+    #expect(loneFinished.showsBar(for: loneFinished.launches[0]) == true)
+}
+
+@Test func launchTimelineSpanAndLabelsAndSpokenFollowTheSessionTimelineAndClock() {
+    let en = (bundle: english.bundle, locale: english.locale)
+    let events = [
+        ChatEvent(id: 1, at: 0, kind: "user", text: "start"),
+        agentStart(2, 60_000, "a1"), task(3, 60_000, "a1", "started", text: "One"),
+        agentStart(4, 60_000, "a2"), task(5, 60_000, "a2", "started", text: "Two"),
+        agentStart(6, 60_000, "a3"), task(7, 60_000, "a3", "started", text: "Three"),
+        task(8, 60_000, "a4", "started", text: "Nested", parentCallId: "a1"),
+        task(9, 120_000, "a1", "completed", ms: 60_000),
+        task(10, 140_000, "a2", "completed", ms: 80_000),
+        task(11, 150_000, "a3", "completed", ms: 90_000),
+        task(12, 160_000, "a4", "completed", ms: 100_000),
+        ChatEvent(id: 13, at: 200_000, kind: "user", text: "next"),
+        agentStart(14, 300_000, "b1"), task(15, 300_000, "b1", "started", text: "Live"),
+    ]
+    let list = subagentsList(in: events)
+    // now = 400_000 (4 minutes after launch 1 ended at 160_000)
+    let now = 400_000
+    let runningLaunch = list.launches[0]
+    let finishedLaunch = list.launches[1]
+
+    let runningSpan = runningLaunch.timelineSpan(sessionStart: list.sessionStartedAt, now: now)
+    #expect(runningSpan == LaunchTimelineSpan(start: 0.75, end: 1.0, isOpen: true))
+    #expect(runningLaunch.barLabel(now: now, bundle: en.bundle, locale: en.locale) == "running · 1 subagent")
+    #expect(runningLaunch.barSpoken(now: now, bundle: en.bundle, locale: en.locale) == "running, 1 subagent")
+
+    let finishedSpan = finishedLaunch.timelineSpan(sessionStart: list.sessionStartedAt, now: now)
+    #expect(finishedSpan == LaunchTimelineSpan(start: 0.15, end: 0.4, isOpen: false))
+    #expect(finishedLaunch.barLabel(now: now, bundle: en.bundle, locale: en.locale) == "finished 4 min ago · 4 subagents")
+    #expect(finishedLaunch.barSpoken(now: now, bundle: en.bundle, locale: en.locale) == "finished 4 minutes ago, 4 subagents")
+
+    // Advancing one minute updates the label
+    #expect(finishedLaunch.barLabel(now: now + 60_000, bundle: en.bundle, locale: en.locale) == "finished 5 min ago · 4 subagents")
+    #expect(finishedLaunch.barSpoken(now: now + 60_000, bundle: en.bundle, locale: en.locale) == "finished 5 minutes ago, 4 subagents")
+    // Under a minute, hours and days
+    #expect(finishedLaunch.barLabel(now: 180_000, bundle: en.bundle, locale: en.locale) == "finished just now · 4 subagents")
+    #expect(finishedLaunch.barSpoken(now: 180_000, bundle: en.bundle, locale: en.locale) == "finished just now, 4 subagents")
+    #expect(finishedLaunch.barLabel(now: 160_000 + 2 * 3_600_000, bundle: en.bundle, locale: en.locale) == "finished 2 h ago · 4 subagents")
+    #expect(finishedLaunch.barSpoken(now: 160_000 + 2 * 3_600_000, bundle: en.bundle, locale: en.locale) == "finished 2 hours ago, 4 subagents")
+    #expect(finishedLaunch.barLabel(now: 160_000 + 2 * 86_400_000, bundle: en.bundle, locale: en.locale) == "finished 2 d ago · 4 subagents")
+    #expect(finishedLaunch.barSpoken(now: 160_000 + 2 * 86_400_000, bundle: en.bundle, locale: en.locale) == "finished 2 days ago, 4 subagents")
+}
+
+@Test func displayRowsKeepFinishedLauncherAboveRunningChildAndComputeGuideRails() {
+    let events = [
+        ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
+        agentStart(2, 10, "p1"), task(3, 11, "p1", "started", text: "Finished parent"),
+        task(4, 20, "c1", "started", text: "Child running", parentCallId: "p1"),
+        task(5, 22, "c2", "started", text: "Child done", parentCallId: "p1"),
+        task(6, 25, "g1", "started", text: "Grandchild", parentCallId: "c1"),
+        task(7, 30, "g1", "completed", ms: 5),
+        task(8, 35, "c2", "completed", ms: 13),
+        task(9, 40, "p1", "completed", ms: 29),
+    ]
+    let list = subagentsList(in: events)
+    #expect(list.launches.count == 1)
+    let launch = list.launches[0]
+    // p1 finished while child c1 still runs -> launch is still running and p1 stays above c1
+    #expect(launch.isRunning)
+    #expect(launch.displayRows.map(\.id) == ["p1", "c1", "g1", "c2"])
+    #expect(launch.displayRows.map(\.depth) == [0, 1, 2, 1])
+    #expect(launch.displayRows.map(\.guides) == [[], [true], [true, false], [false]])
+}

@@ -378,6 +378,36 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     #expect(Copy.chatSubagentsButtonFailedSpoken(count: 1, failed: 1, bundle: es.bundle, locale: es.locale) == "1 subagente, 1 falló")
     #expect(Copy.chatSubagentsButtonFailedSpoken(count: 4, failed: 2, bundle: es.bundle, locale: es.locale) == "4 subagentes, 2 fallaron")
     #expect(Copy.chatSubagentsListSpoken(bundle: es.bundle, locale: es.locale) == "Subagentes")
+    let spanishLaunch = SubagentLaunch(
+        id: "l1",
+        items: (1...4).map {
+            SubagentItem(subagent: Subagent(task: ChatEvent(id: $0, at: 1000, kind: "task", callId: "a\($0)", taskId: "t\($0)", state: "completed", ms: 1000), bundle: es.bundle, locale: es.locale))
+        },
+        startedAt: 1000,
+        endedAt: 2000
+    )
+    let fourMinsLater = 2000 + 4 * 60_000
+    #expect(spanishLaunch.barLabel(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "terminaron hace 4 min · 4 subagentes")
+    #expect(spanishLaunch.barSpoken(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "terminaron hace 4 minutos, 4 subagentes")
+    #expect(spanishLaunch.barLabel(now: 10_000, bundle: es.bundle, locale: es.locale) == "terminaron ahora mismo · 4 subagentes")
+    #expect(spanishLaunch.barLabel(now: 2000 + 2 * 3_600_000, bundle: es.bundle, locale: es.locale) == "terminaron hace 2 h · 4 subagentes")
+    #expect(spanishLaunch.barSpoken(now: 2000 + 2 * 3_600_000, bundle: es.bundle, locale: es.locale) == "terminaron hace 2 horas, 4 subagentes")
+    #expect(spanishLaunch.barLabel(now: 2000 + 2 * 86_400_000, bundle: es.bundle, locale: es.locale) == "terminaron hace 2 d · 4 subagentes")
+    #expect(spanishLaunch.barSpoken(now: 2000 + 2 * 86_400_000, bundle: es.bundle, locale: es.locale) == "terminaron hace 2 días, 4 subagentes")
+    let spanishSingle = SubagentLaunch(id: "l2", items: [spanishLaunch.items[0]], startedAt: 1000, endedAt: 2000)
+    #expect(spanishSingle.barLabel(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "terminó hace 4 min · 1 subagente")
+    #expect(spanishSingle.barSpoken(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "terminó hace 4 minutos, 1 subagente")
+    let spanishRunning = SubagentLaunch(
+        id: "l3",
+        items: [
+            SubagentItem(subagent: Subagent(task: ChatEvent(id: 1, at: 1000, kind: "task", callId: "r1", taskId: "tr1", state: "started"), bundle: es.bundle, locale: es.locale)),
+            spanishLaunch.items[0],
+        ],
+        startedAt: 1000,
+        endedAt: nil
+    )
+    #expect(spanishRunning.barLabel(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "en marcha · 2 subagentes")
+    #expect(spanishRunning.barSpoken(now: fourMinsLater, bundle: es.bundle, locale: es.locale) == "en marcha, 2 subagentes")
     let spanishRow = subagentsList(in: [
         event(1, "tool_start", callId: "a1", tool: "Agent"),
         ChatEvent(id: 2, at: 1000, kind: "task", text: "Buscar", callId: "a1", taskId: "t1", state: "started", agentType: "Explore"),

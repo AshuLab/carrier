@@ -141,7 +141,10 @@ extension PanelView {
             subagentsOpen.toggle()
         }
         .popover(isPresented: $subagentsOpen, arrowEdge: .bottom) {
-            SubagentsListPopover(list: shell.subagentsList) { id in
+            SubagentsListPopover(
+                list: shell.subagentsList,
+                maxHeight: SubagentsListPopover.allowedHeight(windowHeight: windowSize.height)
+            ) { id in
                 subagentsOpen = false
                 shell.jumpToSubagent(id)
             }

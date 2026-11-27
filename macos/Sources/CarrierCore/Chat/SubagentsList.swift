@@ -44,6 +44,35 @@ public struct SubagentItem: Equatable, Identifiable {
     public var flattened: [Subagent] { [subagent] + children.flatMap(\.flattened) }
 }
 
+/// Where a launch sits on the session's time line (`0...1`), from the session's start to `now`.
+public struct LaunchTimelineSpan: Equatable, Sendable {
+    public let start: Double
+    public let end: Double
+    /// True while any subagent in the launch is still running, so the bar is drawn open at the end.
+    public let isOpen: Bool
+
+    public init(start: Double, end: Double, isOpen: Bool) {
+        self.start = start
+        self.end = end
+        self.isOpen = isOpen
+    }
+}
+
+/// One row of a launch in display order, with its nesting depth and which guide rails continue below it.
+public struct SubagentDisplayRow: Equatable, Identifiable {
+    public let subagent: Subagent
+    public let depth: Int
+    /// For each ancestor level `0..<depth`, true when another sibling follows at that level below this row.
+    public let guides: [Bool]
+    public var id: String { subagent.id }
+
+    public init(subagent: Subagent, depth: Int, guides: [Bool]) {
+        self.subagent = subagent
+        self.depth = depth
+        self.guides = guides
+    }
+}
+
 /// The subagents of one run of the agent's calls, with nested subagents under their launcher.
 public struct SubagentLaunch: Equatable, Identifiable {
     public let id: String
@@ -65,6 +94,77 @@ public struct SubagentLaunch: Equatable, Identifiable {
     public var runningCount: Int { items.reduce(0) { $0 + $1.runningCount } }
     public var failedCount: Int { items.reduce(0) { $0 + $1.failedCount } }
     public var isRunning: Bool { runningCount > 0 }
+
+    /// Every subagent of this launch in display order, with its nesting depth and guide rails.
+    public var displayRows: [SubagentDisplayRow] {
+        var result: [SubagentDisplayRow] = []
+        func walk(_ list: [SubagentItem], depth: Int, ancestors: [Bool]) {
+            for (index, item) in list.enumerated() {
+                let hasNextSibling = index < list.count - 1
+                let rowGuides = depth == 0 ? [] : ancestors + [hasNextSibling]
+                result.append(SubagentDisplayRow(subagent: item.subagent, depth: depth, guides: rowGuides))
+                walk(item.children, depth: depth + 1, ancestors: rowGuides)
+            }
+        }
+        walk(items, depth: 0, ancestors: [])
+        return result
+    }
+
+    /// Where this launch sits on the session's time line `[sessionStart, now]`.
+    public func timelineSpan(sessionStart: Int, now: Int) -> LaunchTimelineSpan {
+        let origin = min(sessionStart, startedAt)
+        let endClock = max(origin, now)
+        let total = endClock - origin
+        guard total > 0 else {
+            return LaunchTimelineSpan(start: 0, end: 1, isOpen: isRunning)
+        }
+        let clampedStart = min(max(startedAt, origin), endClock)
+        let clampedEnd = isRunning ? endClock : min(max(endedAt ?? clampedStart, clampedStart), endClock)
+        return LaunchTimelineSpan(
+            start: Double(clampedStart - origin) / Double(total),
+            end: Double(clampedEnd - origin) / Double(total),
+            isOpen: isRunning
+        )
+    }
+
+    /// The visible label beside the launch's time bar ("finished 4 min ago · 4 subagents" or "running · 4 subagents").
+    public func barLabel(now: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        let count = Copy.chatSubagentsButtonSpoken(count: totalCount, bundle: bundle, locale: locale)
+        return "\(statusText(now: now, spoken: false, bundle: bundle, locale: locale)) · \(count)"
+    }
+
+    /// What VoiceOver reads aloud for the time bar and its label as one phrase ("finished 4 minutes ago, 4 subagents").
+    public func barSpoken(now: Int, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        let count = Copy.chatSubagentsButtonSpoken(count: totalCount, bundle: bundle, locale: locale)
+        return "\(statusText(now: now, spoken: true, bundle: bundle, locale: locale)), \(count)"
+    }
+
+    private func statusText(now: Int, spoken: Bool, bundle: Bundle?, locale: Locale) -> String {
+        if isRunning { return Copy.chatLaunchRunning(bundle: bundle, locale: locale) }
+        let ended = endedAt ?? startedAt
+        let seconds = max(0, (now - ended) / 1000)
+        if seconds < 60 {
+            return Copy.chatLaunchFinishedNow(count: totalCount, bundle: bundle, locale: locale)
+        }
+        let age: String
+        if seconds < 3600 {
+            let mins = seconds / 60
+            age = spoken
+                ? Copy.chatLaunchAgeMinutesSpoken(count: mins, bundle: bundle, locale: locale)
+                : Copy.chatLaunchAgeMinutes(count: mins, bundle: bundle, locale: locale)
+        } else if seconds < 86_400 {
+            let hours = seconds / 3600
+            age = spoken
+                ? Copy.chatLaunchAgeHoursSpoken(count: hours, bundle: bundle, locale: locale)
+                : Copy.chatLaunchAgeHours(count: hours, bundle: bundle, locale: locale)
+        } else {
+            let days = seconds / 86_400
+            age = spoken
+                ? Copy.chatLaunchAgeDaysSpoken(count: days, bundle: bundle, locale: locale)
+                : Copy.chatLaunchAgeDays(count: days, bundle: bundle, locale: locale)
+        }
+        return Copy.chatLaunchFinishedAgo(count: totalCount, ago: age, bundle: bundle, locale: locale)
+    }
 }
 
 /// Every launch of a session, running launches first and finished launches after, and the button state derived from them.
@@ -72,9 +172,12 @@ public struct SubagentsList: Equatable {
     public static let empty = SubagentsList(launches: [])
 
     public let launches: [SubagentLaunch]
+    /// Earliest timestamp in the session (ms since epoch), used as the start of the launches' timeline.
+    public let sessionStartedAt: Int
 
-    public init(launches: [SubagentLaunch]) {
+    public init(launches: [SubagentLaunch], sessionStartedAt: Int? = nil) {
         self.launches = launches
+        self.sessionStartedAt = sessionStartedAt ?? launches.map(\.startedAt).min() ?? 0
     }
 
     public var totalCount: Int { launches.reduce(0) { $0 + $1.totalCount } }
@@ -82,6 +185,11 @@ public struct SubagentsList: Equatable {
     public var failedCount: Int { launches.reduce(0) { $0 + $1.failedCount } }
     /// Every subagent of the session in display order, flattened across launches and nesting.
     public var allSubagents: [Subagent] { launches.flatMap(\.items).flatMap(\.flattened) }
+
+    /// Whether `launch` shows a time bar above its rows: hidden only when a single running launch stands alone.
+    public func showsBar(for launch: SubagentLaunch) -> Bool {
+        launches.count > 1 || launch.isRunning == false
+    }
 
     /// The header button's state: hidden until the first subagent starts, running while any launch runs, quiet when all ended.
     public var buttonState: SubagentsButtonState {
@@ -185,5 +293,7 @@ public func subagentsList(in events: [ChatEvent], working: Bool = true, bundle: 
         let e1 = $1.element.endedAt ?? $1.element.startedAt
         return e0 != e1 ? e0 > e1 : $0.offset > $1.offset
     }.map(\.element)
-    return SubagentsList(launches: running + finished)
+    let earliestLaunch = launches.map(\.startedAt).min()
+    let sessionStartedAt = min(events.first?.at ?? earliestLaunch ?? 0, earliestLaunch ?? events.first?.at ?? 0)
+    return SubagentsList(launches: running + finished, sessionStartedAt: sessionStartedAt)
 }

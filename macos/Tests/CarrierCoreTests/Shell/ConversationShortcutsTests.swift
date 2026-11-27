@@ -119,6 +119,9 @@ private func openGroups(_ rows: [FeedRow], flipped: Set<String>) -> [Bool] {
     #expect(shell.conversationRequest == ConversationRequest(action: .stopProcess("p1"), count: 1))
     shell.perform(.conversation(.stopProcesses))
     #expect(shell.conversationRequest == ConversationRequest(action: .stopProcesses, count: 2))
+    // choosing the open session again leaves them: its conversation is not made anew and would not push them again
+    shell.selection = .session(id: "s1")
+    #expect(shell.processes != nil)
     shell.selection = .session(id: "s2")
     #expect(shell.processes == nil)
 }

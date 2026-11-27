@@ -45,10 +45,12 @@ struct ProcessesListPopover: View {
     static let width: CGFloat = 440
     private static let rowHeight: CGFloat = 30
     private static let maxHeight: CGFloat = 320
+    @Environment(\.windowSize) private var windowSize
 
     private var height: CGFloat {
         let foot = card.processes.count > 1 && card.stop != nil ? Self.rowHeight + Tokens.Space.s4 : 0
-        return min(CGFloat(card.processes.count) * Self.rowHeight + foot + Tokens.Space.s8 * 2, Self.maxHeight)
+        // never taller than the window allows, as the Subagents list is
+        return min(CGFloat(card.processes.count) * Self.rowHeight + foot + Tokens.Space.s8 * 2, Self.maxHeight, max(120, windowSize.height - 120))
     }
 
     var body: some View {

@@ -92,8 +92,11 @@ public struct ArchiveRequest: Equatable {
             if selection == .newSession, navigating == false { newSessionOpened += 1 }
             subagents = []
             subagentHeader = nil
-            subagentsList = .empty
-            processes = nil
+            // what the open conversation pushed to the header stays when the same session is chosen again: the conversation is not made anew, so it would not push it again
+            if oldValue != selection {
+                subagentsList = .empty
+                processes = nil
+            }
             switch selection {
             case .sessions, .session, .newSession: open = .sessions
             case .terminals, .terminal: open = .terminal

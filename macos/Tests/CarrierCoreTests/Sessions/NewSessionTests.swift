@@ -223,6 +223,15 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(model.text == "" && model.pastes.isEmpty && model.files.isEmpty)
 }
 
+@MainActor @Test func aRestoredPlanGoesBeforeADraftAlreadyInProgressAndDoesNotReplaceIt() async {
+    let model = await draft(FakeChat())
+    model.text = "a new idea"
+    model.pastes = [PastedEntry(text: "a long log")]
+    model.restore(SessionPlan(agent: "claude", folder: "/w/api", text: "build the thing"))
+    await model.load()
+    #expect(model.text == "build the thing\na new idea" && model.pastes.map(\.text) == ["a long log"])
+}
+
 @MainActor @Test func aSessionsNewSessionOnItsBranchOpensTheDraftWithAWorktreeCutFromThatBranch() async {
     let host = FakeChat()
     host.workspaces["/w/api"] = WorkspaceInfo(

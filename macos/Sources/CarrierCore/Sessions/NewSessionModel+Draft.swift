@@ -65,7 +65,8 @@ extension NewSessionModel {
         case .repo(let name): await choose(repo: name)
         case .newProject(let name): choose(newProject: name)
         }
-        text = plan.text
+        // the plan's text goes first and what was already written stays under it, as `editQueued` does; the pastes and files stay with their text
+        text = text.isEmpty ? plan.text : plan.text + "\n" + text
         if agents.contains(where: { $0.name == plan.agent && $0.available }) { agent = plan.agent }
         restoredOptions = plan.options
         if let wanted = plan.worktree {

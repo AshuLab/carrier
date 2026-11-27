@@ -295,7 +295,10 @@ private func keptKeys(_ defaults: UserDefaults, for id: String) -> Set<String> {
         for id in ids { memory.saveDraft(id, "") }  // the drafts are process-global
     }
     let command = ChatCommand(id: "review", name: "review", description: "Review", argumentHint: nil)
+    let unsent = Unsent(pastes: ["a long log"], files: [AttachedFile(path: "/c/pending/1/shot.png", kind: .image, size: 10)], queued: "hold on")
+    defer { for id in ids { memory.saveUnsent(id, Unsent()) } }
     for id in ids {
+        memory.saveUnsent(id, unsent)
         memory.save(id, claude)
         memory.saveCommands(id, [command])
         memory.saveAgent(id, "claude")
@@ -307,6 +310,7 @@ private func keptKeys(_ defaults: UserDefaults, for id: String) -> Set<String> {
 
     #expect(keptKeys(defaults, for: "s1").isEmpty)
     #expect(memory.load("s1").isEmpty && memory.loadCommands("s1").isEmpty && memory.loadAgent("s1") == "" && memory.loadDraft("s1") == "")
+    #expect(memory.loadUnsent("s1") == Unsent() && memory.loadUnsent("s10") == unsent)
     #expect(memory.load("s10").count == claude.count && memory.loadCommands("s10").count == 1)
     #expect(memory.loadAgent("s10") == "claude" && memory.loadDraft("s10") == "half a thought")
 }

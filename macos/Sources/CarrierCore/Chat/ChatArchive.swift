@@ -121,7 +121,7 @@ public func archivedSessionNotice(bundle: Bundle? = nil, locale: Locale = .curre
 }
 
 public enum SessionMenuAction: Equatable {
-    case stop, pin, unpin, rename, regenerateTitle, openInTerminal(path: String), filterWorkspace(String), archive, restore, delete
+    case stop, sleep, pin, unpin, rename, regenerateTitle, openInTerminal(path: String), filterWorkspace(String), archive, restore, delete
     case markUnread, markRead
     /// A new session in the project at `base`, cut from `branch` in a worktree when it is given.
     case newSession(base: String, branch: String?)
@@ -242,6 +242,10 @@ public func sessionMenu(
                 ? SessionMenuItem(Copy.sessionMenuMarkRead(bundle: bundle, locale: locale), "circle", .markRead, disabledReason: reason)
                 : SessionMenuItem(Copy.sessionMenuMarkUnread(bundle: bundle, locale: locale), "circle.fill", .markUnread, disabledReason: reason)
         )
+    }
+    // an agent that works or waits is ended with Stop, not put to sleep; one that is asleep already is not offered
+    if row.archived == false, row.asleep == false, row.isWorking == false, row.state != .waiting {
+        control.append(SessionMenuItem(Copy.sessionMenuSleep(bundle: bundle, locale: locale), "moon.zzz", .sleep))
     }
     var open: [SessionMenuItem] = []
     if context.startsSessions, row.archived == false {

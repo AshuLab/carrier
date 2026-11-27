@@ -65,6 +65,7 @@ private struct SessionContextMenu: ViewModifier {
     private func run(_ action: SessionMenuAction) {
         switch action {
         case .stop: refuse { await actions.stop(row.id) }
+        case .sleep: refuse { await actions.sleep(row.id) }
         case .pin: pinnedStored = storedPins(pinnedIds(pinnedStored).union([row.id]))
         case .unpin: pinnedStored = storedPins(pinnedIds(pinnedStored).subtracting([row.id]))
         case .rename:

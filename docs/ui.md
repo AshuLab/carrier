@@ -17,7 +17,7 @@ What a script does check is that every piece has its entry in the gallery (`maco
 
 They hold for every front-end; the sections after the catalog say how the Mac applies them.
 
-- **The theme gives the colours.** The nine themes, the accents and the semantic colours come from `design/tokens.json`; a piece takes them from its environment and never writes a colour of its own.
+- **The theme gives the colours.** The twenty themes, the accents and the semantic colours come from `design/tokens.json`; a piece takes them from its environment and never writes a colour of its own.
   A second front-end that wrote its own would drift from the first in a week.
 - **The words are copy keys.** Every text a person reads is a key of `design/copy/` with an English and a Spanish value, read through `Copy`; a piece shows the text it is given.
 - **A state is never the colour alone.** A word, an icon or a shape says it too (a `StatusChip` has its word; with "Tell states apart by shape" on, the state pieces draw their symbol).
@@ -241,9 +241,9 @@ Use for: the title of a Carrier home section, above its card. Not for: a group o
 
 ### SettingsGroup
 Kind: Cards · File: `macos/Sources/CarrierUI/Cards/SettingsGroup.swift` · Web: `<SettingsGroup>`
-Takes: `id`, `title`, `footer`, `accessory` (a control at the right of the title), its rows as content.
-States: normal; with a footer; with an accessory.
-Use for: a group of rows of a Settings page: a small uppercase title over a card, or a section of a form. Not for: a list of things that open a screen of their own (that is a card of `NavigationRow`).
+Takes: `id`, `title`, `footer`, `card` (false leaves the content on the panel's background, for content that is cards itself), `accessory` (a control at the right of the title), its rows as content.
+States: normal; with a footer; with an accessory; without the card.
+Use for: a group of rows of a Settings page: a small uppercase title over a card, or a section of a form. Not for: a card inside another card (pass `card: false`), and a list of things that open a screen of their own (that is a card of `NavigationRow`).
 
 ### SettingsTabCard
 Kind: Cards · File: `macos/Sources/CarrierUI/Cards/SettingsTabCard.swift` · Web: `<SettingsTabCard>`
@@ -616,6 +616,12 @@ Kind: Selects · File: `macos/Sources/CarrierUI/Selects/SelectChevron.swift` · 
 Takes: Nothing.
 States: normal.
 Use for: the up and down chevrons of a select in their small circle. Not for: a row that opens a screen.
+
+### ThemeGallery
+Kind: Selects · File: `macos/Sources/CarrierUI/Selects/ThemeGallery.swift` · Web: `<ThemeGallery>`
+Takes: `cells` (`ThemeCell`: an id, the name it goes by and the theme drawn), `chosen` (a cell's id), `action` (the id picked).
+States: normal (the chosen cell with the accent's edge and a tick before its name, and a ring inside the edge while the gallery has the keyboard); long (forty cells: three rows, half a column cut at the right edge, the forward arrow); at the end (the last column whole, the back arrow only); with a leading cell (the terminal's: the first cell draws a theme under "Same as app" and is the chosen one); hover and focus (live).
+Use for: choosing one theme among many: cells of a light and a dark preview with the name under them, in three fixed rows that fill column by column and scroll sideways, so the page's height does not change with the number of themes; the arrows at the sides scroll by three columns and hide at the ends; up and down move a cell inside a column and left and right one column (`themeGalleryMove`), choosing as they go and scrolling until the cell is whole. The piece draws the cells it is given, so a leading cell is only a cell the caller puts first: the terminal's page builds its list with `terminalThemeCells` (`CarrierCore/Theme`), whose first cell is the app's theme with the words "Same as app" and which is the chosen one while the terminal has no theme of its own. Not for: a choice among a few words (that is `SelectMenu` or `SegmentedChoice`).
 
 ## What only macOS does
 

@@ -12833,6 +12833,23 @@
         }
       }
     },
+    "choiceThemeAyu": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayu"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayu"
+          }
+        }
+      }
+    },
     "choiceThemeCarrier": {
       "extractionState": "manual",
       "localizations": {
@@ -12846,6 +12863,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "Carrier"
+          }
+        }
+      }
+    },
+    "choiceThemeCatppuccin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catppuccin"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catppuccin"
+          }
+        }
+      }
+    },
+    "choiceThemeDracula": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dracula"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dracula"
+          }
+        }
+      }
+    },
+    "choiceThemeEverforest": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everforest"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everforest"
           }
         }
       }
@@ -12884,6 +12952,23 @@
         }
       }
     },
+    "choiceThemeGruvbox": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruvbox"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gruvbox"
+          }
+        }
+      }
+    },
     "choiceThemeLavender": {
       "extractionState": "manual",
       "localizations": {
@@ -12918,6 +13003,40 @@
         }
       }
     },
+    "choiceThemeMonokai": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokai"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monokai"
+          }
+        }
+      }
+    },
+    "choiceThemeNord": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nord"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nord"
+          }
+        }
+      }
+    },
     "choiceThemeOcean": {
       "extractionState": "manual",
       "localizations": {
@@ -12931,6 +13050,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Océano"
+          }
+        }
+      }
+    },
+    "choiceThemeOneDark": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One Dark"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One Dark"
           }
         }
       }
@@ -12969,6 +13105,40 @@
         }
       }
     },
+    "choiceThemeRosePine": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rosé Pine"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rosé Pine"
+          }
+        }
+      }
+    },
+    "choiceThemeSolarized": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solarized"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solarized"
+          }
+        }
+      }
+    },
     "choiceThemeSunset": {
       "extractionState": "manual",
       "localizations": {
@@ -12982,6 +13152,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Atardecer"
+          }
+        }
+      }
+    },
+    "choiceThemeTokyoNight": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tokyo Night"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tokyo Night"
           }
         }
       }
@@ -38540,6 +38727,23 @@
         }
       }
     },
+    "pieceState.atEnd": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At the end"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al final"
+          }
+        }
+      }
+    },
     "pieceState.bold": {
       "extractionState": "manual",
       "localizations": {
@@ -39254,6 +39458,23 @@
         }
       }
     },
+    "pieceState.withLeadingCell": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With a leading cell"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con una primera celda"
+          }
+        }
+      }
+    },
     "pieceState.withLink": {
       "extractionState": "manual",
       "localizations": {
@@ -39301,6 +39522,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trabajando"
+          }
+        }
+      }
+    },
+    "pieceThemes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Themes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temas"
+          }
+        }
+      }
+    },
+    "pieceThemesEarlier": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show earlier themes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar temas anteriores"
+          }
+        }
+      }
+    },
+    "pieceThemesMore": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show more themes"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar más temas"
           }
         }
       }
@@ -49370,6 +49642,23 @@
         }
       }
     },
+    "sessionMenuSleep": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send to sleep"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mandar a dormir"
+          }
+        }
+      }
+    },
     "sessionMenuStop": {
       "extractionState": "manual",
       "localizations": {
@@ -52232,13 +52521,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nine themes, each in light and dark"
+            "value": "Themes, each in light and dark"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nueve temas, cada uno en claro y oscuro"
+            "value": "Temas, cada uno en claro y oscuro"
           }
         }
       }

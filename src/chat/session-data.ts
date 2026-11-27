@@ -124,7 +124,7 @@ export function createSessionData({ db, git, pulls, clock }: { db: ChatDb; git: 
     const where = known ?? (await whereOf(found));
     if (where.repo === null) log.debug('no GitHub repository to look for a pull request in', { session: found.id }); // not the remote: it can hold a token
     if (where.repo === null || where.branch === null || where.branch === where.defaultBranch) return;
-    const info = await pulls.find(where.repo, where.branch);
+    const info = await pulls.find(where.repo, where.branch, found.createdAt);
     if (info === null) return;
     if (found.prNumber === null) return link(found.id, where.repo, info);
     if (isOpen(found.prState) === false && isOpen(info.state) && info.number !== found.prNumber) link(found.id, where.repo, info);

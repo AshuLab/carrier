@@ -194,6 +194,7 @@ The chat socket's request union is its own and strict, in the style of the engin
 A session's pull request is looked for once, by its branch, with the person's own `gh` login ([ADR 0015](../adr/projects/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)), and stored on the session (`prRepo`, `prNumber`, `prUrl`, `prState`, `prChecks`, `prCheckedAt`).
 After that only its state is asked again, by number and in one GraphQL request for all the open ones, at most once a minute.
 A merged or closed one is final, and gives way only to a newer open one on the same branch.
+A merged or closed pull request counts for the session only when it closed at or after the session was created: an older branch of the same name had it. An open one links whenever it was opened. A link already stored is not looked at again.
 The lines changed come from `git diff --numstat`, read-only and with the repository's own diff and text filters off.
 A sweep reads them again after a minute, and looks again after three for the pull request of a session that has none.
 An idle session (and its children, which work in its folder) whose `lastActiveAt` has not moved since they were read waits ten minutes for the first and thirty for the second, since nothing the agent did can have changed them; one that works or waits for an answer (a long silent tool sends no event) keeps the minute and the three.

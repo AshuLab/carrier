@@ -36,6 +36,7 @@ struct SessionRowView: View {
     /// Whether the ring stays on after the agent stops, to go round once more in green when the turn ended unread (`finished`).
     @State private var ringKept = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.textScale) private var textScale
 
     private var content: SessionRowContent {
         SessionRowContent(
@@ -58,7 +59,7 @@ struct SessionRowView: View {
 
     private func place(_ place: SessionPlace) -> Text {
         switch place {
-        case .branch(let name): Text("\(Image(inline: .gitBranch)) \(Text(name).scaledFont(11, design: .monospaced))")
+        case .branch(let name): Text("\(Image(inline: .gitBranch)) \(Text(name).font(textScale.font(11, design: .monospaced)))")
         case .baseFolder: Text("\(Image(inline: .folder)) \(Copy.sessionBaseFolder())")
         }
     }

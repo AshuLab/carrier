@@ -74,6 +74,9 @@ public enum SessionRemovalKind: Sendable {
     /// Ends the turn that is in progress.
     public func stop(_ id: String) async -> String? { await run("stop", id) { try await $0.interrupt(id) } }
 
+    /// Sends the session to sleep: its agent closes and a message wakes it.
+    public func sleep(_ id: String) async -> String? { await run("send to sleep", id) { try await $0.close(id) } }
+
     public func rename(_ id: String, _ title: String) async -> String? { await run("rename", id) { try await $0.rename(id, title) } }
 
     /// Reads what the host can do (its hello is kept by the link, so this is cheap) for the menus drawn after it.

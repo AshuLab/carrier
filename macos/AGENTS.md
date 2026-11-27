@@ -67,7 +67,7 @@ What the person sees: [sessions](../docs/macos/chat.md#conversation).
 
 The words are tested; the Finder and pasteboard calls not.
 `CarrierCore/Connection/ChatLink.swift` reads the chat host ([how](../docs/macos/sessions.md#how-the-app-reads-the-chat-host); `ChatLinkTests`).
-A subagent's row is `Subagent` (`Subagent.swift`), built by `chatFeed` from `task` events (`SubagentRowTests`).
+A subagent is `Subagent` (`Subagent.swift`), built by `chatFeed` from `task` events and listed by `subagentsList` (`SubagentsListTests`, `SubagentsListViewTests`, `SubagentViewTests`).
 
 ## Platform adapters
 

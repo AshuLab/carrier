@@ -1,7 +1,7 @@
 import Foundation
 
-// The subagent view (docs/glossary.md): what replaces the conversation when a subagent's row is opened. The view takes `SubagentWork`: the
-// header's description, the brief and the flow items the epic's Agent output tab draws too. The chat's events become them in `subagentWork`.
+// The subagent view (docs/glossary.md): what replaces the conversation when a row of the Subagents list is opened. The view takes `SubagentWork`:
+// the header's description, the brief and the flow items the epic's Agent output tab draws too. The chat's events become them in `subagentWork`.
 
 /// What the window's header says of a subagent: its title, its type, how it stands and for how long.
 public struct SubagentHeader: Equatable {
@@ -80,8 +80,8 @@ public struct SubagentWork: Equatable {
     }
 }
 
-/// The subagent launched by `call`, from the events of the session: its own calls, thoughts and messages as flow items (the rows of any
-/// subagent it launched in turn are in its groups), drawn as the main agent's are. A run still going while the subagent runs is live; once
+/// The subagent launched by `call`, from the events of the session: its own calls, thoughts and messages as flow items (any subagent it
+/// launched is counted on its run line and nested under it in the Subagents list, with no row in the view), drawn as the main agent's are. A run still going while the subagent runs is live; once
 /// it ended, a call that never ended was stopped, and so is the subagent when its session is not `working`. Nil when no `task` event names the call.
 public func subagentWork(in events: [ChatEvent], call: String, working: Bool = true, bundle: Bundle? = nil, locale: Locale = .current) -> SubagentWork? {
     var subagent: Subagent?

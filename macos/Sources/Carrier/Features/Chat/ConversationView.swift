@@ -83,7 +83,6 @@ struct ConversationView: View {
                     .background(Color.themeWindow)
                 }
             }
-            .environment(\.openSubagent) { subagents.append($0) }
             .environment(\.feedActions, FeedActions(model: model))
             .onChange(of: subagents, initial: true) { before, stack in
                 model.show(subagent: stack.last)

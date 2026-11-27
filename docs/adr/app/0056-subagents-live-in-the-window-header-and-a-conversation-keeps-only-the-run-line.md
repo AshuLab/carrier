@@ -1,6 +1,6 @@
 # 0056 - Subagents live in the window header, and a conversation keeps only the run line
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-11-26
 
 ## Context

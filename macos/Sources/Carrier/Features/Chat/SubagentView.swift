@@ -3,8 +3,8 @@ import CarrierUI
 import SwiftUI
 
 /// The subagent view (docs/glossary.md): the brief the subagent was given as a glass card pinned at the top, then its calls, thoughts and messages
-/// as flow items, drawn by the views the main agent's are (`FlowItemView`, so the same live line and chip; the rows of a subagent it launched
-/// are in its groups and open in turn). It takes `SubagentWork` and not a session, so the epic's slice card can show it from its own items.
+/// as flow items, drawn by the views the main agent's are (`FlowItemView`, so the same live line and chip; any subagents it launched are nested
+/// under it in the header's Subagents list). It takes `SubagentWork` and not a session, so the epic's slice card can show it from its own items.
 /// Nothing can be typed to a subagent: the place of the message box holds `SubagentNote`.
 struct SubagentView: View {
     let work: SubagentWork
@@ -334,5 +334,15 @@ private struct ResultBodyLayout: Layout {
             anchor: .topLeading,
             proposal: ProposedViewSize(width: bounds.width, height: bar.height)
         )
+    }
+}
+
+private struct OpenSubagentKey: EnvironmentKey { static let defaultValue: ((String) -> Void)? = nil }
+
+extension EnvironmentValues {
+    /// What tapping a slice card does, given its lane id.
+    var openSubagent: ((String) -> Void)? {
+        get { self[OpenSubagentKey.self] }
+        set { self[OpenSubagentKey.self] = newValue }
     }
 }

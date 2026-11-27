@@ -7,19 +7,16 @@ _Avoid_: batch (that is slices started together), step, turn.
 One card per subagent; a resumed one is still one card.
 _Avoid_: lane (the place it runs in), lane card, task.
 
-**Subagent row** - The line a subagent has in a conversation: its type as a chip, its title, the step it is on now, its steps, its timer and its state, with the height of a call group's line.
-One row per subagent, under the line of the run that launched it, and tapping it opens the subagent view.
-In the Agent output tab the slice card plays this part.
-_Avoid_: subagent card (that is the slice card of the epic), task, child.
-
-**Subagent view** - What replaces the conversation when a subagent row is opened: the window's header with a ‹ Back button, the subagent's title, its state and Stop, and the subagent's own brief, call groups, thoughts and messages drawn as the main agent's are.
+**Subagent view** - What replaces the conversation when a row of the Subagents list is opened: the window's header with a ‹ Back button, the subagent's title, its state and Stop, and the subagent's own brief, call groups, thoughts and messages drawn as the main agent's are.
 It is read only: a subagent cannot be written to from the host.
 _Avoid_: subagent tab, subagent panel, subagent session (it has none of its own).
 
 **Subagents button** - The round glass button at the right of the window's header that stands for the subagents of the open session: two figures and a count, with a thin arc turning around it while a launch runs. It exists from the first subagent the session launches, and when nothing runs it is one quiet button with the session's total and a small red dot if any failed. It opens the Subagents list, and it stays in the header while a subagent view is open.
 _Avoid_: subagent cluster, subagent dock, agents button, roster.
 
-**Subagents list** - What the Subagents button opens: every subagent of the session as the rows of a call group's line (type chip, title, step, steps, timer), a finished one dimmed and with no mark, a failed one with a red dot, and one launched by another subagent nested under its launcher. The launch that runs comes first and the finished ones below, each under a time bar. It replaces the subagent row in a conversation, and tapping a row opens the subagent view.
+**Subagents list** - What the Subagents button opens: every subagent of the session as the rows of a call group's line (type chip, title, step, steps, timer), a finished one dimmed and with no mark, a failed one with a red dot, and one launched by another subagent nested under its launcher.
+The launch that runs comes first and the finished ones below, each under a time bar.
+It is the only place where a session's subagents are listed, and tapping a row opens the subagent view.
 _Avoid_: subagent popover, subagent panel, subagent menu.
 
 **Launch** - The subagents an agent asks for at one moment, however many. The Subagents list groups its finished ones by launch, and the header shows only the launch that runs; the screen gives a launch no name, only its time and its count.

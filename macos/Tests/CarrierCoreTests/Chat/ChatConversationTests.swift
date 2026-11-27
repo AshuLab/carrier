@@ -1721,7 +1721,7 @@ private func subagents(_ rows: [FeedRow]) -> [Subagent] {
     #expect(texts(without) == ["user: Look into it", "tools: Worked | 1 command · 1 other tool", "agent: Done", "end: sonnet 5.5 · 1s"])
 }
 
-// MARK: a subagent's row
+// MARK: subagents in the run line and list
 
 private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: String? = nil, type: String? = nil, lastTool: String? = nil, tools: Int? = nil, ms: Int? = nil, summary: String? = nil) -> ChatEvent {
     ChatEvent(id: id, at: at, kind: "task", text: text, callId: call, taskId: "t-\(call)", state: state, agentType: type, lastTool: lastTool, tools: tools, ms: ms, summary: summary)
@@ -1849,6 +1849,29 @@ private func task(_ id: Int, _ at: Int, _ call: String, _ state: String, text: S
     #expect(run.runningSubagents == 1 && run.chip(waiting: false) == .subagents(1) && run.liveTimer(now: 1_791_960_100_000).primaryMs == 97_500)
     // what the subagents said and did is not in the main conversation
     #expect(texts(rows).filter { $0.hasPrefix("agent") } == ["agent: Three subagents are look"])
+    // Story 12: chatFeed of the subagents fixture gives one run line per launch and no subagent row, live or stored
+    #expect(texts(rows) == [
+        "user: Look into how the chat shows tool calls, in three places at once.",
+        "tools: Working | 1 thought · 3 subagents",
+        "agent: Three subagents are look",
+        "end: sonnet 5.5 · 6s",
+    ])
+    let storedRows = chatFeed(reply.events, working: false, bundle: english.bundle, locale: english.locale)
+    #expect(texts(storedRows) == [
+        "user: Look into how the chat shows tool calls, in three places at once.",
+        "tools: Worked | 1 thought · 3 subagents",
+        "agent: Three subagents are look",
+        "end: sonnet 5.5 · 6s",
+    ])
+    let twoLaunches = reply.events + [
+        ChatEvent(id: 26, at: 1_791_960_010_000, kind: "user", text: "Check one more."),
+        ChatEvent(id: 27, at: 1_791_960_011_000, kind: "tool_start", callId: "b1", tool: "Agent", arg: "{}"),
+        ChatEvent(id: 28, at: 1_791_960_011_100, kind: "task", text: "Extra check", callId: "b1", taskId: "tb1", state: "started", agentType: "Explore"),
+    ]
+    #expect(texts(chatFeed(twoLaunches, bundle: english.bundle, locale: english.locale)).filter { $0.hasPrefix("tools:") } == [
+        "tools: Working | 1 thought · 3 subagents",
+        "tools: Working | 1 subagent",
+    ])
 }
 
 // MARK: a subagent's view
@@ -2043,6 +2066,10 @@ private func flow(_ work: SubagentWork?) -> [String] {
     #expect(subagentWork(in: events, call: "a3", bundle: english.bundle, locale: english.locale)?.result == nil)
     let nested = subagentWork(in: events, call: "n1", bundle: english.bundle, locale: english.locale)
     #expect(nested?.header.title == "Check the runner types" && nested?.result == nil)
+    // the view's work has no row for the nested subagent (n1's own Read call is absent from a1's items); it lives in the list under a1
+    #expect(work?.items.allSatisfy { if case .tools(_, let group, _) = $0 { group.calls.allSatisfy { $0.id != "s3" } } else { true } } == true)
+    let list = subagentsList(in: events, bundle: english.bundle, locale: english.locale)
+    #expect(list.launches.first?.items.first(where: { $0.id == "a1" })?.children.map(\.id) == ["n1"])
 }
 
 @Test func aSubagentKeepsTheSummaryOfCompletedAndFailedEndsAndDropsItWhenStopped() {

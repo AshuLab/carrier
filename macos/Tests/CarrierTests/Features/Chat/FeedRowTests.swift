@@ -65,3 +65,15 @@ import Testing
     let stored = Set(Mirror(reflecting: row()).children.compactMap { $0.label?.drop(while: { $0 == "_" }).description })
     #expect(stored == compared.union(notCompared))
 }
+
+@MainActor @Test func aToolsRowWithSubagentsDrawsOnlyTheRunLineAndNoSubagentRows() throws {
+    let fixtures = testPaths().fixtures.path
+    let reply = try JSONDecoder().decode(ChatEvents.self, from: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-events-subagents.json")))
+    let liveRun = try #require(chatFeed(reply.events, working: true).first { if case .tools = $0 { true } else { false } })
+    let storedRun = try #require(chatFeed(reply.events, working: false).first { if case .tools = $0 { true } else { false } })
+    for feedRow in [liveRun, storedRun] {
+        let renderer = ImageRenderer(content: row(feedRow).frame(width: 560))
+        renderer.scale = 2
+        #expect(try #require(renderer.cgImage).height == 60)
+    }
+}

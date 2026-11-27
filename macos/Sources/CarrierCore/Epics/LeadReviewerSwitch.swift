@@ -1,6 +1,6 @@
 import Foundation
 
-// The Use a lead reviewer switch of the Agents page (docs/specs/agents-in-settings.md). Off removes `agents.leadReviewer` and its failover steps
+// The Use a lead reviewer switch of the Roles page (docs/specs/agents-in-settings.md). Off removes `agents.leadReviewer` and its failover steps
 // from `engine.json` and keeps every other key. On sends nothing until identity, provider and model are chosen (`LeadReviewerDraft`), then the
 // whole role goes in one request (`EngineConfigChange.leadReviewer`), so the file never holds a half role; the engine does it (src/config/role-edit.ts, `setLeadReviewer`).
 

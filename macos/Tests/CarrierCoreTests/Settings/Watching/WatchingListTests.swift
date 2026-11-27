@@ -44,12 +44,12 @@ private func configProblem(_ path: String, _ problem: String, _ text: String = "
     let banner = bannerFor(own)
     #expect(banner.title == "Carrier is not using your latest settings")
     #expect(banner.detail == "The Author's failover step 1 is the same provider and model as the Author itself, so it would move nowhere.")
-    #expect(banner.raw == "failover.roles.author.0: the step is the role's own provider and model, so it would move nowhere" && banner.fix == .agents && banner.fixTitle == "Open Agents")
+    #expect(banner.raw == "failover.roles.author.0: the step is the role's own provider and model, so it would move nowhere" && banner.fix == .roles && banner.fixTitle == "Open Roles")
     #expect(bannerFor(configProblem("failover.roles.leadReviewer.1", "stepRepeated")).detail == "The Lead reviewer's failover step 2 repeats another step of its list.")
     #expect(bannerFor(configProblem("failover.roles.reviewer.0", "providerNotDeclared")).detail == "The Reviewer's failover step 1 uses a provider that is not declared in providers.")
-    // a kind the page does not know still goes to Agents, with the engine's words only
+    // a kind the page does not know still goes to Roles, with the engine's words only
     let unknown = bannerFor(configProblem("failover.roles.author.0", "somethingNew"))
-    #expect(unknown.detail == nil && unknown.fix == .agents)
+    #expect(unknown.detail == nil && unknown.fix == .roles)
 }
 
 @Test func aRefusalOfAnythingElseIsShownAsTheEngineSaysItWithNoWayToMendIt() {

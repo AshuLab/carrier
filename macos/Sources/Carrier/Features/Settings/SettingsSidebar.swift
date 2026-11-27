@@ -36,9 +36,12 @@ struct SettingsSidebar: View {
         return providersSearchEntries(providersPage(reply, config: currentConfig(), chat: try? currentChatConfig()))
     }
 
+    /// The extra reviewers of the file, by name, which the static index cannot know.
+    private var rolesEntries: [SettingsEntry] { currentConfig().map { rolesSearchEntries(config: $0) } ?? [] }
+
     /// What the search found, under the pages it is in; choosing one opens the page and shows the row.
     @ViewBuilder private var results: some View {
-        let found = settingsResults(query, in: settingsIndex + providersEntries)
+        let found = settingsResults(query, in: settingsIndex + rolesEntries + providersEntries)
         let words = query.split(whereSeparator: \.isWhitespace).map(String.init)
         if found.isEmpty {
             ContentUnavailableView.search(text: query)
@@ -122,7 +125,8 @@ extension SettingsPage {
         case .projects: .mint
         case .sidebar: .cyan
         case .terminal: Color(Tokens.Tile.terminal)
-        case .agents: .orange
+        case .roles: .orange
+        case .identities: .indigo
         case .watching, .health: .green
         case .behavior: .brown
         }

@@ -9,12 +9,16 @@ import SwiftUI
 /// it run on it; nothing restarts Carrier.
 /// Why it cannot save, or what the engine answered, is in the page's header (`SettingsHeaderNoteKey`).
 struct BehaviorTabView: View {
+    /// Opens a place of Settings (the lead reviewer's screen in Roles)
+    let go: (SettingsPlace) -> Void
     @ObservedObject private var start = StartController.shared
     @State private var saved = EngineConfig()
     @State private var draft = EngineConfig()
     /// fields whose text is not a number yet
     @State private var unparsable: Set<String> = []
     @State private var unreadable = false
+    /// the file has `agents.leadReviewer`: until it does, Lead rounds is dimmed
+    @State private var hasLead = true
     @State private var failure: String?
     /// the send that waits for the person to stop typing, and the values it will send
     @State private var sendLater: Task<Void, Never>?
@@ -48,6 +52,7 @@ struct BehaviorTabView: View {
                 SettingsGroup(id: page.id, title: page.title) {
                     ForEach(Array(page.rows.enumerated()), id: \.element.key) { index, item in
                         row(item, first: index == 0)
+                        if item.key == "maxLeadRounds", hasLead == false { noLead }
                     }
                 }
             }
@@ -74,7 +79,16 @@ struct BehaviorTabView: View {
     }
 
     private func row(_ item: BehaviorRow, first: Bool) -> some View {
-        SettingsTabRow(id: item.key, title: item.title, detail: item.detail, first: first, problem: problems[item.key]) { control(item) }
+        let dimmed = item.key == "maxLeadRounds" && hasLead == false
+        return SettingsTabRow(id: item.key, title: item.title, detail: item.detail, first: first, problem: problems[item.key]) { control(item).disabled(dimmed) }
+            .opacity(dimmed ? 0.4 : 1)
+    }
+
+    /// The line under a dimmed Lead rounds: why, and the way to the lead's screen.
+    private var noLead: some View {
+        SettingsTabRow(title: Copy.behaviorLeadOffTitle(), detail: Copy.behaviorLeadOffDetail()) {
+            Button(Copy.behaviorOpenLead()) { go(SettingsPlace(.roles, path: [AgentRole.leadReviewer.rawValue])) }.controlSize(.small)
+        }
     }
 
     @ViewBuilder private func control(_ item: BehaviorRow) -> some View {
@@ -106,6 +120,7 @@ struct BehaviorTabView: View {
         switch key {
         case "maxConcurrentEpics": return $draft.maxConcurrentEpics
         case "maxReviews": return $draft.maxReviews
+        case "maxLeadRounds": return $draft.maxLeadRounds
         case "maxExecutionRetries": return $draft.maxExecutionRetries
         case "githubCallTimeoutSeconds": return $draft.githubCallTimeoutSeconds
         case "finishedWindowDays": return $draft.finishedWindowDays
@@ -130,11 +145,13 @@ struct BehaviorTabView: View {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
               (try? JSONSerialization.jsonObject(with: data)) is [String: Any] else {
             unreadable = true
+            hasLead = true
             failure = nil
             unparsable = []
             return
         }
         unreadable = false
+        hasLead = fileHasLeadReviewer(json: data)
         saved = EngineConfig(json: data)
         draft = saved
     }

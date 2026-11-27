@@ -5,7 +5,7 @@ import Foundation
 public enum SettingsPage: String, CaseIterable, Sendable {
     case general, providers, appearance, notifications, keybindings, dictation, keepAwake = "keep-awake"
     case chat, sessions, projects, sidebar, terminal
-    case agents, watching, behavior
+    case roles, identities, watching, behavior
     case engine, health, about
 
     /// The page for what was stored as the last page: its identifier, or the English title an earlier build stored; General for anything else.
@@ -29,7 +29,8 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         case .projects: Copy.settingsPageProjects(bundle: bundle, locale: locale)
         case .sidebar: Copy.settingsPageSidebar(bundle: bundle, locale: locale)
         case .terminal: Copy.settingsPageTerminal(bundle: bundle, locale: locale)
-        case .agents: Copy.settingsPageAgents(bundle: bundle, locale: locale)
+        case .roles: Copy.settingsPageRoles(bundle: bundle, locale: locale)
+        case .identities: Copy.settingsPageIdentities(bundle: bundle, locale: locale)
         case .watching: Copy.settingsPageWatching(bundle: bundle, locale: locale)
         case .behavior: Copy.settingsPageBehavior(bundle: bundle, locale: locale)
         case .engine: Copy.settingsPageEngine(bundle: bundle, locale: locale)
@@ -56,7 +57,7 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         switch self {
         case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake: .app
         case .chat, .sessions, .projects, .sidebar, .terminal: .workspace
-        case .agents, .watching, .behavior: .carrier
+        case .roles, .identities, .watching, .behavior: .carrier
         case .engine, .health, .about: .system
         }
     }
@@ -65,7 +66,7 @@ public enum SettingsPage: String, CaseIterable, Sendable {
     /// would not hold.
     public var usesForm: Bool {
         switch self {
-        case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .agents, .watching, .behavior, .engine, .about: true
+        case .general, .providers, .appearance, .notifications, .keybindings, .dictation, .keepAwake, .chat, .sessions, .sidebar, .terminal, .roles, .identities, .watching, .behavior, .engine, .about: true
         case .projects, .health: false
         }
     }
@@ -96,7 +97,8 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         case .engine: .cpu
         case .behavior: .sliders
         case .watching: .inbox
-        case .agents: .users
+        case .roles: .users
+        case .identities: .user
         case .sessions: .history
         case .projects: .folder
         case .health: .stethoscope
@@ -118,7 +120,8 @@ public enum SettingsPage: String, CaseIterable, Sendable {
         case .projects: Copy.settingsPageProjectsDetail(bundle: bundle, locale: locale)
         case .sidebar: Copy.settingsPageSidebarDetail(bundle: bundle, locale: locale)
         case .terminal: Copy.settingsPageTerminalDetail(bundle: bundle, locale: locale)
-        case .agents: Copy.settingsPageAgentsDetail(bundle: bundle, locale: locale)
+        case .roles: Copy.settingsPageRolesDetail(bundle: bundle, locale: locale)
+        case .identities: Copy.settingsPageIdentitiesDetail(bundle: bundle, locale: locale)
         case .watching: Copy.settingsPageWatchingDetail(bundle: bundle, locale: locale)
         case .behavior: Copy.settingsPageBehaviorDetail(bundle: bundle, locale: locale)
         case .engine: Copy.settingsPageEngineDetail(bundle: bundle, locale: locale)

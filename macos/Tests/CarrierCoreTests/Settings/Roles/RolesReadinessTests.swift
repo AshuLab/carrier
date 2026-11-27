@@ -14,14 +14,14 @@ private func config(author: String = #"{"profile": "acme-author", "provider": "c
 
 private let bots = ForgeBots(names: ["acme-author", "acme-reviewer", "acme-lead"], note: nil)
 
-private func readiness(_ json: String, providers: String? = nil) throws -> AgentsReadiness {
-    agentsReadiness(try #require(agentsPage(config: Data(json.utf8), providers: providers.map { Data($0.utf8) }, bots: bots, bundle: english.bundle, locale: english.locale)), bundle: english.bundle, locale: english.locale)
+private func readiness(_ json: String, providers: String? = nil) throws -> RolesReadiness {
+    rolesReadiness(try #require(rolesPage(config: Data(json.utf8), providers: providers.map { Data($0.utf8) }, bots: bots, bundle: english.bundle, locale: english.locale)), bundle: english.bundle, locale: english.locale)
 }
 
 @Test func threeRolesThatAreWholeAreSetUp() throws {
     let found = try readiness(config())
     #expect(found.tone == .ready && found.title == "All three roles are set up")
-    #expect(found.notes == ["Each has an identity, an account and a model."] && found.problems.isEmpty && found.fix == nil)
+    #expect(found.notes == ["Each has an identity, an account and a model."] && found.problems.isEmpty && found.problems.first == nil)
 }
 
 @Test func aLeadReviewerThatIsOffIsSaidAndIsNotAProblem() throws {
@@ -31,13 +31,13 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
 
 @Test func anIdentityNotInTheRegistryNeedsAttentionAndPointsToItsRole() throws {
     let found = try readiness(config(reviewer: #"{"profile": "gone", "provider": "codex", "model": "gpt-5"}"#).replacingOccurrences(of: #""me""#, with: #""gone": {"kind": "forge", "agent": "gone"}, "me""#))
-    #expect(found.tone == .attention && found.title == "One role needs attention" && found.fix == .reviewer)
+    #expect(found.tone == .attention && found.title == "One role needs attention" && found.problems.first?.role == .reviewer)
     #expect(found.notes.first == "Reviewer: the identity “gone” is not in Agent Forge or in profiles. Choose another.")
 }
 
 @Test func anAccountThatIsNotInProvidersJsonNeedsAttention() throws {
     let found = try readiness(config(), providers: #"{"providers": {"claude": {"harness": "claude"}}}"#)
-    #expect(found.problems.map(\.role) == [.reviewer] && found.fix == .reviewer)
+    #expect(found.problems.map(\.role) == [.reviewer] && found.problems.first?.role == .reviewer)
     #expect(found.problems.contains { $0.text == "the account “codex” is not in providers.json." })
 }
 
@@ -45,7 +45,7 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
     let found = try readiness(config(author: #"{}"#))
     let texts = found.problems.filter { $0.role == .author }.map(\.text)
     #expect(texts == ["it has no identity yet.", "it has no account yet.", "it has no model yet."])
-    #expect(found.title == "One role needs attention" && found.fix == .author)
+    #expect(found.title == "One role needs attention" && found.problems.first?.role == .author)
 }
 
 @Test func twoRolesInTroubleAreCountedByRoleNotByProblem() throws {
@@ -59,7 +59,7 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
 }
 
 @Test func aLeadReviewerBeingTurnedOnIsShownAsOneThatIsOnWhileTheFileStillHasNone() throws {
-    let page = try #require(agentsPage(config: Data(config(lead: nil).utf8), providers: nil, bots: bots))
+    let page = try #require(rolesPage(config: Data(config(lead: nil).utf8), providers: nil, bots: bots))
     let off = try #require(page.rows.first { $0.role == .leadReviewer })
     #expect(off.off && off.headline(bundle: english.bundle, locale: english.locale) == "Off" && off.drafting == false)
     var draft = LeadReviewerDraft()
@@ -85,11 +85,11 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
 }
 
 @Test func theHeadlineOfARoleIsItsModelEffortAndIdentity() throws {
-    let page = try #require(agentsPage(config: Data(config(lead: nil).utf8), providers: nil, bots: bots))
+    let page = try #require(rolesPage(config: Data(config(lead: nil).utf8), providers: nil, bots: bots))
     #expect(page.rows.first { $0.role == .author }?.headline(bundle: english.bundle, locale: english.locale) == "sonnet · high · acme-author")
     #expect(page.rows.first { $0.role == .reviewer }?.headline(bundle: english.bundle, locale: english.locale) == "gpt-5 · acme-reviewer")
     #expect(page.rows.first { $0.role == .leadReviewer }?.headline(bundle: english.bundle, locale: english.locale) == "Off")
-    let empty = try #require(agentsPage(config: Data(config(author: "{}").utf8), providers: nil, bots: bots))
+    let empty = try #require(rolesPage(config: Data(config(author: "{}").utf8), providers: nil, bots: bots))
     #expect(empty.rows.first { $0.role == .author }?.headline(bundle: english.bundle, locale: english.locale) == "Not set")
 }
 
@@ -104,10 +104,12 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
     let listed = Set(AgentRole.allCases.flatMap { $0.stages(bundle: english.bundle, locale: english.locale) }.map(\.skill))
     #expect(invoked.count == 4)
     #expect(listed == invoked, "AgentRole.stages and the default skills disagree on the skills each stage runs")
+    // `skills.lead` names nothing by default and takes the review skills (docs/configuration.md): the lead runs the review skills of the fixture, in their order
+    #expect(AgentRole.leadReviewer.stages(bundle: english.bundle, locale: english.locale).map(\.skill) == [review["review"], review["publish"]].compactMap { $0 })
 }
 
-@Test func theLeadReviewerHasNoStageAndTheOthersHaveTheirSkillsInOrder() {
-    #expect(AgentRole.leadReviewer.stages(bundle: english.bundle, locale: english.locale).isEmpty)
+@Test func theLeadReviewerRunsTheReviewSkillsAndTheOthersHaveTheirSkillsInOrder() {
+    #expect(AgentRole.leadReviewer.stages(bundle: english.bundle, locale: english.locale).map(\.title) == ["Lead review", "Post and approve"])
     #expect(AgentRole.author.stages(bundle: english.bundle, locale: english.locale).map(\.skill) == ["ship", "code-resolve"])
     #expect(AgentRole.reviewer.stages(bundle: english.bundle, locale: english.locale).map(\.skill) == ["code-review", "code-post"])
 }
@@ -144,4 +146,28 @@ private func readiness(_ json: String, providers: String? = nil) throws -> Agent
 @Test func onlyAGithubLoginMakesTheAddressOfAPicture() {
     #expect(["vemec", "a", "Diego-G", "user123"].allSatisfy(isGithubLogin))
     #expect(["", "-bad", "has space", "a/b", "a?s=1", "../x", "ñandú", String(repeating: "a", count: 40)].contains(where: isGithubLogin) == false)
+}
+
+@Test func anExtraReviewerThatLacksWhatItNeedsIsNamedAndOpened() throws {
+    let json = #"""
+    {"profiles": {"a": {"kind": "gh"}},
+     "agents": {"author": {"profile": "a", "provider": "claude", "model": "m"}, "reviewer": {"profile": "a", "provider": "codex", "model": "m"},
+                "extraReviewers": {"seguridad-api": {"type": "security", "name": "Seguridad API", "profile": "a", "provider": "codex", "model": "m"},
+                                   "usabilidad": {"type": "ux", "name": "Usabilidad", "provider": "codex"}}}}
+    """#
+    let found = try readiness(json)
+    #expect(found.tone == .attention && found.title == "One role needs attention" && found.problems.first?.role == .extra(key: "usabilidad"))
+    #expect(found.problems.map(\.role) == [.extra(key: "usabilidad"), .extra(key: "usabilidad")])
+    #expect(found.problems.map(\.text) == ["it has no identity yet.", "it has no model yet."])
+    #expect(found.notes.first == "Usabilidad: it has no identity yet.")
+}
+
+@Test func extraReviewersThatAreWholeAreSetUpAndCounted() throws {
+    let json = #"""
+    {"profiles": {"a": {"kind": "gh"}},
+     "agents": {"author": {"profile": "a", "provider": "claude", "model": "m"}, "reviewer": {"profile": "a", "provider": "codex", "model": "m"},
+                "extraReviewers": {"usabilidad": {"type": "ux", "name": "Usabilidad", "profile": "a", "provider": "codex", "model": "m"}}}}
+    """#
+    let found = try readiness(json)
+    #expect(found.tone == .ready && found.title == "3 roles are set up" && found.problems.isEmpty)
 }

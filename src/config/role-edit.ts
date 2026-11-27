@@ -4,7 +4,7 @@ import { extraReviewerKey, maxNameLength, reservedKeys, slugPattern } from './ex
 import { providersProblem, readProvidersFile } from './providers.ts';
 import { efforts } from './schema.ts';
 
-// The writes of `engine.json` the Agents page, a repo's role screens and the Engine page ask for (ADR 0053): the roles, their persona and failover, the lead reviewer and the orchestrator's profile.
+// The writes of `engine.json` the Roles page, a repo's role screens and the Engine page ask for (ADR 0053): the roles, their persona and failover, the lead reviewer and the orchestrator's profile.
 // Same way as `engine-edit.ts` (read again, changed, checked whole, renamed); the words of each refusal are the ones `macos/Sources/CarrierCore` used before it asked for these.
 
 export type Role = 'author' | 'reviewer' | 'leadReviewer';

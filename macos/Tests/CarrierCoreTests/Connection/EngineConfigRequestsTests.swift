@@ -18,17 +18,18 @@ private func hello(_ capabilities: String) -> String {
 
 private func object(_ data: Data) throws -> NSDictionary { try #require(JSONSerialization.jsonObject(with: data) as? NSDictionary) }
 
-/// What the Behavior page builds for the golden: a poll every 2.5 minutes, debug logs, the default window and limits except 8 reviews and no limit on the run time.
+/// What the Behavior page builds for the golden: a poll every 2.5 minutes, debug logs, the default window and limits except 8 reviews, 4 lead rounds and no limit on the run time.
 func goldenBehavior() -> EngineConfig {
     var config = EngineConfig()
     config.pollIntervalMinutes = 2.5
     config.logLevel = "debug"
     config.maxReviews = 8
+    config.maxLeadRounds = 4
     config.maxExecutionHours = nil
     return config
 }
 
-/// What the Agents page builds for the goldens of the role requests.
+/// What the Roles page builds for the goldens of the role requests.
 let goldenRoleChanges: [(String, EngineConfigChange)] = [
     ("engine-edit-role.json", .role(.reviewer, [.bot("nova"), .provider("codex"), .model("gpt-5"), .effort(nil)])),
     ("engine-edit-repo-role.json", .repoRole(repo: "acme/web", role: .reviewer, fields: RoleFields(profile: "author-bot", model: "qwen3-coder", effort: "high", persona: RolePersona(name: "Rex")))),
@@ -108,13 +109,13 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
 
 @Test func theBehaviorValuesAreAllSentAndNodeTakesOutTheDefaults() throws {
     let changes = try #require(try object(EngineConfigChange.behavior(EngineConfig()).request)["changes"] as? NSDictionary)
-    #expect(changes == ["pollIntervalMinutes": 5, "logLevel": "info", "finishedWindowDays": 15, "limits": ["maxConcurrentEpics": 3, "maxReviews": 5, "maxExecutionRetries": 3, "maxExecutionHours": 4, "githubCallTimeoutSeconds": 30]] as NSDictionary)
+    #expect(changes == ["pollIntervalMinutes": 5, "logLevel": "info", "finishedWindowDays": 15, "limits": ["maxConcurrentEpics": 3, "maxReviews": 5, "maxLeadRounds": 3, "maxExecutionRetries": 3, "maxExecutionHours": 4, "githubCallTimeoutSeconds": 30]] as NSDictionary)
     var config = EngineConfig()
     config.pollIntervalMinutes = .nan
     #expect(EngineConfigChange.behavior(config).fields == "")
 }
 
-@Test func aPickOfTheAgentsPageIsOneRoleRequestWithTheIdentityAsTheProfileMeansItAndNullForNoEffort() throws {
+@Test func aPickOfTheRolesPageIsOneRoleRequestWithTheIdentityAsTheProfileMeansItAndNullForNoEffort() throws {
     let changes = try #require(try object(EngineConfigChange.role(.author, [.gh, .provider("codex"), .model(" gpt-5 "), .effort("low"), .effort(nil)]).request)["changes"] as? NSDictionary)
     #expect(changes == ["identity": ["kind": "gh"], "provider": "codex", "model": " gpt-5 ", "effort": NSNull()] as NSDictionary)
     #expect(try object(EngineConfigChange.role(.leadReviewer, [.bot("nova")]).request) == ["cmd": "editRole", "role": "leadReviewer", "changes": ["identity": ["kind": "forge", "agent": "nova"]]] as NSDictionary)
@@ -176,6 +177,29 @@ private func launcher(_ runner: FakeRunner) -> CarrierConfigLauncher { CarrierCo
     let saved = await [first.value, second.value]
     #expect(saved == [.saved, .saved])
     #expect(engine.order == ["start editPersona", "end editPersona", "start setOrchestratorProfile", "end setOrchestratorProfile"])
+}
+
+@MainActor @Test func aChangeBuiltInTheQueueStartsFromWhatTheOnesBeforeItLeft() async {
+    // the file, as the engine leaves it: each change adds its name to the list, so a change built from a list read earlier would overwrite the one before it
+    final class File: @unchecked Sendable {
+        let lock = NSLock()
+        var names: [String] = []
+        func send(_ change: EngineConfigChange) async throws -> EngineConfigReply {
+            if case .persona(_, let name?, _) = change { try? await Task.sleep(for: .milliseconds(40)); lock.withLock { names.append(name) } }
+            return EngineConfigReply(engine: .applied)
+        }
+        var read: [String] { lock.withLock { names } }
+    }
+    let file = File()
+    let queue = EngineConfigQueue()
+    let status = ReloadStatus(reload: { .nobody })
+    var built: [[String]] = []
+    // the second is asked while the first is still in flight; it is built only when the first has been written
+    let first = Task { @MainActor in await queue.save(building: { built.append(file.read); return .persona(role: .author, name: "a", prompt: nil) }, send: file.send, status: status) }
+    let second = Task { @MainActor in await queue.save(building: { built.append(file.read); return .persona(role: .author, name: "b", prompt: nil) }, send: file.send, status: status) }
+    let nothing = Task { @MainActor in await queue.save(building: { nil }, send: file.send, status: status) }
+    #expect(await [first.value, second.value, nothing.value] == [.saved, .saved, nil])
+    #expect(built == [[], ["a"]] && file.read == ["a", "b"])
 }
 
 @Test func theSocketGetsTheGoldenRequestWithAnIdWhenTheHelloListsConfig() async throws {

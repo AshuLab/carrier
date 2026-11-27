@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// The accounts and models the Agents page's picker lists.
+// The accounts and models the Roles page's picker lists.
 
 private func reply(_ accounts: [(String, String, String)]) throws -> HostProviders {
     let rows = accounts.map { #"{"name":"\#($0.0)","harness":"\#($0.1)","found":true,"state":"\#($0.2)"}"# }.joined(separator: ",")

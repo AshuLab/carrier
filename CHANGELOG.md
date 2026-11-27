@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Settings shows every role that runs on an epic, globally and for each repo: Roles lists the Author, the Reviewer, each extra reviewer by the name you gave it and the Lead reviewer, on a rail that draws the reviewers as one step in parallel.
+  You add, change and remove extra reviewers from Roles without editing `engine.json`: a new one has a name, a type, an identity, an account and a model and is saved whole once they are set, and Remove asks first.
+  The Lead reviewer's screen shows its skills and its failover steps (the Reviewer's while it has none), and Behavior has Lead rounds beside Review rounds.
+  A role's screen lists the other roles that work as the same account, and warns when the Lead reviewer works as the Author's account, since GitHub will not let it approve its own pull request.
+  In Watching a repo's screen has More reviewers here: the roles of the app, an own list of reviewers or none.
+- Identities is a page of its own in Settings: every bot and your `gh` login with the roles (the extra reviewers too) that sign as it and whether it can sign in each watched repo.
 - The engine adds, changes and removes an extra reviewer and sets a repo's own list of them (`addExtraReviewer`, `removeExtraReviewer`, `setRepoExtraReviewers`, and `editRole`, `editPersona` and `editFailover` with `{ "extraReviewer": "<key>" }`), announced with the capability `extraReviewers`, so the app can edit them without touching the file by hand.
   `carrier config` accepts the same requests.
 - `carrier init` takes extra reviewers by flags that name them: `--extra-reviewer "<name>=<harness>:<model>"`, repeatable, and `--extra-reviewer-profile`, `-provider`, `-effort`, `-type`, `-persona-name`, `-persona-prompt` and `-failover`, each as `"<name>=<value>"`.
@@ -25,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Tapping it opens a list grouped by launch under timeline bars, with nested subagents indented under their launcher, and choosing a row opens its view while keeping the button in the header to jump between subagents.
   Each subagent view now pins its brief in a collapsible Brief card at the top and shows what a completed or failed subagent returned in a Result block after its work.
   The conversation keeps one run line per launch, and the sidebar row keeps its cyan ring while a subagent runs.
+- Settings' Agents page is called Roles, in its title, its search, its copy and its folders.
 - The theme gallery shows three rows and scrolls sideways, with half a column cut at the right edge while there are more themes, an arrow at each side, and the arrow keys moving the choice, so it keeps the same height with twenty themes as with nine.
 - The terminal chooses its theme in that same gallery instead of a pop-up, and its first cell, "Same as app", follows the app's theme until another one is picked.
 - `carrier init` asks the AI accounts first, then the orchestrator's GitHub profile, then one closed block for each role (the Author, the Reviewer, each extra reviewer and the Lead reviewer), and the repos last.

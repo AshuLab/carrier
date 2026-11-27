@@ -70,14 +70,14 @@ describe('setWatchedRepos', () => {
 
 describe('editBehavior', () => {
   test('writes a value that is not the default, keeps the other keys of limits and every other key', () => {
-    const result = editBehavior({ pollIntervalMinutes: 2.5, logLevel: 'debug', finishedWindowDays: 20, limits: { maxConcurrentEpics: 5, maxExecutionHours: 'unlimited', maxReviews: 7 } }, file, folder);
-    expect(written()).toEqual({ ...validEngineFile, pollIntervalMinutes: 2.5, logLevel: 'debug', finishedWindowDays: 20, limits: { maxReviews: 7, maxLeadRounds: 2, maxConcurrentEpics: 5, maxExecutionHours: 'unlimited' } });
-    expect(result).toEqual({ saved: { pollIntervalMinutes: 2.5, logLevel: 'debug', finishedWindowDays: 20, limits: { maxConcurrentEpics: 5, maxExecutionHours: 'unlimited', maxReviews: 7 } } });
+    const result = editBehavior({ pollIntervalMinutes: 2.5, logLevel: 'debug', finishedWindowDays: 20, limits: { maxConcurrentEpics: 5, maxExecutionHours: 'unlimited', maxReviews: 7, maxLeadRounds: 4 } }, file, folder);
+    expect(written()).toEqual({ ...validEngineFile, pollIntervalMinutes: 2.5, logLevel: 'debug', finishedWindowDays: 20, limits: { maxReviews: 7, maxLeadRounds: 4, maxConcurrentEpics: 5, maxExecutionHours: 'unlimited' } });
+    expect(result).toEqual({ saved: { pollIntervalMinutes: 2.5, logLevel: 'debug', finishedWindowDays: 20, limits: { maxConcurrentEpics: 5, maxExecutionHours: 'unlimited', maxReviews: 7, maxLeadRounds: 4 } } });
   });
 
   test("a value equal to the engine's default is taken out of the file, and an emptied limits goes", () => {
-    writeFileSync(file, JSON.stringify({ ...validEngineFile, logLevel: 'debug', limits: { maxReviews: 7 } }));
-    const result = editBehavior({ pollIntervalMinutes: 5, logLevel: 'info', limits: { maxReviews: 5, maxExecutionHours: 4 } }, file, folder);
+    writeFileSync(file, JSON.stringify({ ...validEngineFile, logLevel: 'debug', limits: { maxReviews: 7, maxLeadRounds: 2 } }));
+    const result = editBehavior({ pollIntervalMinutes: 5, logLevel: 'info', limits: { maxReviews: 5, maxLeadRounds: 3, maxExecutionHours: 4 } }, file, folder);
     expect(written()).toEqual({ ...validEngineFile, limits: undefined, logLevel: undefined });
     expect('limits' in written() || 'logLevel' in written() || 'pollIntervalMinutes' in written()).toBe(false);
     expect(result).toEqual({ saved: {} });
@@ -88,11 +88,13 @@ describe('editBehavior', () => {
     ['a log level that is not one', { logLevel: 'loud' }, 'Must be one of debug, info, warn, error', 'logLevel', 'notOneOf'],
     ['no concurrent epic', { limits: { maxConcurrentEpics: 0 } }, 'Must be 1 or more', 'limits.maxConcurrentEpics', 'tooSmall'],
     ['no review', { limits: { maxReviews: 0 } }, 'Must be 1 or more', 'limits.maxReviews', 'tooSmall'],
+    ['no lead round', { limits: { maxLeadRounds: 0 } }, 'Must be 1 or more', 'limits.maxLeadRounds', 'tooSmall'],
     ['a negative retry count', { limits: { maxExecutionRetries: -1 } }, 'Must be 0 or more', 'limits.maxExecutionRetries', 'tooSmall'],
     ['no hour', { limits: { maxExecutionHours: 0 } }, 'Must be 1 or more, or unlimited', 'limits.maxExecutionHours', 'tooSmall'],
     ['a timeout of 0', { limits: { githubCallTimeoutSeconds: 0 } }, 'Must be 1 or more', 'limits.githubCallTimeoutSeconds', 'tooSmall'],
     ['31 days', { finishedWindowDays: 31 }, 'Must be a whole number from 1 to 30', 'finishedWindowDays', 'outOfRange'],
     ['half a review', { limits: { maxReviews: 2.5 } }, 'Must be a whole number', 'limits.maxReviews', 'notWhole'],
+    ['half a lead round', { limits: { maxLeadRounds: 1.5 } }, 'Must be a whole number', 'limits.maxLeadRounds', 'notWhole'],
   ])('%s is refused with the Behavior page words, a code and its key path and kind, and the file stays as it was', (_what, changes, words, path, kind) => {
     const before = readFileSync(file, 'utf8');
     const refused = refusal(() => editBehavior(changes, file, folder));

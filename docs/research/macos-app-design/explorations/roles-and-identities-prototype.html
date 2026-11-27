@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Roles and Identities — navigable prototype</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.a-ctl{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0 0 18px;padding:10px 16px;border-radius:14px;background:var(--card);max-width:1180px;position:sticky;top:8px;z-index:9;backdrop-filter:blur(20px)}
+.a-ctl .a-l{color:var(--dim);font-size:12px}
+.a-seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.a-seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 10px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.a-seg button.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25)}body.light .a-seg button.on{background:#fff}
+.a-win{height:760px}
+.a-side{width:220px;overflow:auto}
+.a-nav{padding:5px 10px;border-radius:8px;color:var(--dim);display:flex;gap:8px;align-items:center}
+.a-nav.on{background:var(--sel);color:var(--text)}
+.a-nav i{font-style:normal;width:18px;text-align:center}
+.a-form{max-width:680px;margin:0 auto}
+.a-grp{margin:18px 4px 6px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between;align-items:center}
+.a-grp:first-child{margin-top:4px}
+.a-card{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.a-r{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:.5px solid var(--line);min-height:48px}.a-r:first-child{border:0}
+.a-r.a-in{padding-left:46px}
+.a-t{flex:1;min-width:0}.a-t b{display:block;font-weight:550}.a-t span{display:block;color:var(--dim);font-size:12px;margin-top:1px;line-height:1.35}
+.a-c{display:flex;gap:8px;align-items:center;flex:none;color:var(--dim);font-size:12px}
+.a-pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;background:var(--card2);border-radius:8px;padding:4px 9px;box-shadow:0 0 0 .5px var(--line) inset;white-space:nowrap;color:var(--text)}
+.a-pill .a-v{color:var(--faint);font-size:10px}
+.a-pill.a-off{color:var(--dim)}
+.a-quiet{font-size:12.5px;color:var(--dim);background:var(--card);border-radius:8px;padding:4px 9px;font-family:var(--mono)}
+.a-av{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;flex:none;position:relative}
+.a-av.s{width:20px;height:20px;border-radius:6px;font-size:8.5px}
+.a-av em{position:absolute;right:-4px;bottom:-4px;width:14px;height:14px;border-radius:5px;background:#111;font-style:normal;font-size:8px;display:grid;place-items:center;box-shadow:0 0 0 1.5px var(--bg)}
+.a-chev{color:var(--faint);font-size:14px}
+.a-add{color:var(--blue);font-size:12.5px;display:flex;gap:6px;align-items:center}
+.a-add.dis{color:var(--faint)}
+.a-chip{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--card2);color:var(--dim);white-space:nowrap}
+.a-chip.b{background:color-mix(in srgb,var(--blue) 20%,transparent);color:var(--blue)}
+.a-chip.o{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
+.a-foot{color:var(--faint);font-size:12px;margin:6px 6px 0;line-height:1.4}
+.a-rail{position:relative}
+.a-rail .a-r{position:relative}
+.a-rail .a-step{font-size:12px;color:var(--faint);padding:4px 0 4px 46px;border:0;min-height:0}
+.a-par{border-left:2px solid color-mix(in srgb,var(--blue) 45%,transparent);margin-left:14px;padding-left:0}
+.a-par .a-r{padding-left:18px}
+.a-x{color:var(--faint);font-size:13px;width:18px;text-align:center}
+.a-status{display:flex;gap:10px;align-items:center;padding:12px 14px}
+.a-status i{width:22px;height:22px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-style:normal;font-size:11px}
+.a-hd{display:flex;gap:12px;align-items:center;margin:6px 4px 4px}
+.a-hd .a-av{width:44px;height:44px;border-radius:12px;font-size:14px}
+.a-hd>div>b{font-size:15px}.a-hd>div>span{display:block;color:var(--dim);font-size:12px}
+.a-strip{display:flex;gap:6px;flex-wrap:wrap;margin:10px 4px 0}
+.a-strip span{font-size:11.5px;padding:3px 9px;border-radius:99px;background:var(--card2);color:var(--dim)}
+.a-strip span.on{background:var(--blue);color:#fff}
+.a-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.a-tile{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:12px;display:flex;flex-direction:column;gap:8px}
+.a-tile .a-h{display:flex;gap:10px;align-items:center}
+.a-tile .a-h b{display:block}.a-tile .a-h span{display:block;color:var(--dim);font-size:12px}
+.a-tile.new{border:1.5px dashed var(--line);background:none;box-shadow:none;align-items:center;justify-content:center;color:var(--blue);min-height:96px}
+.a-warn{color:var(--orange);font-size:12px}
+.a-menu{position:absolute;right:40px;top:44px;width:250px;border-radius:12px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:6px;z-index:4;font-size:12.5px}
+.a-menu div{padding:5px 9px;border-radius:7px;display:flex;gap:8px;align-items:center}
+.a-menu div.h2{background:var(--blue);color:#fff}
+.a-menu hr{border:0;border-top:.5px solid var(--line);margin:4px}
+.a-menu small{color:var(--faint);margin-left:auto}
+.a-why{max-width:1180px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+.a-why div{background:var(--card);border-radius:12px;padding:10px 14px;color:var(--dim);font-size:12.5px}
+.a-why b{display:block;color:var(--text);margin-bottom:3px}
+.a-json{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;max-width:1180px;margin-top:10px}
+.a-json h3{margin:0 0 6px;font-size:13px}
+.a-json p{color:var(--dim);font-size:12.5px;margin:6px 0 0}
+pre.term{margin:0;white-space:pre;overflow:auto}
+h2.a-q{font-size:15px;margin:34px 0 2px}
+</style></head>
+</head>
+<style>
+.p-tb{gap:6px}
+.p-nb{border:0;background:var(--card2);color:var(--text);width:26px;height:26px;border-radius:50%;font-size:14px;cursor:pointer}
+.p-nb:disabled{opacity:.3;cursor:default}
+.a-nav{cursor:pointer}
+.p-click{cursor:pointer}.p-click:hover{background:color-mix(in srgb,var(--text) 4%,transparent)}
+.a-r.p-click{margin:0 -14px;padding-left:14px;padding-right:14px}
+.a-r.a-in.p-click,.a-par .a-r.p-click{padding-left:32px}
+.a-pill{cursor:pointer}
+.p-sw{width:34px;height:20px;border-radius:99px;background:var(--card2);position:relative;cursor:pointer;flex:none;box-shadow:0 0 0 .5px var(--line) inset}
+.p-sw::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
+.p-sw.on{background:var(--blue)}.p-sw.on::after{left:16px}
+.p-dim{opacity:.4;pointer-events:none}
+.p-banner{border-radius:14px;padding:10px 14px;margin:10px 0 0;display:flex;gap:10px;align-items:center;background:color-mix(in srgb,var(--orange) 14%,transparent);font-size:12.5px}
+.p-banner.r{background:color-mix(in srgb,var(--red) 12%,transparent)}
+.p-link{color:var(--blue);cursor:pointer}
+.p-strip span{cursor:pointer}
+.p-in{font:inherit;font-size:12.5px;color:var(--text);background:var(--card2);border:0;border-radius:7px;padding:5px 9px;width:260px;box-shadow:0 0 0 .5px var(--line) inset}
+textarea.p-in{height:54px;resize:none}
+.p-menu{position:fixed;z-index:50;min-width:230px;max-width:320px;border-radius:12px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:6px;font-size:12.5px}
+.p-menu div{padding:5px 9px;border-radius:7px;display:flex;gap:8px;align-items:center;cursor:pointer}
+.p-menu div:hover{background:var(--blue);color:#fff}
+.p-menu div:hover small{color:#fff}
+.p-menu div.p-h{color:var(--faint);font-size:11px;cursor:default;padding:4px 9px 2px}.p-menu div.p-h:hover{background:none;color:var(--faint)}
+.p-menu hr{border:0;border-top:.5px solid var(--line);margin:4px}
+.p-menu small{color:var(--faint);margin-left:auto;padding-left:10px}
+.p-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--win);backdrop-filter:blur(30px);box-shadow:var(--shadow);border-radius:99px;padding:8px 16px;font-size:12.5px;z-index:60;opacity:0;transition:.2s;pointer-events:none}
+.p-toast.on{opacity:1}
+.p-notes{max-width:1180px;margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.p-notes div{background:var(--card);border-radius:12px;padding:10px 14px;color:var(--dim);font-size:12.5px}
+.p-notes b{display:block;color:var(--text);margin-bottom:3px}
+.p-chipl{cursor:pointer}
+.a-hd .a-av{font-size:14px}
+</style>
+<body>
+<h1>Roles and Identities — navigable</h1>
+<p class="sub">The Carrier group of Settings with the split settled: <b>Roles</b> (today's Agents) holds everything a role runs with (identity, model, effort, persona, failover, skills), <b>Identities</b> is who signs on GitHub. Providers stays where it is, in the App group, because the chat host reads its accounts too; it is only linked from here. Everything is clickable: rows open screens, pills open menus, ‹ › go back and forward. Try: add a reviewer, turn the lead off and on, open an identity from a role, override a repo.</p>
+<div class="a-ctl"><button class="tog" onclick="reset()">Reset the data</button><span class="sp"></span><button class="tog" onclick="document.body.classList.toggle('light')">Light / dark</button></div>
+
+<div class="win a-win">
+  <div class="lights"><i></i><i></i><i></i></div>
+  <div class="side a-side" id="side"></div>
+  <div class="main"><div class="tb p-tb" id="tb"></div><div class="scroll" id="scroll"><div class="a-form" id="page"></div></div></div>
+</div>
+<div class="p-notes">
+  <div><b>What writes what</b>A role's fields write <span class="mono">agents.&lt;role&gt;</span> (extra reviewers: <span class="mono">agents.extraReviewers[n]</span>, their failover inline). Identities writes nothing in <span class="mono">agents</span>: it reads which roles sign as each and adds a <span class="mono">profiles</span> entry when a role picks a new bot.</div>
+  <div><b>A new reviewer</b>Like the lead today: it is a draft in the page until it has an identity and a model, then the whole entry is sent at once, so the file never holds half a reviewer. Removing one renumbers the ones after it; running epics keep what they started with.</div>
+  <div><b>Repos</b>The Reviewer and the lead are overridden field by field, as the Author. The more reviewers are one list that replaces the global one whole (Same as everywhere, Own list, None), because that is how the engine reads it.</div>
+</div>
+<div class="p-toast" id="toast"></div>
+
+<script>
+const ACCTS = {
+  'claude-personal': { h: 'claude', models: ['opus', 'sonnet', 'haiku'] },
+  'claude-work': { h: 'claude', models: ['opus', 'sonnet'] },
+  'codex': { h: 'codex', models: ['gpt-5.1-codex', 'gpt-5.1-codex-mini'] },
+  'antigravity': { h: 'antigravity', models: ['gemini-3-pro', 'gemini-3-flash'] },
+};
+const MARK = { claude: 'C', codex: 'X', antigravity: 'G' };
+const REPOS = ['acme/web', 'acme/api', 'AshuLab/carrier'];
+const IDS = {
+  'author-bot': { name: 'carrier-author-bot', kind: 'Agent Forge bot', col: '#bf5af2', app: '2210431', no: [] },
+  'review-bot': { name: 'carrier-review-bot', kind: 'Agent Forge bot', col: '#0a84ff', app: '2210467', no: [] },
+  'lead-bot': { name: 'carrier-lead-bot', kind: 'Agent Forge bot', col: '#ff453a', app: '2298120', no: ['acme/api'] },
+  'spare-bot': { name: 'carrier-spare-bot', kind: 'Agent Forge bot', col: '#ff9f0a', app: '2301777', no: [] },
+  'me': { name: 'your-login', kind: 'Your gh login', col: '#636366', no: [] },
+};
+const EFF = ['Default', 'low', 'medium', 'high', 'xhigh', 'max'];
+let D, hist, pos;
+function reset() {
+  D = {
+    author: { id: 'author-bot', acct: 'claude-personal', model: 'opus', eff: 'max', persona: null, fo: ['claude-work · opus'] },
+    reviewer: { id: 'review-bot', acct: 'codex', model: 'gpt-5.1-codex', eff: 'high', persona: { name: 'Strict', prompt: 'Block on missing tests.' }, fo: ['claude-work · sonnet'] },
+    extras: [{ id: 'review-bot', acct: 'claude-work', model: 'sonnet', eff: 'Default', persona: null, fo: null }],
+    lead: { id: 'lead-bot', acct: 'claude-personal', model: 'opus', eff: 'max', persona: null, fo: null },
+    leadOn: true, leadDraft: null,
+    limits: { maxReviews: 5, maxLeadRounds: 3 },
+    repos: { 'acme/web': { reviewer: { id: 'me', acct: 'antigravity', model: 'gemini-3-pro' }, extrasMode: 'own', extras: [{ id: 'review-bot', acct: 'claude-work', model: 'opus' }] }, 'acme/api': { extrasMode: 'none' }, 'AshuLab/carrier': {} },
+  };
+  hist = [{ page: 'roles' }]; pos = 0; render();
+}
+
+// --- roles ---
+const keys = () => ['author', 'reviewer', ...D.extras.map((_, i) => `reviewer-${i + 2}`), 'lead'];
+const label = (k) => ({ author: 'Author', reviewer: 'Reviewer', lead: 'Lead reviewer' }[k] ?? `Reviewer ${k.split('-')[1]}`);
+const role = (k) => k === 'author' ? D.author : k === 'reviewer' ? D.reviewer : k === 'lead' ? (D.leadOn ? D.lead : D.leadDraft) : D.extras[+k.split('-')[1] - 2];
+const isExtra = (k) => k.startsWith('reviewer-');
+const purpose = (k) => ({ author: 'Writes the code of the epic and answers the reviewers', reviewer: 'Reviews the final pull request', lead: 'Optional. Looks again once the reviewers agree, and approves' }[k] ?? 'Reviews the same commit, in parallel');
+const complete = (r) => r && r.id && r.acct && r.model;
+const harness = (r) => r && r.acct ? ACCTS[r.acct].h : null;
+const skills = (k) => { const p = harness(role(k)) === 'codex' ? '$' : '/'; return k === 'author' ? [['First pass', p + 'ship'], ['Answering a review', p + 'code-resolve']] : k === 'lead' ? [['Lead review', p + 'code-review'], ['Post and approve', p + 'code-post']] : [['Review', p + 'code-review'], ['Post findings', p + 'code-post']]; };
+const signsAs = (id) => keys().filter((k) => { const r = role(k); return r && r.id === id && (k !== 'lead' || D.leadOn); });
+
+const initials = (s) => s.replace(/^carrier-/, '').split(/[- ·]+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+const idAv = (id, small, r) => id ? `<span class="a-av ${small ? 's' : ''}" style="background:${IDS[id].col}">${initials(IDS[id].name)}${!small && r && r.acct ? `<em>${MARK[ACCTS[r.acct].h]}</em>` : ''}</span>` : `<span class="a-av ${small ? 's' : ''}" style="background:var(--card2);color:var(--faint)">?</span>`;
+const pill = (t, act, off) => `<span class="a-pill ${off ? 'a-off' : ''}" onclick="${act}">${t}<span class="a-v">▾</span></span>`;
+const modelLine = (r) => r && r.model ? `${r.model}${r.eff && r.eff !== 'Default' ? ' · ' + r.eff : ''}` : 'No model yet';
+
+// --- navigation ---
+function go(place) { hist = hist.slice(0, pos + 1); hist.push(place); pos++; render(); document.getElementById('scroll').scrollTop = 0; }
+function back() { if (pos > 0) { pos--; render(); } }
+function fwd() { if (pos < hist.length - 1) { pos++; render(); } }
+const here = () => hist[pos];
+function toast(t) { const e = document.getElementById('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 2200); }
+
+// --- menus ---
+let menuAct = [];
+function menu(ev, items) {
+  ev.stopPropagation(); closeMenu();
+  menuAct = [];
+  const m = document.createElement('div'); m.className = 'p-menu'; m.id = 'menu';
+  m.innerHTML = items.map((it) => { if (it === '-') return '<hr>'; if (it.h) return `<div class="p-h">${it.h}</div>`; menuAct.push(it.do); return `<div onclick="pick(${menuAct.length - 1})">${it.icon ?? ''}${it.t}${it.s ? `<small>${it.s}</small>` : ''}</div>`; }).join('');
+  document.body.appendChild(m);
+  const b = ev.currentTarget.getBoundingClientRect();
+  m.style.top = Math.min(b.bottom + 4, innerHeight - m.offsetHeight - 10) + 'px';
+  m.style.left = Math.max(10, b.right - m.offsetWidth) + 'px';
+}
+function pick(i) { const f = menuAct[i]; closeMenu(); f(); render(); }
+function closeMenu() { document.getElementById('menu')?.remove(); }
+document.addEventListener('click', closeMenu);
+
+function saveIfDraft(k) {
+  const r = role(k);
+  if (k === 'lead' && !D.leadOn && complete(D.leadDraft)) { D.lead = D.leadDraft; D.leadDraft = null; D.leadOn = true; toast('Lead reviewer saved: agents.leadReviewer'); }
+  else if (r && r.draft && complete(r)) { delete r.draft; toast(`${label(k)} saved: agents.extraReviewers[${+k.split('-')[1] - 2}]`); }
+  else if (r && !r.draft && !(k === 'lead' && !D.leadOn)) toast(`Saved ${k === 'lead' ? 'agents.leadReviewer' : isExtra(k) ? 'agents.extraReviewers[' + (+k.split('-')[1] - 2) + ']' : 'agents.' + k}`);
+}
+function idMenu(ev, k, repo) {
+  const set = (v) => () => { if (repo) { setRepo(repo, k, 'id', v); } else { role(k).id = v; saveIfDraft(k); } };
+  const items = [];
+  if (repo) items.push({ t: `Same as everywhere · ${IDS[role(k).id]?.name ?? '—'}`, do: set(undefined) }, '-');
+  items.push({ h: 'Bots of Agent Forge' });
+  for (const [id, x] of Object.entries(IDS)) { if (id === 'me') continue; const u = signsAs(id); items.push({ icon: idAv(id, 1), t: x.name, s: u.length ? u.map(label).join(', ') : '', do: set(id) }); }
+  items.push('-', { icon: idAv('me', 1), t: IDS.me.name, s: 'your gh login', do: set('me') }, '-', { t: 'Create a bot…', do: () => toast('Opens Terminal on agent-forge add') });
+  menu(ev, items);
+}
+function modelMenu(ev, k, repo) {
+  const set = (a, m) => () => { if (repo) { setRepo(repo, k, 'acct', a); setRepo(repo, k, 'model', m); } else { const r = role(k); r.acct = a; r.model = m; saveIfDraft(k); } };
+  const items = repo ? [{ t: `Same as everywhere · ${role(k).acct} · ${role(k).model}`, do: set(undefined, undefined) }, '-'] : [];
+  for (const [a, x] of Object.entries(ACCTS)) { items.push({ h: a }); for (const m of x.models) items.push({ t: m, s: MARK[x.h], do: set(a, m) }); }
+  menu(ev, items);
+}
+function effMenu(ev, k) { menu(ev, EFF.map((e) => ({ t: e, do: () => { role(k).eff = e; saveIfDraft(k); } }))); }
+function foMenu(ev, k) {
+  const r = role(k), opts = [];
+  if (isExtra(k) || k === 'lead') opts.push({ t: 'Same as Reviewer', s: (D.reviewer.fo ?? []).join(', ') || 'none', do: () => { r.fo = null; saveIfDraft(k); } }, '-');
+  for (const [a, x] of Object.entries(ACCTS)) for (const m of x.models) if (!(a === r.acct && m === r.model)) opts.push({ t: `${a} · ${m}`, do: () => { r.fo = [`${a} · ${m}`]; saveIfDraft(k); } });
+  menu(ev, opts);
+}
+function setRepo(repo, k, f, v) {
+  const o = D.repos[repo];
+  if (k === 'extra') return;
+  o[k] = o[k] ?? {}; if (v === undefined) delete o[k][f]; else o[k][f] = v;
+  if (!Object.keys(o[k]).length) delete o[k];
+  toast(v === undefined ? `${repo}: ${label(k)} follows Roles again` : `Saved repos[${repo}].agents.${k}.${f === 'id' ? 'profile' : f === 'acct' ? 'provider' : f}`);
+}
+function addReviewer() { if (D.extras.length >= 3) return; D.extras.push({ id: null, acct: null, model: null, eff: 'Default', persona: null, fo: null, draft: true }); go({ page: 'role', key: `reviewer-${D.extras.length + 1}` }); }
+function removeReviewer(ev, k) {
+  menu(ev, [{ h: `Remove ${label(k)}? Running epics keep it.` }, { t: 'Remove', do: () => { D.extras.splice(+k.split('-')[1] - 2, 1); toast(`Removed: the reviewers after it move up one`); hist = hist.slice(0, pos + 1); if (here().page === 'role') { back(); } } }, { t: 'Cancel', do: () => {} }]);
+}
+function toggleLead() {
+  if (D.leadOn) { D.leadOn = false; D.leadDraft = { id: null, acct: null, model: null, eff: 'Default', persona: null, fo: null }; toast('Removed agents.leadReviewer and failover.roles.leadReviewer'); }
+  else { D.leadDraft = D.leadDraft ?? { id: null, acct: null, model: null, eff: 'Default', fo: null }; D.leadDraft.drafting = true; }
+  render();
+}
+
+// --- readiness ---
+function problems() {
+  const p = [];
+  for (const k of keys()) {
+    const r = role(k); if (!r || (k === 'lead' && !D.leadOn && !r.drafting)) continue;
+    if (!complete(r)) p.push({ k, t: `${label(k)} needs ${[!r.id && 'an identity', !r.model && 'a model'].filter(Boolean).join(' and ')}`, red: true });
+  }
+  if (D.leadOn && D.lead.id === D.author.id) p.push({ k: 'lead', t: 'Lead reviewer and Author sign as one account: GitHub will not let the lead approve' });
+  return p;
+}
+
+// --- pages ---
+function sideHtml() {
+  const on = { roles: 'Roles', role: 'Roles', ids: 'Identities', id: 'Identities', providers: 'Providers', watching: 'Watching', repo: 'Watching', repoRole: 'Watching', behavior: 'Behavior', engine: 'Engine' }[here().page];
+  const nav = (n, p, i) => `<div class="a-nav ${n === on ? 'on' : ''}" ${p ? `onclick="go({page:'${p}'})"` : 'style="opacity:.55"'}><i>${i}</i>${n}</div>`;
+  return [['General', 0, '⚙︎'], ['Providers', 'providers', '☁︎'], ['Appearance', 0, '◐'], ['Notifications', 0, '◔'], ['Keybindings', 0, '⌘'], ['Dictation', 0, '◖'], ['Keep awake', 0, '☕︎']].map((x) => nav(...x)).join('')
+    + '<div class="lbl">Workspace</div>' + [['Chat', 0, '✎'], ['Sessions', 0, '☰'], ['Projects', 0, '▤'], ['Sidebar', 0, '▥'], ['Terminal', 0, '›_']].map((x) => nav(...x)).join('')
+    + '<div class="lbl">Carrier</div>' + [['Roles', 'roles', '⇄'], ['Identities', 'ids', '◉'], ['Watching', 'watching', '◎'], ['Behavior', 'behavior', '⚙︎']].map((x) => nav(...x)).join('')
+    + '<div class="lbl">System</div>' + [['Engine', 'engine', '▣'], ['Health', 0, '♥︎'], ['About', 0, 'ⓘ']].map((x) => nav(...x)).join('');
+}
+
+function rolesPage() {
+  const pr = problems();
+  const status = pr.length ? `<div class="a-card"><div class="a-status" style="padding:12px 0"><i style="background:var(--orange)">!</i><div class="a-t"><b>Needs attention</b><span>${pr.length} thing${pr.length > 1 ? 's' : ''} to look at before every epic can run</span></div></div>${pr.map((x) => `<div class="a-r p-click" onclick="go({page:'role',key:'${x.k}'})"><span class="dot ${x.red ? 'r' : 'o'}"></span><div class="a-t"><span style="color:var(--text)">${x.t}</span></div><span class="p-link">Open</span></div>`).join('')}</div>`
+    : `<div class="a-card a-status"><i>✓</i><div class="a-t"><b>Ready for Carrier</b><span>${2 + D.extras.length + (D.leadOn ? 1 : 0)} roles run in each epic: the author, ${D.extras.length ? 1 + D.extras.length + ' reviewers in parallel' : 'one reviewer'}${D.leadOn ? ' and the lead' : ''}.</span></div></div>`;
+  const row = (k) => { const r = role(k), off = k === 'lead' && !D.leadOn && !(r && r.drafting); const draft = r && (r.draft || (k === 'lead' && !D.leadOn && r.drafting));
+    return `<div class="a-r p-click" onclick="go({page:'role',key:'${k}'})">${off ? '<span class="a-av" style="background:var(--card2);color:var(--faint)">—</span>' : idAv(r.id, 0, r)}<div class="a-t"><b>${label(k)}</b><span>${purpose(k)}</span></div><div class="a-c" style="display:block;text-align:right">${off ? 'Off' : draft ? '<span class="a-chip o">Not saved yet</span>' : `<div style="color:var(--text)">${modelLine(r)}</div><div>${IDS[r.id].name}</div>`}</div><span class="a-chev">›</span></div>`; };
+  const revs = keys().filter((k) => k.startsWith('reviewer'));
+  const add = D.extras.length < 3 ? `<div class="a-r p-click" style="min-height:36px" onclick="addReviewer()"><span class="a-add">⊕ Add a reviewer</span><span class="a-foot" style="margin:0">${3 - D.extras.length} more can run beside ${revs.length > 1 ? 'these' : 'it'}</span></div>` : `<div class="a-r" style="min-height:36px"><span class="a-add dis">⊕ Add a reviewer</span><span class="a-foot" style="margin:0">Four reviewers is the most</span></div>`;
+  return `${status}
+    <div class="a-grp">How an epic runs</div>
+    <div class="a-card a-rail">${row('author')}
+      <div class="a-r a-step">Opens the pull request · ↺ asks for changes, the author answers</div>
+      ${revs.length > 1 ? '<div class="a-r a-step" style="color:var(--blue)">In parallel, on the same commit · one verdict is enough</div>' : ''}
+      <div class="${revs.length > 1 ? 'a-par' : ''}">${revs.map(row).join('')}${add}</div>
+      <div class="a-r a-step" style="${D.leadOn ? '' : 'border-top:1px dashed var(--line)'}">${D.leadOn ? `When every reviewer agrees · up to ${D.limits.maxLeadRounds} rounds with the author` : 'Lead reviewer is off'}</div>
+      ${row('lead')}</div>
+    <div class="a-foot">Each reviewer is one more agent on every epic. A repo can run other roles: Watching › the repo.</div>`;
+}
+
+function roleScreen(k) {
+  const r = role(k);
+  if (!r && k !== 'lead') return '<div class="a-foot">This reviewer was removed.</div>';
+  const isLead = k === 'lead', off = isLead && !D.leadOn && !(r && r.drafting);
+  const draft = r && (r.draft || (isLead && !D.leadOn && r.drafting));
+  const extra = isExtra(k);
+  const same = '<span class="a-chip">Same as Reviewer</span>';
+  const strip = `<div class="a-strip p-strip">In an epic <span onclick="go({page:'role',key:'author'})" class="${k === 'author' ? 'on' : ''}">Author</span>⇄${keys().filter((x) => x.startsWith('reviewer')).map((x) => `<span onclick="go({page:'role',key:'${x}'})" class="${x === k ? 'on' : ''}">${label(x)}</span>`).join('')}→<span onclick="go({page:'role',key:'lead'})" class="${isLead ? 'on' : ''}">Lead reviewer${D.leadOn ? '' : ' · Off'}</span></div>`;
+  const leadSw = isLead ? `<div class="a-grp">&nbsp;</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Use a lead reviewer</b><span>${D.leadOn ? 'Runs once every reviewer agrees, on that commit' : draft ? 'Choose who signs and a model: it is saved once both are set' : 'Off: the file has no lead reviewer'}</span></div><span class="p-sw ${D.leadOn || draft ? 'on' : ''}" onclick="toggleLead()"></span></div></div>` : '';
+  const banner = draft ? `<div class="p-banner"><b>Not saved yet.</b>&nbsp;${label(k)} is written once it has an identity and a model, so the file never holds half a role.</div>` : '';
+  const body = off ? '' : `
+    <div class="a-grp">Who signs</div><div class="a-card"><div class="a-r">${idAv(r.id, 1)}<div class="a-t"><b>Identity</b><span>${r.id ? IDS[r.id].kind + (IDS[r.id].no.length ? ` · <span class="a-warn">cannot sign in ${IDS[r.id].no.join(', ')}</span>` : ' · can sign in every repo') : 'The GitHub account that signs what this role posts'}</span></div>${pill(r.id ? IDS[r.id].name : 'Choose…', `idMenu(event,'${k}')`, !r.id)}${r.id ? `<span class="a-chev p-click" onclick="go({page:'id',id:'${r.id}'})" title="Open the identity">›</span>` : ''}</div></div>
+    ${r.id && signsAs(r.id).length > 1 ? `<div class="a-foot">Also signs as ${signsAs(r.id).filter((x) => x !== k).map((x) => `<span class="p-link" onclick="go({page:'role',key:'${x}'})">${label(x)}</span>`).join(', ')}.${k.startsWith('reviewer') && signsAs(r.id).every((x) => x.startsWith('reviewer')) ? ' Each reviewer\'s findings carry its slot, so they stay apart.' : ''}</div>` : ''}
+    ${isLead && r.id && r.id === D.author.id ? '<div class="a-foot a-warn">Same identity as the Author: GitHub will not let it approve its own pull request.</div>' : ''}
+    <div class="a-grp">Model</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Model</b><span>An account of Providers and its model</span></div>${pill(r.acct ? `${r.acct} · ${r.model}` : 'Choose…', `modelMenu(event,'${k}')`, !r.acct)}</div><div class="a-r"><div class="a-t"><b>Effort</b></div>${pill(r.eff ?? 'Default', `effMenu(event,'${k}')`)}</div></div>
+    <div class="a-grp">Persona</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Name</b></div><input class="p-in" placeholder="None" value="${r.persona?.name ?? ''}" onchange="setPersona('${k}','name',this.value)"></div><div class="a-r"><div class="a-t"><b>Prompt</b><span>What this role is told, beside the skill</span></div><textarea class="p-in" placeholder="None" onchange="setPersona('${k}','prompt',this.value)">${r.persona?.prompt ?? ''}</textarea></div></div>
+    <div class="a-grp">When it runs out of tokens ${(extra || isLead) && r.fo === null ? same : ''}</div><div class="a-card">${(extra || isLead) && r.fo === null
+      ? `<div class="a-r"><div class="a-t"><b>Steps</b><span>Takes the Reviewer's: ${(D.reviewer.fo ?? []).join(', ') || 'none'}</span></div>${pill('Same as Reviewer', `foMenu(event,'${k}')`)}</div>`
+      : `<div class="a-r"><div class="a-t"><b>Switch automatically</b></div><span class="p-sw ${r.fo && r.fo.length ? 'on' : ''}" onclick="toggleFo('${k}')"></span></div>${r.fo && r.fo.length ? `<div class="a-r"><div class="a-t"><b>Try first</b></div>${pill(r.fo[0], `foMenu(event,'${k}')`)}</div>` : ''}`}</div>
+    <div class="a-grp">Skills ${extra ? same : ''}</div><div class="a-card">${skills(k).map(([t, s]) => `<div class="a-r"><div class="a-t"><b>${t}</b></div><span class="a-foot" style="margin:0">Default</span><span class="a-quiet">${s}</span></div>`).join('')}</div>
+    <div class="a-foot">Spelled as ${harness(r) === 'codex' ? 'Codex' : 'Claude and Antigravity'} are told to run it. Choosing another skill comes with a later version.</div>
+    ${extra ? `<div class="a-grp">&nbsp;</div><div class="a-card"><div class="a-r p-click" onclick="removeReviewer(event,'${k}')"><div class="a-t"><b style="color:var(--red)">Remove ${label(k)}</b><span>Epics already running keep it</span></div></div></div>` : ''}`;
+  return `<div class="a-hd">${off ? '<span class="a-av" style="background:var(--card2);color:var(--faint)">—</span>' : idAv(r.id, 0, r)}<div><b>${label(k)}</b><span>${purpose(k)}</span></div></div>${strip}${leadSw}${banner}<div class="${off ? 'p-dim' : ''}">${body}</div>`;
+}
+function setPersona(k, f, v) { const r = role(k); r.persona = { ...(r.persona ?? {}), [f]: v.trim() }; if (!r.persona.name && !r.persona.prompt) r.persona = null; toast(r.persona ? 'Saved the persona' : 'Removed the persona'); }
+function toggleFo(k) { const r = role(k); r.fo = r.fo && r.fo.length ? [] : ['claude-work · sonnet']; if ((isExtra(k) || k === 'lead') && !r.fo.length) r.fo = []; toast(r.fo.length ? 'Switch automatically on' : 'Switch automatically off'); render(); }
+
+function idsPage() {
+  return `<div class="a-grp" style="margin-top:4px">Who signs on GitHub</div><div class="a-card">${Object.keys(IDS).map((id) => { const u = signsAs(id); return `<div class="a-r p-click" onclick="go({page:'id',id:'${id}'})">${idAv(id)}<div class="a-t"><b>${IDS[id].name}</b><span>${IDS[id].kind}${IDS[id].no.length ? ` · <span class="a-warn">cannot sign in ${IDS[id].no.join(', ')}</span>` : ''}</span></div><div class="a-c">${u.length ? u.map((x) => `<span class="a-chip b">${label(x)}</span>`).join('') : '<span class="a-chip">No role</span>'}</div><span class="a-chev">›</span></div>`; }).join('')}<div class="a-r p-click" style="min-height:38px" onclick="toast('Opens Terminal on agent-forge add')"><span class="a-add">⊕ Create a bot…</span></div></div>
+    <div class="a-foot">An identity is who signs: its picture, the repos where it can mint a token, the roles that sign as it. What model works is the role's.</div>`;
+}
+function idScreen(id) {
+  const x = IDS[id], u = signsAs(id);
+  const inRepos = REPOS.flatMap((repo) => { const o = D.repos[repo]; const ks = ['author', 'reviewer', 'lead'].filter((k) => o[k]?.id === id); return ks.map((k) => [repo, k]); });
+  return `<div class="a-hd">${idAv(id)}<div><b>${x.name}</b><span>${x.kind}${x.app ? ' · GitHub App ' + x.app : ''}</span></div></div>
+    <div class="a-grp">Signs as</div><div class="a-card">${u.length ? u.map((k) => `<div class="a-r p-click" onclick="go({page:'role',key:'${k}'})">${idAv(id, 1)}<div class="a-t"><b>${label(k)}</b><span>${modelLine(role(k))} · ${role(k).acct}</span></div><span class="a-chev">›</span></div>`).join('') : '<div class="a-r"><span class="a-foot" style="margin:0">No role signs as it. Pick it in a role\'s Identity.</span></div>'}
+    ${inRepos.map(([repo, k]) => `<div class="a-r p-click" onclick="go({page:'repo',repo:'${repo}'})">${idAv(id, 1)}<div class="a-t"><b>${label(k)} in ${repo}</b><span>The repo's own setting</span></div><span class="a-chev">›</span></div>`).join('')}</div>
+    <div class="a-grp">Can sign in</div><div class="a-card">${REPOS.map((r) => `<div class="a-r"><span class="dot ${x.no.includes(r) ? 'r' : 'g'}"></span><div class="a-t"><b>${r}</b></div><span class="a-foot" style="margin:0">${x.no.includes(r) ? 'cannot mint a token: install the app in this repo' : 'can mint a token'}</span></div>`).join('')}</div>
+    ${x.app ? `<div class="a-grp">&nbsp;</div><div class="a-card"><div class="a-r p-click" onclick="toast('Opens the GitHub App page')"><div class="a-t"><b>Open on GitHub</b><span>Its installations and permissions live there</span></div><span class="a-chev">↗</span></div></div>` : ''}`;
+}
+
+function providersPage() {
+  return `<div class="a-grp" style="margin-top:4px">Accounts</div><div class="a-card">${Object.entries(ACCTS).map(([a, x]) => { const u = keys().filter((k) => role(k)?.acct === a && (k !== 'lead' || D.leadOn)); return `<div class="a-r"><span class="a-av s" style="background:#444">${MARK[x.h]}</span><div class="a-t"><b>${a}</b><span>${x.h} · signed in</span></div><div class="a-c">${u.map((k) => `<span class="a-chip b p-chipl" onclick="go({page:'role',key:'${k}'})">${label(k)}</span>`).join('') || '<span class="a-chip">No role</span>'}</div></div>`; }).join('')}</div>
+    <div class="a-foot">Unchanged page; its "Used by" chips now open the role.</div>`;
+}
+
+function watchingPage() {
+  return `<div class="a-grp" style="margin-top:4px">Repos Carrier takes epics from</div><div class="a-card">${REPOS.map((repo) => { const o = D.repos[repo]; const own = ['author', 'reviewer', 'lead'].filter((k) => o[k]).map(label); if (o.extrasMode === 'own') own.push('more reviewers'); if (o.extrasMode === 'none') own.push('no more reviewers'); return `<div class="a-r p-click" onclick="go({page:'repo',repo:'${repo}'})"><span class="a-av" style="background:#333">${initials(repo.split('/')[1])}</span><div class="a-t"><b>${repo}</b><span>${own.length ? 'Own: ' + own.join(', ') : 'Same roles as everywhere'}</span></div><span class="a-chev">›</span></div>`; }).join('')}</div>`;
+}
+function eff(repo, k) { const o = D.repos[repo][k] ?? {}; const r = role(k); return { id: o.id ?? r?.id, acct: o.acct ?? r?.acct, model: o.model ?? r?.model, own: !!D.repos[repo][k] }; }
+function repoPage(repo) {
+  const o = D.repos[repo];
+  const row = (k) => { if (k === 'lead' && !D.leadOn) return `<div class="a-r"><span class="a-av" style="background:var(--card2);color:var(--faint)">—</span><div class="a-t"><b>Lead reviewer</b><span>Off in Roles, so off here</span></div></div>`; const e = eff(repo, k); return `<div class="a-r p-click" onclick="go({page:'repoRole',repo:'${repo}',key:'${k}'})">${idAv(e.id, 0, e)}<div class="a-t"><b>${label(k)}</b><span>${e.model} · ${IDS[e.id].name}</span></div><span class="a-chip ${e.own ? 'b' : ''}">${e.own ? 'Own' : 'Same as everywhere'}</span><span class="a-chev">›</span></div>`; };
+  const mode = o.extrasMode ?? 'same';
+  const list = mode === 'own' ? o.extras : mode === 'none' ? [] : D.extras;
+  const seg = ['same', 'own', 'none'].map((m) => `<button class="${mode === m ? 'on' : ''}" onclick="setExtrasMode('${repo}','${m}')">${{ same: 'Same as everywhere', own: 'Own list', none: 'None' }[m]}</button>`).join('');
+  return `<div class="a-hd"><span class="a-av" style="background:#333">${initials(repo.split('/')[1])}</span><div><b>${repo}</b><span>Watching</span></div></div>
+    <div class="a-grp">Who works here</div><div class="a-card">${row('author')}${row('reviewer')}</div>
+    <div class="a-grp">More reviewers here <span class="a-seg" style="text-transform:none;letter-spacing:0">${seg}</span></div>
+    <div class="a-card ${mode === 'same' ? '' : ''}">${list.length ? list.map((r, i) => `<div class="a-r">${idAv(r.id, 0, r)}<div class="a-t"><b>Reviewer ${i + 2}</b><span>${r.model ?? 'No model yet'} · ${r.id ? IDS[r.id].name : 'no identity'}</span></div>${mode === 'own' ? `${pill(r.id ? IDS[r.id].name : 'Choose…', `repoExtraId(event,'${repo}',${i})`)}${pill(r.acct ? r.acct + ' · ' + r.model : 'Choose…', `repoExtraModel(event,'${repo}',${i})`)}<span class="a-x p-click" onclick="repoExtraRemove('${repo}',${i})">⊖</span>` : `<span class="a-chip">From Roles</span>`}</div>`).join('') : `<div class="a-r"><span class="a-foot" style="margin:0">${mode === 'none' ? 'Only the Reviewer reviews here' : 'No more reviewers in Roles'}</span></div>`}
+      ${mode === 'own' && list.length < 3 ? `<div class="a-r p-click" style="min-height:36px" onclick="repoExtraAdd('${repo}')"><span class="a-add">⊕ Add a reviewer</span></div>` : ''}</div>
+    <div class="a-foot">${mode === 'same' ? 'Follows Roles: a reviewer added there runs here too.' : mode === 'own' ? 'This list replaces the one of Roles whole, in this repo only. Persona, failover and skills of these come from the Reviewer.' : 'The list of Roles does not run here.'}</div>
+    <div class="a-grp">Lead here</div><div class="a-card">${row('lead')}</div>`;
+}
+function setExtrasMode(repo, m) { const o = D.repos[repo]; if (m === 'same') { delete o.extrasMode; delete o.extras; toast(`Removed repos[${repo}].agents.extraReviewers`); } else if (m === 'none') { o.extrasMode = 'none'; o.extras = []; toast(`repos[${repo}].agents.extraReviewers = []`); } else { o.extrasMode = 'own'; o.extras = o.extras?.length ? o.extras : D.extras.map((e) => ({ id: e.id, acct: e.acct, model: e.model })); toast('Own list, starting from the one of Roles'); } render(); }
+function repoExtraAdd(repo) { D.repos[repo].extras.push({ id: null, acct: null, model: null }); render(); }
+function repoExtraRemove(repo, i) { D.repos[repo].extras.splice(i, 1); toast('Removed from this repo\'s list'); render(); }
+function repoExtraId(ev, repo, i) { menu(ev, Object.keys(IDS).map((id) => ({ icon: idAv(id, 1), t: IDS[id].name, do: () => { D.repos[repo].extras[i].id = id; } }))); }
+function repoExtraModel(ev, repo, i) { const items = []; for (const [a, x] of Object.entries(ACCTS)) { items.push({ h: a }); for (const m of x.models) items.push({ t: m, do: () => { Object.assign(D.repos[repo].extras[i], { acct: a, model: m }); } }); } menu(ev, items); }
+function repoRole(repo, k) {
+  const e = eff(repo, k), o = D.repos[repo][k] ?? {}, g = role(k);
+  const tag = (f) => o[f] === undefined ? '<span class="a-chip">Same as everywhere</span>' : '<span class="a-chip b">Own</span>';
+  return `<div class="a-hd">${idAv(e.id, 0, e)}<div><b>${label(k)} in ${repo}</b><span>What a repo can set; the rest comes from <span class="p-link" onclick="go({page:'role',key:'${k}'})">${label(k)} in Roles</span></span></div></div>
+    <div class="a-grp">Who signs</div><div class="a-card"><div class="a-r">${idAv(e.id, 1)}<div class="a-t"><b>Identity</b><span>${IDS[e.id].no.includes(repo) ? '<span class="a-warn">cannot sign in this repo</span>' : 'can sign here'}</span></div>${tag('id')}${pill(IDS[e.id].name, `idMenu(event,'${k}','${repo}')`)}</div></div>
+    <div class="a-grp">Model</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Model</b></div>${tag('acct')}${pill(e.acct + ' · ' + e.model, `modelMenu(event,'${k}','${repo}')`)}</div></div>
+    <div class="a-foot">Effort, persona, failover and skills are the role's in Roles: a repo does not set them.</div>
+    ${D.repos[repo][k] ? `<div class="a-grp">&nbsp;</div><div class="a-card"><div class="a-r p-click" onclick="delete D.repos['${repo}']['${k}'];toast('Back to Roles');render()"><div class="a-t"><b style="color:var(--blue)">Reset to Roles</b><span>Removes this repo's ${label(k)} setting</span></div></div></div>` : ''}`;
+}
+
+function behaviorPage() {
+  const num = (f, t, d, dis) => `<div class="a-r ${dis ? 'p-dim' : ''}"><div class="a-t"><b>${t}</b><span>${d}</span></div><span class="a-pill" onclick="D.limits.${f}=D.limits.${f}%9+1;toast('Saved limits.${f}');render()">${D.limits[f]}</span></div>`;
+  return `<div class="a-grp" style="margin-top:4px">Reviews</div><div class="a-card">${num('maxReviews', 'Review rounds', 'Rounds of the reviewers before the epic asks for you; a round counts once however many reviewers it has')}${num('maxLeadRounds', 'Lead rounds', 'Reviews of the lead\'s exchange with the author, before the epic asks for you', !D.leadOn)}</div>
+    ${D.leadOn ? '' : '<div class="a-foot">The Lead reviewer is off: <span class="p-link" onclick="go({page:\'role\',key:\'lead\'})">turn it on in Roles</span>.</div>'}
+    <div class="a-grp">Other fields</div><div class="a-card"><div class="a-r"><div class="a-t"><b>…</b><span>The rest of Behavior, unchanged</span></div></div></div>`;
+}
+
+function render() {
+  closeMenu();
+  const p = here();
+  document.getElementById('side').innerHTML = sideHtml();
+  const title = { roles: ['Roles', ''], role: [label(p.key ?? ''), 'Role'], ids: ['Identities', ''], id: [IDS[p.id]?.name, 'Identity'], providers: ['Providers', ''], watching: ['Watching', ''], repo: [p.repo, 'Watching'], repoRole: [`${label(p.key ?? '')}`, p.repo], behavior: ['Behavior', ''], engine: ['Engine', ''] }[p.page];
+  document.getElementById('tb').innerHTML = `<button class="p-nb" onclick="back()" ${pos ? '' : 'disabled'}>‹</button><button class="p-nb" onclick="fwd()" ${pos < hist.length - 1 ? '' : 'disabled'}>›</button><h2>${title[0]}<small>${title[1]}</small></h2>`;
+  document.getElementById('page').innerHTML = { roles: rolesPage, role: () => roleScreen(p.key), ids: idsPage, id: () => idScreen(p.id), providers: providersPage, watching: watchingPage, repo: () => repoPage(p.repo), repoRole: () => repoRole(p.repo, p.key), behavior: behaviorPage, engine: () => '<div class="a-foot">Unchanged.</div>' }[p.page]();
+}
+reset();
+const q = new URLSearchParams(location.search); if (q.get('page')) { hist = [Object.fromEntries(q)]; pos = 0; render(); }
+</script>
+</body></html>

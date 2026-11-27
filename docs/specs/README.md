@@ -80,6 +80,7 @@ Specs of one area that build on each other are listed oldest first.
 - [behavior-in-settings](behavior-in-settings.md): the Behavior page in the Carrier group. Implemented (v0.4.0).
 - [engine-in-settings](engine-in-settings.md): the Engine page in the Carrier group. Implemented (unreleased).
 - [sessions-in-settings](sessions-in-settings.md): the Sessions page in the Chat group. Implemented (unreleased).
+- [roles-and-identities-in-settings](roles-and-identities-in-settings.md): Agents becomes Roles with every reviewer and the lead, and Identities a page of its own. Implemented (unreleased).
 
 ## macOS app: dictation
 

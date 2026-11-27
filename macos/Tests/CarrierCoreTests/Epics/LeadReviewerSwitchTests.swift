@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-// The Use a lead reviewer switch of the Agents page: that turning it on sends nothing until identity, provider and model are chosen, and what the page's model says about the dimmed page.
+// The Use a lead reviewer switch of the Roles page: that turning it on sends nothing until identity, provider and model are chosen, and what the page's model says about the dimmed page.
 // What turning it off removes is the engine's (src/config/role-edit.ts).
 
 private let bots = ["acme-author", "acme-lead"]
@@ -42,21 +42,21 @@ private func complete() -> LeadReviewerDraft {
 }
 
 @Test func theDraftIsShownInPlaceOfTheEmptyRoleAndTheSwitchRowTellsWhatOffDoes() throws {
-    let off = try #require(agentsPage(config: Data(withoutLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
+    let off = try #require(rolesPage(config: Data(withoutLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
     #expect(off.off && off.usable(turningOn: false) == false && off.usable(turningOn: true))
     #expect(off.switchDetail(bundle: english.bundle, locale: english.locale) == "Off: the file has no lead reviewer")
     let shown = complete().shown(in: off)
     #expect(shown.fields == RoleFields(profile: "acme-lead", provider: "codex", model: " gpt-5 ") && shown.identity == .forge("acme-lead"))
 
-    let on = try #require(agentsPage(config: Data(withLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
+    let on = try #require(rolesPage(config: Data(withLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
     #expect(on.off == false && on.usable(turningOn: false))
     #expect(on.switchDetail(bundle: english.bundle, locale: english.locale).contains("removes the lead reviewer and its failover steps from the file"))
 }
 
 @Test func theSwitchRowTellsWhatOffDoesInSpanish() throws {
-    let off = try #require(agentsPage(config: Data(withoutLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
+    let off = try #require(rolesPage(config: Data(withoutLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
     #expect(off.switchDetail(bundle: spanish.bundle, locale: spanish.locale) == "Desactivado: el archivo no tiene revisor líder")
-    let on = try #require(agentsPage(config: Data(withLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
+    let on = try #require(rolesPage(config: Data(withLead.utf8), providers: nil, bots: ForgeBots(names: bots, note: nil))?.rows.first { $0.role == .leadReviewer })
     #expect(on.switchDetail(bundle: spanish.bundle, locale: spanish.locale) == "Al desactivarlo se quitan del archivo el revisor líder y sus pasos de respaldo")
 }
 

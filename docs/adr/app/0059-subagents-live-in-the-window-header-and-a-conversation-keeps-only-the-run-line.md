@@ -1,4 +1,4 @@
-# 0058 - Subagents live in the window header, and a conversation keeps only the run line
+# 0059 - Subagents live in the window header, and a conversation keeps only the run line
 
 - Status: accepted
 - Date: 2026-11-26

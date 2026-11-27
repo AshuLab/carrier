@@ -43,7 +43,7 @@ test('the setWatchedRepos request and reply equal engine-set-watched-repos.json'
 test('the editBehavior request and reply equal engine-edit-behavior.json', () => {
   golden('engine-edit-behavior', {
     cmd: 'editBehavior',
-    changes: { pollIntervalMinutes: 2.5, logLevel: 'debug', finishedWindowDays: 15, limits: { maxConcurrentEpics: 3, maxReviews: 8, maxExecutionRetries: 3, maxExecutionHours: 'unlimited', githubCallTimeoutSeconds: 30 } },
+    changes: { pollIntervalMinutes: 2.5, logLevel: 'debug', finishedWindowDays: 15, limits: { maxConcurrentEpics: 3, maxReviews: 8, maxLeadRounds: 4, maxExecutionRetries: 3, maxExecutionHours: 'unlimited', githubCallTimeoutSeconds: 30 } },
   });
 });
 

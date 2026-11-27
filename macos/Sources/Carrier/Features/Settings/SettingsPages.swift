@@ -13,6 +13,8 @@ let settingsColumnWidth: CGFloat = 760
 struct SettingsPages: View {
     let state: ConnectionState?
     let canReload: Bool
+    /// The engine's hello lists `extraReviewers`.
+    var canEditExtraReviewers = false
     var sessions: [SessionRow] = []
     let navigator: SettingsNavigator
     /// The place the search chose: scrolled to and shown for a moment, once the page is drawn.
@@ -99,11 +101,12 @@ struct SettingsPages: View {
         case .keybindings: KeybindingsTabView()
         case .keepAwake: KeepAwakeTabView()
         case .about: AboutTabView(updater: AppUpdater.shared)
-        case .providers: ProvidersTabView(place: navigator.place, go: navigator.go, back: navigator.back, openAgents: { navigator.go(.agents) })
+        case .providers: ProvidersTabView(place: navigator.place, go: navigator.go, back: navigator.back, openRoles: { navigator.go(.roles) })
         case .engine: EngineTabView(setup: setup)
-        case .behavior: BehaviorTabView()
-        case .watching: WatchingTabView(place: navigator.place, go: navigator.go, state: state, canReload: canReload, openAgents: { navigator.go(.agents) })
-        case .agents: AgentsTabView(place: navigator.place, go: navigator.go)
+        case .behavior: BehaviorTabView(go: navigator.go)
+        case .watching: WatchingTabView(place: navigator.place, go: navigator.go, state: state, canReload: canReload, openRoles: { navigator.go(.roles) }, canEditExtras: canEditExtraReviewers)
+        case .roles: RolesTabView(place: navigator.place, go: navigator.go, canEditExtras: canEditExtraReviewers)
+        case .identities: IdentitiesTabView(place: navigator.place, go: navigator.go)
         case .sessions: SessionsTabView()
         case .projects: ProjectsTabView(place: navigator.place, go: navigator.go, sessions: sessions, state: state, canReload: canReload)
         case .notifications: NotificationsTabView(centre: SystemNotificationCentre.shared, reader: SystemNotificationCentre.shared)

@@ -126,7 +126,7 @@ struct SettingsRoot: View {
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 300)
         } detail: {
             SettingsPages(
-                state: model.state, canReload: model.epics.canReload, sessions: model.sessions.rows, navigator: navigator, target: $navigator.target, headerNote: $headerNote, title: $title
+                state: model.state, canReload: model.epics.canReload, canEditExtraReviewers: model.epics.canEditExtraReviewers, sessions: model.sessions.rows, navigator: navigator, target: $navigator.target, headerNote: $headerNote, title: $title
             )
                 .navigationTitle(title?.text ?? navigator.page.title())
                 .navigationSubtitle(title?.subtitle ?? navigator.page.detail())

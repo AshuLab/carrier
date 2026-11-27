@@ -36,6 +36,7 @@ extension FixtureServer {
             config.finishedWindowDays = (changes["finishedWindowDays"] as? Int) ?? config.finishedWindowDays
             config.maxConcurrentEpics = (limits["maxConcurrentEpics"] as? Int) ?? config.maxConcurrentEpics
             config.maxReviews = (limits["maxReviews"] as? Int) ?? config.maxReviews
+            config.maxLeadRounds = (limits["maxLeadRounds"] as? Int) ?? config.maxLeadRounds
             config.maxExecutionRetries = (limits["maxExecutionRetries"] as? Int) ?? config.maxExecutionRetries
             config.githubCallTimeoutSeconds = (limits["githubCallTimeoutSeconds"] as? Int) ?? config.githubCallTimeoutSeconds
             if limits["maxExecutionHours"] as? String == "unlimited" { config.maxExecutionHours = nil } else if let hours = limits["maxExecutionHours"] as? Int { config.maxExecutionHours = hours }
@@ -54,6 +55,7 @@ extension FixtureServer {
             var own = file["limits"] as? [String: Any] ?? [:]
             put("maxConcurrentEpics", config.maxConcurrentEpics, differs: config.maxConcurrentEpics != base.maxConcurrentEpics, in: &own)
             put("maxReviews", config.maxReviews, differs: config.maxReviews != base.maxReviews, in: &own)
+            put("maxLeadRounds", config.maxLeadRounds, differs: config.maxLeadRounds != base.maxLeadRounds, in: &own)
             put("maxExecutionRetries", config.maxExecutionRetries, differs: config.maxExecutionRetries != base.maxExecutionRetries, in: &own)
             put("maxExecutionHours", config.maxExecutionHours ?? "unlimited", differs: config.maxExecutionHours != base.maxExecutionHours, in: &own)
             put("githubCallTimeoutSeconds", config.githubCallTimeoutSeconds, differs: config.githubCallTimeoutSeconds != base.githubCallTimeoutSeconds, in: &own)
@@ -74,7 +76,7 @@ extension FixtureServer {
     }
 }
 
-// `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer` and `setOrchestratorProfile`: the fixture engine makes the checks Node's `config/role-edit.ts` makes (with its words)
+// `editRole`, `editRepoRole`, `editPersona`, `editFailover`, `setLeadReviewer`, `setOrchestratorProfile` and the extra reviewers' requests (`FixtureServer+ExtraReviewers.swift`): the fixture engine makes the checks Node's `config/role-edit.ts` makes (with its words)
 // against the fixture home's `engine.json`, `providers.json` and `agent-forge.json`. What Node refuses is refused with the same words; the code is `config.problem` with a key path
 // of `(engine.json)`, the exact path and kind being the real engine's.
 
@@ -84,6 +86,8 @@ extension FixtureServer {
         let accounts = declaredAccounts(providersJSON: try? Data(contentsOf: URL(fileURLWithPath: CarrierPlaces(folder: home).providers)))
         let bots = forgeBots(registry: try? Data(contentsOf: URL(fileURLWithPath: home + "/agent-forge.json"))).names
         let role = (request["role"] as? String).flatMap(AgentRole.init(rawValue:))
+        // `editRole`, `editPersona` and `editFailover` point at an extra reviewer as `{"extraReviewer": key}`
+        let extra = (request["role"] as? [String: Any])?["extraReviewer"] as? String
         func step(_ value: Any?) -> FailoverStep? {
             guard let step = value as? [String: Any], let provider = step["provider"] as? String else { return nil }
             return FailoverStep(provider: provider, model: step["model"] as? String, effort: step["effort"] as? String)
@@ -106,8 +110,13 @@ extension FixtureServer {
         let refusal: String?
         switch request["cmd"] as? String {
         case "editRole":
-            guard let role, let wire = request["changes"] as? [String: Any] else { return nil }
-            refusal = edit { Self.applyRole(changes(wire), role: role, accounts: accounts, bots: bots, creating: false, to: &$0) }
+            guard let wire = request["changes"] as? [String: Any] else { return nil }
+            if let extra {
+                refusal = edit { Self.editExtra(key: extra, name: wire["name"] as? String, type: wire["type"] as? String, changes: changes(wire), accounts: accounts, bots: bots, to: &$0) }
+            } else {
+                guard let role else { return nil }
+                refusal = edit { Self.applyRole(changes(wire), role: role, accounts: accounts, bots: bots, creating: false, to: &$0) }
+            }
         case "editRepoRole":
             guard let role, let repo = request["repo"] as? String, request.keys.contains("fields") else { return nil }
             let fields = (request["fields"] as? [String: Any]).map { wire in
@@ -116,11 +125,28 @@ extension FixtureServer {
             }
             refusal = edit { Self.applyRepoRole(fields, role: role, repo: repo, accounts: accounts, to: &$0) }
         case "editPersona":
-            guard let role else { return nil }
-            refusal = edit { Self.applyPersona(name: request["name"] as? String, prompt: request["prompt"] as? String, role: role, to: &$0) }
+            if let extra {
+                refusal = edit { Self.editExtraPersona(key: extra, name: request["name"] as? String, prompt: request["prompt"] as? String, to: &$0) }
+            } else {
+                guard let role else { return nil }
+                refusal = edit { Self.applyPersona(name: request["name"] as? String, prompt: request["prompt"] as? String, role: role, to: &$0) }
+            }
         case "editFailover":
-            guard let role else { return nil }
-            refusal = edit { Self.applyFailover(first: step(request["first"]), second: step(request["second"]), role: role, accounts: accounts, to: &$0) }
+            if let extra {
+                refusal = edit { Self.editExtraFailover(key: extra, first: step(request["first"]), second: step(request["second"]), accounts: accounts, to: &$0) }
+            } else {
+                guard let role else { return nil }
+                refusal = edit { Self.applyFailover(first: step(request["first"]), second: step(request["second"]), role: role, accounts: accounts, to: &$0) }
+            }
+        case "addExtraReviewer":
+            guard let draft = request["draft"] as? [String: Any] else { return nil }
+            refusal = edit { Self.addExtra(draft: draft, accounts: accounts, bots: bots, to: &$0) }
+        case "setRepoExtraReviewers":
+            guard let repo = request["repo"] as? String, request["reviewers"] is NSNull || request["reviewers"] is [String: Any] else { return nil }
+            refusal = edit { Self.setRepoExtras(repo: repo, reviewers: request["reviewers"] as? [String: Any], accounts: accounts, to: &$0) }
+        case "removeExtraReviewer":
+            guard let key = request["key"] as? String else { return nil }
+            refusal = edit { Self.removeExtra(key: key, from: &$0) }
         case "setLeadReviewer":
             guard request.keys.contains("draft") else { return nil }
             if let wire = request["draft"] as? [String: Any] {
@@ -173,36 +199,8 @@ extension FixtureServer {
             return "\(role.title(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))) has no entry in engine.json. Add it there first."
         }
         var profiles = file["profiles"] as? [String: Any] ?? [:]
-        /// The profile of that kind (and agent) the file has, else a new one named `name`, or `name-2`, `name-3`… when `name` already means something else.
-        func profile(_ name: String, kind: String, agent: String?) -> String {
-            let found = profiles.keys.sorted().first { (profiles[$0] as? [String: Any]).map { $0["kind"] as? String == kind && $0["agent"] as? String == agent } ?? false }
-            var candidate = name
-            var number = 2
-            while found == nil, profiles[candidate] != nil {
-                candidate = "\(name)-\(number)"
-                number += 1
-            }
-            let key = found ?? candidate
-            profiles[key] = profiles[key] ?? (agent.map { ["kind": kind, "agent": $0] } ?? ["kind": kind])
-            return key
-        }
-        for change in changes {
-            switch change {
-            case .bot(let name):
-                guard bots.contains(name) else { return "“\(name)” is not in Agent Forge’s list. Pick another one." }
-                entry["profile"] = profile(name, kind: "forge", agent: name)
-            case .gh: entry["profile"] = profile("gh", kind: "gh", agent: nil)
-            case .provider(let provider): entry["provider"] = provider
-            case .model(let model): entry["model"] = model.trimmingCharacters(in: .whitespacesAndNewlines)
-            case .effort(let effort): entry["effort"] = effort
-            }
-        }
-        let fields = roleFields(entry).normalized()
-        if fields.profile == nil || fields.provider == nil || fields.model == nil {
-            return fields.model == nil ? "The model cannot be empty." : "\(role.title(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))) needs an identity, a provider and a model."
-        }
-        let problems = fields.problems(profiles: Array(profiles.keys), accounts: accounts, bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
-        if problems.isEmpty == false { return problems.joined(separator: " ") }
+        let title = role.title(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
+        if let words = applyChanges(changes, to: &entry, profiles: &profiles, called: title, accounts: accounts, bots: bots) { return words }
         agents[role.rawValue] = entry
         file["agents"] = agents
         file["profiles"] = profiles
@@ -242,12 +240,8 @@ extension FixtureServer {
 
     /// The global `role`'s persona set to `name` and `prompt`, either one alone or both; nil for both removes it.
     private static func applyPersona(name: String?, prompt: String?, role: AgentRole, to file: inout [String: Any]) -> String? {
-        for (label, text) in [("name", name), ("prompt", prompt)] where text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
-            return "The persona’s \(label) cannot be empty. Leave it out instead."
-        }
-        let persona = RoleFields(persona: RolePersona(name: name, prompt: prompt)).normalized().persona
-        let problems = RoleFields(persona: persona).problems(profiles: [], accounts: [], bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
-        if problems.isEmpty == false { return problems.joined(separator: " ") }
+        let (persona, words) = checkedPersona(name: name, prompt: prompt)
+        if let words { return words }
         var agents = file["agents"] as? [String: Any] ?? [:]
         guard var entry = agents[role.rawValue] as? [String: Any] else { return "\(role.title(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))) has no entry in engine.json. Add it there first." }
         entry["persona"] = persona.map { ["name": $0.name, "prompt": $0.prompt].compactMapValues { $0 } }
@@ -258,38 +252,17 @@ extension FixtureServer {
 
     /// The first two steps of the global `role`'s failover set to `first` and `second`, keeping the steps after them. Both nil removes the role's list.
     private static func applyFailover(first: FailoverStep?, second: FailoverStep?, role: AgentRole, accounts: [String], to file: inout [String: Any]) -> String? {
-        if first == nil, second != nil { return "Then needs a First step." }
-        func clean(_ step: FailoverStep) -> FailoverStep {
-            let model = step.model?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let effort = step.effort?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return FailoverStep(provider: step.provider.trimmingCharacters(in: .whitespacesAndNewlines), model: model?.isEmpty == true ? nil : model, effort: effort?.isEmpty == true ? nil : effort)
-        }
-        let edited = [first, second].compactMap { $0.map(clean) }
-        for (index, step) in edited.enumerated() where accounts.contains(step.provider) == false {
-            return "\(index == 0 ? "First" : "Then"): “\(step.provider)” is not an account of providers.json. Pick another one."
-        }
-        guard let own = (file["agents"] as? [String: Any])?[role.rawValue] as? [String: Any] else { return "\(role.title(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))) has no entry in engine.json. Add it there first." }
+        let title = role.title(bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US"))
         var failover = file["failover"] as? [String: Any] ?? [:]
         var roles = failover["roles"] as? [String: Any] ?? [:]
-        if edited.isEmpty {
-            roles.removeValue(forKey: role.rawValue)
-        } else {
-            var steps: [[String: Any]] = edited.map { step in
-                ["provider": step.provider].merging(step.model.map { ["model": $0] } ?? [:]) { $1 }.merging(step.effort.map { ["effort": $0] } ?? [:]) { $1 }
+        return attempt {
+            let steps = try failoverSteps(first: first, second: second, accounts: accounts, who: "role", before: roles[role.rawValue] as? [[String: Any]] ?? []) {
+                guard let own = (file["agents"] as? [String: Any])?[role.rawValue] as? [String: Any] else { throw Refused(words: "\(title) has no entry in engine.json. Add it there first.") }
+                return own
             }
-            steps.append(contentsOf: Array((roles[role.rawValue] as? [[String: Any]] ?? []).dropFirst(2)))
-            var seen: [[String: String]] = []
-            for (index, step) in steps.enumerated() {
-                let pair = step.compactMapValues { $0 as? String }.filter { $0.key == "provider" || $0.key == "model" }
-                let label = index == 0 ? "First" : index == 1 ? "Then" : "Step \(index + 1)"
-                if seen.contains(pair) { return "\(label) repeats another step of the list." }
-                if pair["provider"] == own["provider"] as? String, pair["model"] == own["model"] as? String { return "\(label) is the role’s own provider and model, so it would move nowhere." }
-                seen.append(pair)
-            }
-            roles[role.rawValue] = steps
+            roles[role.rawValue] = steps.isEmpty ? nil : steps
+            failover["roles"] = roles.isEmpty ? nil : roles
+            file["failover"] = failover.isEmpty ? nil : failover
         }
-        failover["roles"] = roles.isEmpty ? nil : roles
-        file["failover"] = failover.isEmpty ? nil : failover
-        return nil
     }
 }

@@ -29,7 +29,7 @@ Specs and research are history (each says whether it was built); the area docs s
 - [keep-awake](macos/keep-awake.md): KeepAwake: keeping the Mac from sleeping.
 - [settings](macos/settings.md): Settings: the window, its sidebar, its search and Sessions, Chat and About.
 - [settings-app](macos/settings-app.md): Settings: General, Providers, Appearance, Notifications, Keybindings and Terminal.
-- [settings-carrier](macos/settings-carrier.md): Settings: Agents, Watching, Behavior and Engine.
+- [settings-carrier](macos/settings-carrier.md): Settings: Watching, Roles, Identities, Behavior and Engine.
 - [settings-health](macos/settings-health.md): Health: the Health page.
 - [ui](ui.md): how every area looks: the rules of the look, the catalog of the pieces and what only macOS does.
 
@@ -122,6 +122,7 @@ Images used by the README: [assets](assets/) (`carrier-logo.png`, `app-overview.
 - [behavior-in-settings](specs/behavior-in-settings.md): the Behavior page in the Carrier group. Implemented (v0.4.0).
 - [engine-in-settings](specs/engine-in-settings.md): the Engine page in the Carrier group. Implemented (unreleased).
 - [sessions-in-settings](specs/sessions-in-settings.md): the Sessions page in the Chat group. Implemented (unreleased).
+- [roles-and-identities-in-settings](specs/roles-and-identities-in-settings.md): Agents becomes Roles with every reviewer and the lead, and Identities a page of its own. Implemented (unreleased).
 
 ### macOS app: dictation
 
@@ -216,6 +217,7 @@ Images used by the README: [assets](assets/) (`carrier-logo.png`, `app-overview.
 - [0053 A config file of the Carrier folder is written only by Carrier's Node code, through its owner process or `carrier config`](adr/config/0053-a-carrier-config-file-has-one-owner-process-and-a-front-end-writes-it-through-that-process.md)
 - [0054 The look, the words and the app's preferences have one neutral source, generated for each front-end](adr/design/0054-the-look-the-words-and-the-apps-preferences-have-one-neutral-source-generated-for-each-front-end.md)
 - [0055 A refusal, and every text Node sends a person, carries a code and its parameters, and its English words are the fallback](adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)
+- [0058 Settings splits roles from identities, and a role holds everything it runs with](adr/app/0058-settings-splits-roles-from-identities-and-a-role-holds-everything-it-runs-with.md)
 
 ### The Carrier folder and its files
 

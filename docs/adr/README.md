@@ -90,6 +90,7 @@ A status that names a later record means that record changed part or all of this
 - [0007](app/0007-continue-in-terminal-through-a-validated-descriptor.md) - Continue in Terminal: the engine sends a descriptor, the app builds and launches the command (accepted; epic execution is superseded by [0028](app/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md))
 - [0027](app/0027-embedded-terminal-runs-in-process-with-ghosttykit.md) - The embedded terminal runs in-process with GhosttyKit and restores layout across launches (accepted; owner types and epic integration updated in [0028](app/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md))
 - [0028](app/0028-epic-continue-in-terminal-runs-in-embedded-ghostty-drawer.md) - Epic Continue in Terminal runs inside an ephemeral embedded Ghostty drawer (accepted)
+- [0058](app/0058-settings-splits-roles-from-identities-and-a-role-holds-everything-it-runs-with.md) - Settings splits roles from identities, and a role holds everything it runs with (proposed)
 
 ## design
 

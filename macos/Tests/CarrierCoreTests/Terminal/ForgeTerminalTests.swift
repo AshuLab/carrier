@@ -77,15 +77,15 @@ func aVerbOutsideTheListIsRefused(verb: String) {
     #expect(try String(contentsOfFile: ran, encoding: .utf8).split(separator: "\n").map(String.init) == [bin + "/agent-forge", "add"])
 }
 
-/// A bot made in Terminal shows at the next activation, which reads the registry again (`AgentsTabView.load`).
+/// A bot made in Terminal shows at the next activation, which reads the registry again (`RolesTabView.load`).
 @Test func aBotAddedBetweenTwoActivationsIsListedByTheNext() throws {
     let directory = try scratch()
     defer { try? FileManager.default.removeItem(atPath: directory) }
     let registry = directory + "/agents.json"
     let environment = ["AGENT_FORGE_CONFIG": registry]
     let config = Data(#"{"profiles": {}, "agents": {}}"#.utf8)
-    func activate() throws -> AgentsPage {
-        try #require(agentsPage(config: config, providers: nil, bots: forgeBots(registry: currentForgeRegistry(environment: environment, home: "/nowhere"))))
+    func activate() throws -> RolesPage {
+        try #require(rolesPage(config: config, providers: nil, bots: forgeBots(registry: currentForgeRegistry(environment: environment, home: "/nowhere"))))
     }
     try #"{"agents": [{"name": "acme-author"}]}"#.write(toFile: registry, atomically: true, encoding: .utf8)
     #expect(try activate().bots.names == ["acme-author"])

@@ -1,6 +1,6 @@
 import Foundation
 
-// The eight values of `engine.json` the app lets the person change: how often Carrier looks, how loud it logs and its limits.
+// The nine values of `engine.json` the app lets the person change: how often Carrier looks, how loud it logs and its limits.
 // The rules are the engine's (src/config/schema.ts and load.ts), checked here while the person types; the file is written by the engine, or by `carrier config`
 // (`EngineConfigChange.behavior`, `src/config/engine-edit.ts`), which leave everything else in it (repos, profiles, agents) as it is.
 
@@ -11,6 +11,7 @@ public struct EngineConfig: Equatable, Sendable {
     public var logLevel = "info"
     public var maxConcurrentEpics = 3
     public var maxReviews = 5
+    public var maxLeadRounds = 3
     public var maxExecutionRetries = 3
     /// nil is `"unlimited"`
     public var maxExecutionHours: Int? = 4
@@ -29,6 +30,7 @@ public struct EngineConfig: Equatable, Sendable {
         logLevel = (file["logLevel"] as? String) ?? logLevel
         maxConcurrentEpics = (limits["maxConcurrentEpics"] as? Int) ?? maxConcurrentEpics
         maxReviews = (limits["maxReviews"] as? Int) ?? maxReviews
+        maxLeadRounds = (limits["maxLeadRounds"] as? Int) ?? maxLeadRounds
         maxExecutionRetries = (limits["maxExecutionRetries"] as? Int) ?? maxExecutionRetries
         if limits["maxExecutionHours"] as? String == "unlimited" { maxExecutionHours = nil }
         else { maxExecutionHours = (limits["maxExecutionHours"] as? Int) ?? maxExecutionHours }
@@ -43,6 +45,7 @@ public struct EngineConfig: Equatable, Sendable {
         if Self.logLevels.contains(logLevel) == false { found["logLevel"] = Copy.engineMustBeOneOf(levels: Self.logLevels.joined(separator: ", "), bundle: bundle, locale: locale) }
         if maxConcurrentEpics < 1 { found["maxConcurrentEpics"] = Copy.engineMustBeAtLeast(minimum: 1, bundle: bundle, locale: locale) }
         if maxReviews < 1 { found["maxReviews"] = Copy.engineMustBeAtLeast(minimum: 1, bundle: bundle, locale: locale) }
+        if maxLeadRounds < 1 { found["maxLeadRounds"] = Copy.engineMustBeAtLeast(minimum: 1, bundle: bundle, locale: locale) }
         if maxExecutionRetries < 0 { found["maxExecutionRetries"] = Copy.engineMustBeAtLeast(minimum: 0, bundle: bundle, locale: locale) }
         if let hours = maxExecutionHours, hours < 1 { found["maxExecutionHours"] = Copy.engineHoursOrUnlimited(bundle: bundle, locale: locale) }
         if githubCallTimeoutSeconds < 1 { found["githubCallTimeoutSeconds"] = Copy.engineMustBeAtLeast(minimum: 1, bundle: bundle, locale: locale) }

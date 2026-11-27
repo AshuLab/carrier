@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Roles and identities — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.a-ctl{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0 0 18px;padding:10px 16px;border-radius:14px;background:var(--card);max-width:1180px;position:sticky;top:8px;z-index:9;backdrop-filter:blur(20px)}
+.a-ctl .a-l{color:var(--dim);font-size:12px}
+.a-seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.a-seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 10px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.a-seg button.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25)}body.light .a-seg button.on{background:#fff}
+.a-win{height:760px}
+.a-side{width:220px}
+.a-nav{padding:5px 10px;border-radius:8px;color:var(--dim);display:flex;gap:8px;align-items:center}
+.a-nav.on{background:var(--sel);color:var(--text)}
+.a-nav i{font-style:normal;width:18px;text-align:center}
+.a-form{max-width:680px;margin:0 auto}
+.a-grp{margin:18px 4px 6px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between;align-items:center}
+.a-grp:first-child{margin-top:4px}
+.a-card{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.a-r{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:.5px solid var(--line);min-height:48px}.a-r:first-child{border:0}
+.a-r.a-in{padding-left:46px}
+.a-t{flex:1;min-width:0}.a-t b{display:block;font-weight:550}.a-t span{display:block;color:var(--dim);font-size:12px;margin-top:1px;line-height:1.35}
+.a-c{display:flex;gap:8px;align-items:center;flex:none;color:var(--dim);font-size:12px}
+.a-pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;background:var(--card2);border-radius:8px;padding:4px 9px;box-shadow:0 0 0 .5px var(--line) inset;white-space:nowrap;color:var(--text)}
+.a-pill .a-v{color:var(--faint);font-size:10px}
+.a-pill.a-off{color:var(--dim)}
+.a-quiet{font-size:12.5px;color:var(--dim);background:var(--card);border-radius:8px;padding:4px 9px;font-family:var(--mono)}
+.a-av{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;flex:none;position:relative}
+.a-av.s{width:20px;height:20px;border-radius:6px;font-size:8.5px}
+.a-av em{position:absolute;right:-4px;bottom:-4px;width:14px;height:14px;border-radius:5px;background:#111;font-style:normal;font-size:8px;display:grid;place-items:center;box-shadow:0 0 0 1.5px var(--bg)}
+.a-chev{color:var(--faint);font-size:14px}
+.a-add{color:var(--blue);font-size:12.5px;display:flex;gap:6px;align-items:center}
+.a-add.dis{color:var(--faint)}
+.a-chip{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--card2);color:var(--dim);white-space:nowrap}
+.a-chip.b{background:color-mix(in srgb,var(--blue) 20%,transparent);color:var(--blue)}
+.a-chip.o{background:color-mix(in srgb,var(--orange) 18%,transparent);color:var(--orange)}
+.a-foot{color:var(--faint);font-size:12px;margin:6px 6px 0;line-height:1.4}
+.a-rail{position:relative}
+.a-rail .a-r{position:relative}
+.a-rail .a-step{font-size:12px;color:var(--faint);padding:4px 0 4px 46px;border:0;min-height:0}
+.a-par{border-left:2px solid color-mix(in srgb,var(--blue) 45%,transparent);margin-left:14px;padding-left:0}
+.a-par .a-r{padding-left:18px}
+.a-x{color:var(--faint);font-size:13px;width:18px;text-align:center}
+.a-status{display:flex;gap:10px;align-items:center;padding:12px 14px}
+.a-status i{width:22px;height:22px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-style:normal;font-size:11px}
+.a-hd{display:flex;gap:12px;align-items:center;margin:6px 4px 4px}
+.a-hd .a-av{width:44px;height:44px;border-radius:12px;font-size:14px}
+.a-hd>div>b{font-size:15px}.a-hd>div>span{display:block;color:var(--dim);font-size:12px}
+.a-strip{display:flex;gap:6px;flex-wrap:wrap;margin:10px 4px 0}
+.a-strip span{font-size:11.5px;padding:3px 9px;border-radius:99px;background:var(--card2);color:var(--dim)}
+.a-strip span.on{background:var(--blue);color:#fff}
+.a-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.a-tile{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:12px;display:flex;flex-direction:column;gap:8px}
+.a-tile .a-h{display:flex;gap:10px;align-items:center}
+.a-tile .a-h b{display:block}.a-tile .a-h span{display:block;color:var(--dim);font-size:12px}
+.a-tile.new{border:1.5px dashed var(--line);background:none;box-shadow:none;align-items:center;justify-content:center;color:var(--blue);min-height:96px}
+.a-warn{color:var(--orange);font-size:12px}
+.a-menu{position:absolute;right:40px;top:44px;width:250px;border-radius:12px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:6px;z-index:4;font-size:12.5px}
+.a-menu div{padding:5px 9px;border-radius:7px;display:flex;gap:8px;align-items:center}
+.a-menu div.h2{background:var(--blue);color:#fff}
+.a-menu hr{border:0;border-top:.5px solid var(--line);margin:4px}
+.a-menu small{color:var(--faint);margin-left:auto}
+.a-why{max-width:1180px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+.a-why div{background:var(--card);border-radius:12px;padding:10px 14px;color:var(--dim);font-size:12.5px}
+.a-why b{display:block;color:var(--text);margin-bottom:3px}
+.a-json{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;max-width:1180px;margin-top:10px}
+.a-json h3{margin:0 0 6px;font-size:13px}
+.a-json p{color:var(--dim);font-size:12.5px;margin:6px 0 0}
+pre.term{margin:0;white-space:pre;overflow:auto}
+h2.a-q{font-size:15px;margin:34px 0 2px}
+</style></head>
+</head>
+<body>
+<h1>Roles and identities</h1>
+<p class="sub">A <b>role</b> is a place in an epic and the skills it runs there: Author, the reviewers in parallel (up to four) and the Lead reviewer. An <b>identity</b> is the GitHub account that signs (a bot of Agent Forge or your own login). A role also needs a <b>model</b> (an account of Providers, a model, an effort). The options differ in where the model lives.</p>
+
+<div class="a-ctl">
+  <span class="a-l">Option</span><span class="a-seg" id="c-opt"><button data-v="1" class="on">1 · Role holds the model</button><button data-v="2">2 · Models as presets</button><button data-v="3">3 · The bot holds the model</button></span>
+  <span class="a-l">Screen</span><span class="a-seg" id="c-scr"><button data-v="roles" class="on">Roles</button><button data-v="role">A role</button><button data-v="ids">Identities</button><button data-v="id">An identity</button><button data-v="models" id="b-models" style="display:none">Models</button><button data-v="repo">A repo</button></span>
+  <span class="a-l">Reviewers</span><span class="a-seg" id="c-rev"><button data-v="1">1</button><button data-v="2" class="on">2</button><button data-v="4">4</button></span>
+  <span class="a-l">Lead</span><span class="a-seg" id="c-lead"><button data-v="on" class="on">On</button><button data-v="off">Off</button></span>
+  <span class="sp"></span><button class="tog" onclick="document.body.classList.toggle('light')">Light / dark</button>
+</div>
+
+<div class="win a-win">
+  <div class="lights"><i></i><i></i><i></i></div>
+  <div class="side a-side" id="side"></div>
+  <div class="main"><div class="tb" id="tb"></div><div class="scroll"><div class="a-form" id="page"></div></div></div>
+</div>
+<div class="a-why" id="why"></div>
+
+<h2 class="a-q">What engine.json holds</h2>
+<div class="a-json" id="json"></div>
+
+<script>
+const S = { opt: '1', scr: 'roles', rev: 2, lead: 'on' };
+// identities: who signs on GitHub
+const ID = {
+  'author-bot': { name: 'carrier-author-bot', kind: 'Agent Forge bot', col: '#bf5af2', repos: '3 of 3 repos' },
+  'review-bot': { name: 'carrier-review-bot', kind: 'Agent Forge bot', col: '#0a84ff', repos: '3 of 3 repos' },
+  'lead-bot':   { name: 'carrier-lead-bot', kind: 'Agent Forge bot', col: '#ff453a', repos: '2 of 3 repos', warn: 'Cannot mint a token in acme/api' },
+  'me':         { name: 'your-login', kind: 'Your gh login', col: '#636366', repos: '3 of 3 repos' },
+};
+// models: an account of Providers, a model and an effort (option 2 names them, option 3 puts them on the bot)
+const MD = {
+  'opus-max': { name: 'Opus · max', acct: 'claude-personal', model: 'opus', eff: 'max', mark: 'C', fo: 'claude-work · opus' },
+  'codex':    { name: 'Codex · high', acct: 'codex', model: 'gpt-5.1-codex', eff: 'high', mark: 'X', fo: 'claude-work · sonnet' },
+  'sonnet':   { name: 'Sonnet', acct: 'claude-work', model: 'sonnet', eff: 'Default', mark: 'C' },
+  'gemini':   { name: 'Gemini', acct: 'antigravity', model: 'gemini-3-pro', eff: 'Default', mark: 'G' },
+};
+const BOTMODEL = { 'author-bot': 'opus-max', 'review-bot': 'codex', 'lead-bot': 'opus-max', 'me': 'sonnet' };
+const REV = [['review-bot', 'codex'], ['review-bot', 'sonnet'], ['review-bot', 'gemini'], ['me', 'sonnet']];
+function roles() {
+  const r = [{ key: 'author', label: 'Author', id: 'author-bot', md: 'opus-max', purpose: 'Writes the code of the epic and answers the reviewers', skills: [['First pass', '/ship'], ['Answering a review', '/code-resolve']] }];
+  for (let i = 0; i < S.rev; i++) r.push({ key: i ? `reviewer-${i + 1}` : 'reviewer', label: i ? `Reviewer ${i + 1}` : 'Reviewer', id: REV[i][0], md: REV[i][1], purpose: i ? 'Reviews the same commit, in parallel' : 'Reviews the final pull request', rev: true, extra: i > 0, skills: [['Review', '$code-review'], ['Post findings', '$code-post']] });
+  r.push({ key: 'lead', label: 'Lead reviewer', id: S.lead === 'on' ? 'lead-bot' : null, md: S.lead === 'on' ? 'opus-max' : null, purpose: 'Optional. Looks again once the reviewers agree, and approves', lead: true, skills: [['Lead review', '/code-review'], ['Post and approve', '/code-post']] });
+  if (S.opt === '3') for (const x of r) if (x.id) x.md = BOTMODEL[x.id];
+  return r;
+}
+const initials = (s) => s.replace(/^carrier-/, '').split(/[- ·]+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+const idAv = (k, s, mk) => k ? `<span class="a-av ${s ? 's' : ''}" style="background:${ID[k].col}">${initials(ID[k].name)}${mk && !s ? `<em>${mk}</em>` : ''}</span>` : '<span class="a-av" style="background:var(--card2);color:var(--faint)">—</span>';
+const pill = (t, off) => `<span class="a-pill ${off ? 'a-off' : ''}">${t}<span class="a-v">▾</span></span>`;
+const mdText = (m) => `${MD[m].acct} · ${MD[m].model}${MD[m].eff !== 'Default' ? ' · ' + MD[m].eff : ''}`;
+const usedBy = (k) => roles().filter((r) => r.id === k).map((r) => r.label);
+
+function side() {
+  const items = S.opt === '2' ? ['Providers', 'Models', 'Identities', 'Roles', 'Watching', 'Behavior', 'Engine'] : ['Providers', 'Identities', 'Roles', 'Watching', 'Behavior', 'Engine'];
+  const on = { roles: 'Roles', role: 'Roles', ids: 'Identities', id: 'Identities', models: 'Models', repo: 'Watching' }[S.scr];
+  const ic = { Providers: '☁︎', Models: '◇', Identities: '◉', Roles: '⇄', Watching: '◎', Behavior: '⚙︎', Engine: '▣' };
+  return `<div class="lbl">App</div><div class="a-nav"><i>◐</i>Appearance</div><div class="a-nav"><i>✎</i>Sessions</div><div class="lbl">Carrier</div>` + items.map((n) => `<div class="a-nav ${n === on ? 'on' : ''}"><i>${ic[n]}</i>${n}</div>`).join('');
+}
+
+function rolesPage() {
+  const rs = roles();
+  const row = (r) => `<div class="a-r">${idAv(r.id, 0, r.md && MD[r.md].mark)}<div class="a-t"><b>${r.label}</b><span>${r.purpose}</span></div><div class="a-c" style="display:block;text-align:right">${r.id ? `<div style="color:var(--text)">${S.opt === '2' ? MD[r.md].name : MD[r.md].model + (MD[r.md].eff !== 'Default' ? ' · ' + MD[r.md].eff : '')}</div><div>${ID[r.id].name}</div>` : 'Off'}</div>${r.extra ? '<span class="a-x">⊖</span>' : ''}<span class="a-chev">›</span></div>`;
+  const revs = rs.filter((r) => r.rev);
+  const add = S.rev < 4 ? `<div class="a-r" style="min-height:36px"><span class="a-add">⊕ Add a reviewer</span><span class="a-foot" style="margin:0">${4 - S.rev} more can run beside these</span></div>` : `<div class="a-r" style="min-height:36px"><span class="a-add dis">⊕ Add a reviewer</span><span class="a-foot" style="margin:0">Four is the most an epic runs at once</span></div>`;
+  return `<div class="a-card a-status"><i>✓</i><div class="a-t"><b>Ready for Carrier</b><span>${rs.filter((r) => r.id).length} roles run in each epic. Identities and models are checked on their own pages.</span></div></div>
+    <div class="a-grp">How an epic runs</div>
+    <div class="a-card a-rail">${row(rs[0])}
+      <div class="a-r a-step">Opens the pull request · ↺ asks for changes, the author answers</div>
+      ${revs.length > 1 ? '<div class="a-r a-step" style="color:var(--blue)">In parallel, on the same commit · one verdict is enough</div>' : ''}
+      <div class="${revs.length > 1 ? 'a-par' : ''}">${revs.map(row).join('')}${add}</div>
+      <div class="a-r a-step">${S.lead === 'on' ? 'When every reviewer agrees · up to 3 rounds with the author' : 'Lead reviewer is off'}</div>
+      ${row(rs.at(-1))}</div>
+    <div class="a-foot">Each role opens its screen: who signs, ${S.opt === '3' ? '' : 'which model, '}its skills.</div>`;
+}
+
+function roleScreen() {
+  const lead = S.lead === 'on';
+  const r = lead ? roles().at(-1) : roles()[2] ?? roles()[1];
+  const same = r.extra ? '<span class="a-chip">Same as Reviewer</span>' : '';
+  const who = `<div class="a-grp">Who signs</div><div class="a-card"><div class="a-r">${idAv(r.id, 1)}<div class="a-t"><b>Identity</b><span>${ID[r.id].kind} · can sign in ${ID[r.id].repos}</span></div>${pill(ID[r.id].name)}<span class="a-chev">›</span></div></div>
+    ${r.lead && r.id === 'author-bot' ? '<div class="a-foot a-warn">Same identity as the Author: GitHub will not let it approve its own pull request.</div>' : ''}
+    ${usedBy(r.id).length > 1 ? `<div class="a-foot">Also signs as ${usedBy(r.id).filter((x) => x !== r.label).join(', ')}. Each reviewer's comments carry its slot, so they stay apart.</div>` : ''}`;
+  let model = '';
+  if (S.opt === '1') model = `<div class="a-grp">Model</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Model</b><span>An account of Providers and its model</span></div>${pill(MD[r.md].acct + ' · ' + MD[r.md].model)}</div><div class="a-r"><div class="a-t"><b>Effort</b></div>${pill(MD[r.md].eff)}</div></div>
+    <div class="a-grp">Persona</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Persona</b><span>Optional name and prompt for this role</span></div>${pill('None', 1)}</div></div>
+    <div class="a-grp">When it runs out of tokens ${same}</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Switch automatically</b></div>${pill('On')}</div><div class="a-r"><div class="a-t"><b>Try first</b></div>${pill(MD[r.md].fo ?? 'claude-work · sonnet')}</div></div>`;
+  if (S.opt === '2') model = `<div class="a-grp">Model</div><div class="a-card"><div class="a-r"><span class="a-av s" style="background:#444">${MD[r.md].mark}</span><div class="a-t"><b>${MD[r.md].name}</b><span>${mdText(r.md)}${MD[r.md].fo ? ' · then ' + MD[r.md].fo : ''}</span></div>${pill(MD[r.md].name)}<span class="a-chev">›</span></div></div>
+    <div class="a-foot">The model, its effort and where it goes when it runs out are the preset's, on the Models page.</div>
+    <div class="a-grp">Persona</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Persona</b><span>Optional name and prompt for this role</span></div>${pill('None', 1)}</div></div>`;
+  if (S.opt === '3') model = `<div class="a-foot">Runs on ${mdText(r.md)}: the model is the identity's. To run another model here, pick another identity.</div>
+    <div class="a-grp">Persona</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Persona</b><span>Optional name and prompt for this role</span></div>${pill('None', 1)}</div></div>`;
+  return `<div class="a-hd">${idAv(r.id, 0, MD[r.md].mark)}<div><b>${r.label}</b><span>${r.purpose}</span></div></div>
+    <div class="a-strip">In an epic <span>Author</span>⇄${roles().filter((x) => x.rev).map((x) => `<span class="${x.key === r.key ? 'on' : ''}">${x.label}</span>`).join('')}→<span class="${lead ? 'on' : ''}">Lead reviewer</span></div>
+    ${lead ? '<div class="a-grp">&nbsp;</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Use a lead reviewer</b><span>Runs once every reviewer agrees, on that commit</span></div><span class="a-pill">On</span></div></div>' : ''}
+    ${who}${model}
+    <div class="a-grp">Skills ${same}</div><div class="a-card">${r.skills.map(([t, s]) => `<div class="a-r"><div class="a-t"><b>${t}</b></div><span class="a-foot" style="margin:0">Default</span><span class="a-quiet">${s}</span></div>`).join('')}</div>
+    ${r.extra ? '<div class="a-grp">&nbsp;</div><div class="a-card"><div class="a-r"><div class="a-t"><b style="color:var(--red)">Remove this reviewer</b><span>Epics already running keep it</span></div></div></div>' : ''}`;
+}
+
+function idsPage() {
+  const ks = Object.keys(ID);
+  return `<div class="a-grp" style="margin-top:4px">Who signs on GitHub</div><div class="a-card">${ks.map((k) => { const u = usedBy(k); return `<div class="a-r">${idAv(k)}<div class="a-t"><b>${ID[k].name}</b><span>${ID[k].kind}${S.opt === '3' ? ' · runs ' + mdText(BOTMODEL[k]) : ''}${ID[k].warn ? ' · <span class="a-warn">' + ID[k].warn + '</span>' : ''}</span></div><div class="a-c">${u.length ? u.map((x) => `<span class="a-chip b">${x}</span>`).join('') : '<span class="a-chip">No role</span>'}<span class="a-chev">›</span></div></div>`; }).join('')}<div class="a-r" style="min-height:38px"><span class="a-add">⊕ Create a bot…</span></div></div>
+    <div class="a-foot">An identity is only who signs: its picture, where it can mint a token, which roles sign as it.${S.opt === '3' ? ' Here it also says which model works under it.' : ' Which model works is the role\'s.'}</div>`;
+}
+
+function idScreen() {
+  const k = 'review-bot', u = usedBy(k);
+  return `<div class="a-hd">${idAv(k)}<div><b>${ID[k].name}</b><span>${ID[k].kind} · GitHub App 1234567</span></div></div>
+    <div class="a-strip">Signs as ${u.length ? u.map((x) => `<span class="on">${x}</span>`).join('') : '<span>No role</span>'}</div>
+    ${S.opt === '3' ? `<div class="a-grp">Works with</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Model</b></div>${pill(MD.codex.acct + ' · ' + MD.codex.model)}</div><div class="a-r"><div class="a-t"><b>Effort</b></div>${pill('high')}</div><div class="a-r"><div class="a-t"><b>When it runs out</b></div>${pill('claude-work · sonnet')}</div></div><div class="a-foot">Every role that signs as this bot runs this model.</div>` : ''}
+    <div class="a-grp">Can sign in</div><div class="a-card">${['acme/web', 'acme/api', 'AshuLab/carrier'].map((r) => `<div class="a-r"><span class="dot g"></span><div class="a-t"><b>${r}</b></div><span class="a-foot" style="margin:0">can mint a token</span></div>`).join('')}</div>
+    <div class="a-grp">&nbsp;</div><div class="a-card"><div class="a-r"><div class="a-t"><b>Open in Agent Forge</b><span>Its key and its installations live there</span></div><span class="a-chev">↗</span></div></div>`;
+}
+
+function modelsPage() {
+  return `<div class="a-grp" style="margin-top:4px">Models roles can run on</div><div class="a-card">${Object.keys(MD).map((m) => { const u = roles().filter((r) => r.md === m).map((r) => r.label); return `<div class="a-r"><span class="a-av" style="background:#444">${MD[m].mark}</span><div class="a-t"><b>${MD[m].name}</b><span>${mdText(m)}${MD[m].fo ? ' · then ' + MD[m].fo : ''}</span></div><div class="a-c">${u.length ? u.map((x) => `<span class="a-chip b">${x}</span>`).join('') : '<span class="a-chip">No role</span>'}<span class="a-chev">›</span></div></div>`; }).join('')}<div class="a-r" style="min-height:38px"><span class="a-add">⊕ New model…</span></div></div>
+    <div class="a-foot">A model is an account of Providers, a model, an effort and where it goes when it runs out. Changing it changes every role that runs on it.</div>`;
+}
+
+function repoScreen() {
+  const rs = roles();
+  const own = { reviewer: ['me', 'gemini'] };
+  const row = (r, inList) => { const [k, m] = own[r.key] ?? [r.id, r.md]; return `<div class="a-r">${idAv(k, 0, m && MD[m].mark)}<div class="a-t"><b>${r.label}</b><span>${k ? (m ? MD[m].model + ' · ' : '') + ID[k].name : 'Off'}</span></div>${inList ? '' : `<span class="a-chip ${own[r.key] ? 'b' : ''}">${own[r.key] ? 'Own' : 'Same as everywhere'}</span>`}${inList && r.extra ? '<span class="a-x">⊖</span>' : ''}<span class="a-chev">›</span></div>`; };
+  return `<div class="a-hd"><span class="a-av" style="background:#333">AW</span><div><b>acme/web</b><span>Watching</span></div></div>
+    <div class="a-grp">Who works here</div><div class="a-card">${row(rs[0])}${row(rs[1])}</div>
+    <div class="a-grp">More reviewers here <span class="a-seg" style="text-transform:none;letter-spacing:0"><button>Same as everywhere</button><button class="on">Own list</button><button>None</button></span></div>
+    <div class="a-card">${rs.filter((r) => r.extra).map((r) => row(r, true)).join('') || '<div class="a-r"><span class="a-foot" style="margin:0">No more reviewers</span></div>'}<div class="a-r" style="min-height:36px"><span class="a-add">⊕ Add a reviewer</span></div></div>
+    <div class="a-foot">The Reviewer is set field by field, like the Author. The list of more reviewers replaces the global one whole, as the engine reads it.</div>
+    <div class="a-grp">Lead here</div><div class="a-card">${row(rs.at(-1))}</div>`;
+}
+
+const TITLE = { roles: ['Roles', ''], role: () => [S.lead === 'on' ? 'Lead reviewer' : 'Reviewer 2', 'Role'], ids: ['Identities', ''], id: ['carrier-review-bot', 'Identity'], models: ['Models', ''], repo: ['acme/web', 'Watching'] };
+const WHY = {
+  '1': [['What it does', 'Three pages, three things: Providers (accounts), Identities (who signs), Roles (who does what). A role picks an identity, a model and has its skills.'], ['Wins', 'Nothing new in engine.json: it is today\'s shape (each role inline) plus the list of more reviewers. Identities stop being a group at the foot of Agents.'], ['Costs', 'Two reviewers on the same model repeat it: change the model, change each role.']],
+  '2': [['What it does', 'A fourth page, Models: named presets (account, model, effort, failover). A role picks an identity, a preset and has its skills.'], ['Wins', 'Change a model once for every role that runs it.'], ['Costs', 'engine.json gains named models the roles point to: engine, schema, doctor, init and an ADR. One more page and one more word.']],
+  '3': [['What it does', 'Each bot carries the model it works with. A role picks a bot and has its skills.'], ['Wins', 'The fewest choices on a role: one picker.'], ['Costs', 'To review with another model you need another bot; your own login can hold only one model. It is the mix of before, moved to the identity. New engine.json shape too.']],
+};
+const JSON_ = {
+  '1': `"agents": {
+  "author":   { "profile": "author-bot", "provider": "claude-personal", "model": "opus", "effort": "max", "skills": {...} },
+  "reviewer": { "profile": "review-bot", "provider": "codex", "model": "gpt-5.1-codex" },
+  "extraReviewers": [
+    { "profile": "review-bot", "provider": "claude-work", "model": "sonnet" }
+  ],
+  "leadReviewer": { "profile": "lead-bot", "provider": "claude-personal", "model": "opus", "effort": "max" }
+},
+"profiles": { "author-bot": { "kind": "forge", "agent": "carrier-author-bot" }, ... }`,
+  '2': `"models": {
+  "opus-max": { "provider": "claude-personal", "model": "opus", "effort": "max", "failover": [...] },
+  "codex":    { "provider": "codex", "model": "gpt-5.1-codex", "effort": "high" }
+},
+"agents": {
+  "author":   { "profile": "author-bot", "model": "opus-max" },
+  "reviewer": { "profile": "review-bot", "model": "codex" }, ...
+}`,
+  '3': `"profiles": {
+  "author-bot": { "kind": "forge", "agent": "carrier-author-bot",
+                  "provider": "claude-personal", "model": "opus", "effort": "max" },
+  "review-bot": { "kind": "forge", "agent": "carrier-review-bot",
+                  "provider": "codex", "model": "gpt-5.1-codex" }
+},
+"agents": { "author": { "profile": "author-bot" }, "reviewer": { "profile": "review-bot" }, ... }`,
+};
+
+function render() {
+  if (S.opt !== '2' && S.scr === 'models') S.scr = 'roles';
+  document.getElementById('b-models').style.display = S.opt === '2' ? '' : 'none';
+  for (const b of document.querySelectorAll('#c-scr button')) b.classList.toggle('on', b.dataset.v === S.scr);
+  document.getElementById('side').innerHTML = side();
+  const t = typeof TITLE[S.scr] === 'function' ? TITLE[S.scr]() : TITLE[S.scr];
+  document.getElementById('tb').innerHTML = `${t[1] ? '<span class="glass sm">‹</span>' : ''}<h2>${t[0]}<small>${t[1]}</small></h2>`;
+  document.getElementById('page').innerHTML = { roles: rolesPage, role: roleScreen, ids: idsPage, id: idScreen, models: modelsPage, repo: repoScreen }[S.scr]();
+  document.getElementById('why').innerHTML = WHY[S.opt].map(([a, b]) => `<div><b>${a}</b>${b}</div>`).join('');
+  document.getElementById('json').innerHTML = `<div style="grid-column:1/-1"><pre class="term">${JSON_[S.opt]}</pre></div>`;
+}
+for (const [id, key] of [['c-opt', 'opt'], ['c-scr', 'scr'], ['c-rev', 'rev'], ['c-lead', 'lead']]) {
+  document.getElementById(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    for (const x of e.currentTarget.children) x.classList.toggle('on', x === b);
+    S[key] = key === 'rev' ? +b.dataset.v : b.dataset.v; render();
+  });
+}
+for (const [k, v] of new URLSearchParams(location.search)) if (k in S) { S[k] = k === 'rev' ? +v : v; for (const b of document.querySelectorAll(`#c-${k} button`)) b.classList.toggle('on', b.dataset.v === v); }
+render();
+</script>
+</body></html>

@@ -46,7 +46,7 @@ public enum EngineConfigChange: Equatable, Sendable {
     case watchedRepos([String])
     /// The eight values Behavior edits; Node takes out of the file the ones equal to the engine's default.
     case behavior(EngineConfig)
-    /// The changes of one pick of the Agents page to a global role, applied together or not at all.
+    /// The changes of one pick of the Roles page to a global role, applied together or not at all.
     case role(AgentRole, [RoleChange])
     /// A repo's own fields of a role (the ones left nil are not its own); nil takes the repo's override out.
     case repoRole(repo: String, role: AgentRole, fields: RoleFields?)
@@ -94,7 +94,7 @@ public enum EngineConfigChange: Equatable, Sendable {
             return ",\"repos\":[" + names.map(jsonString).joined(separator: ",") + "]"
         case .behavior(let config):
             let limits: [String: Any] = [
-                "maxConcurrentEpics": config.maxConcurrentEpics, "maxReviews": config.maxReviews, "maxExecutionRetries": config.maxExecutionRetries,
+                "maxConcurrentEpics": config.maxConcurrentEpics, "maxReviews": config.maxReviews, "maxLeadRounds": config.maxLeadRounds, "maxExecutionRetries": config.maxExecutionRetries,
                 "maxExecutionHours": config.maxExecutionHours ?? "unlimited", "githubCallTimeoutSeconds": config.githubCallTimeoutSeconds,
             ]
             let changes: [String: Any] = ["pollIntervalMinutes": config.pollIntervalMinutes, "logLevel": config.logLevel, "finishedWindowDays": config.finishedWindowDays, "limits": limits]
@@ -266,6 +266,21 @@ public typealias SendEngineConfig = (EngineConfigChange) async throws -> EngineC
         let before = last
         let mine = Task { () -> RoleSave in
             await before?.value
+            return await saveEngineConfig(change, send: send, status: status)
+        }
+        last = Task { _ = await mine.value }
+        return await mine.value
+    }
+
+    /// Like `save`, but the change is built when its turn comes, after the saves asked before it have reached the file: an edit that sends a whole value again (a repo's list of reviewers) starts from
+    /// what those left and does not overwrite them, however fast the edits were made. `build` answers nil when there is nothing to send, and then so does this.
+    public func save(
+        building build: @escaping @MainActor () -> EngineConfigChange?, send: @escaping SendEngineConfig, status: ReloadStatus? = nil
+    ) async -> RoleSave? {
+        let before = last
+        let mine = Task { () -> RoleSave? in
+            await before?.value
+            guard let change = build() else { return nil }
             return await saveEngineConfig(change, send: send, status: status)
         }
         last = Task { _ = await mine.value }

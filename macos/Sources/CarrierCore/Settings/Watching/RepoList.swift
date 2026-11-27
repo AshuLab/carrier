@@ -96,6 +96,8 @@ public struct RepoRow: Equatable, Identifiable {
     public var isNew: Bool
     /// the running engine has loaded it, so its epics and last check are known
     public var isLoaded = false
+    /// whether the repo follows the list of extra reviewers of Roles, has its own or has none
+    public var extras = RepoExtraReviewers.sameAsEverywhere
     public var id: String { name }
 
     public var owner: String { String(name.split(separator: "/").first ?? "") }

@@ -101,7 +101,7 @@ private func configProblem(_ path: String, _ problem: String) -> Refusal {
     #expect(banner.title == "Carrier no está usando tu última configuración")
     #expect(banner.detail == "El paso de respaldo 1 de Autor es el mismo proveedor y modelo que el propio Autor, así que no llevaría a ninguna parte.")
     #expect(banner.consequence == "Carrier conservó la configuración que tenía: lo que guardaste espera hasta que esto se corrija.")
-    #expect(banner.fix == .agents && banner.fixTitle?.hasPrefix("Abrir ") == true)
+    #expect(banner.fix == .roles && banner.fixTitle?.hasPrefix("Abrir ") == true)
     #expect(refusalBanner(configProblem("failover.roles.leadReviewer.1", "stepRepeated"), bundle: b, locale: l).detail?.contains("Revisor líder") == true)
     #expect(refusalBanner(configProblem("failover.roles.reviewer.0", "providerNotDeclared"), bundle: b, locale: l).detail?.contains("paso de respaldo 1 de Revisor") == true)
 }

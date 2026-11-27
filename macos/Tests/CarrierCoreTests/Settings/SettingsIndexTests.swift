@@ -137,11 +137,11 @@ private func found(_ query: String, _ language: (bundle: Bundle, locale: Locale)
     #expect(found("inactivity timeout", english).contains { $0.rowID == "sleep-after" })
     #expect(found("tiempo de inactividad", spanish).contains { $0.rowID == "sleep-after" })
     #expect(englishIndex.first { $0.rowID == "sleep-after" }?.detail.contains("timeout") == false)
-    // the shortcut of a row of Keybindings and the stage of an Agents role are sentences with arguments
+    // the shortcut of a row of Keybindings and the stage of a role of Roles are sentences with arguments
     #expect(spanishIndex.first { $0.rowID == "newSession" }?.detail == "Predeterminado: ⌘N")
     #expect(englishIndex.first { $0.rowID == "newSession" }?.detail == "Default: ⌘N")
-    #expect(spanishIndex.first { $0.page == .agents && $0.groupID == "skills" }?.detail.contains(". Ejecuta la skill ") == true)
-    #expect(englishIndex.first { $0.page == .agents && $0.groupID == "skills" }?.detail.contains(". Runs the skill ") == true)
+    #expect(spanishIndex.first { $0.page == .roles && $0.groupID == "skills" }?.detail.contains(". Ejecuta la skill ") == true)
+    #expect(englishIndex.first { $0.page == .roles && $0.groupID == "skills" }?.detail.contains(". Runs the skill ") == true)
 }
 
 @Test func theAnchorAndTheIdOfEveryEntryAreTheSameInEnglishAndInSpanishAndEachIsUnique() {
@@ -151,4 +151,29 @@ private func found(_ query: String, _ language: (bundle: Bundle, locale: Locale)
     for language in [englishIndex, spanishIndex] { #expect(Set(language.map(\.id)).count == language.count) }
     // Spanish is not English with the keys missing: a key that is missing reads as the key itself, which no entry may
     for entry in spanishIndex { for key in entry.copyKeys { #expect(entry.title != key && entry.detail != key && entry.group != key, Comment(rawValue: key)) } }
+}
+
+@Test func theSearchFindsEachExtraReviewerByItsNameAndItsTypeAndTheStaticIndexHasNoneOfThem() {
+    let file = Data(#"{"agents": {"extraReviewers": {"seguridad-api": {"type": "security", "name": "Seguridad API"}, "usabilidad": {"type": "ux", "name": "Usabilidad"}}}}"#.utf8)
+    let entries = rolesSearchEntries(config: file, bundle: english.bundle, locale: english.locale)
+    #expect(entries.map(\.title) == ["Seguridad API", "Usabilidad"] && entries.map(\.rowID) == ["seguridad-api", "usabilidad"])
+    #expect(entries.allSatisfy { $0.page == .roles && $0.groupID == "how-an-epic-runs" && $0.path.isEmpty })
+    #expect(settingsResults("seguridad", in: englishIndex + entries, bundle: english.bundle, locale: english.locale).first?.rowID == "seguridad-api")
+    #expect(settingsResults("security", in: englishIndex + entries, bundle: english.bundle, locale: english.locale).first?.rowID == "seguridad-api")
+    #expect(rolesSearchEntries(config: Data(#"{"agents": {"extraReviewers": []}}"#.utf8)).isEmpty && rolesSearchEntries(config: Data("nope".utf8)).isEmpty)
+    #expect(englishIndex.filter { $0.page == .roles && $0.groupID == "how-an-epic-runs" }.map(\.title) == ["Author", "Reviewer", "Lead reviewer"])
+}
+
+@Test func theIdentitiesPageIsSearchableByItsNameItsRowsAndCreateABotMovedToItFromRoles() {
+    #expect(found("Identities", english).first.map { $0.isPage && $0.page == .identities } == true)
+    #expect(found("Identidades", spanish).first.map { $0.isPage && $0.page == .identities } == true)
+    #expect(englishIndex.filter { $0.page == .identities && $0.isPage == false }.map(\.anchor) == [
+        "identities.who-signs", "identities.who-signs.create-a-bot", "identities.signs-as", "identities.can-sign-in", "identities.open-on-github",
+    ])
+    #expect(found("Create a bot", english).first { $0.rowID == "create-a-bot" }?.page == .identities)
+    #expect(found("Crear un bot", spanish).first { $0.rowID == "create-a-bot" }?.page == .identities)
+    #expect(englishIndex.contains { $0.page == .roles && $0.rowID == "create-a-bot" } == false)
+    // the words of the rows an identity's screen draws are found in both languages
+    #expect(found("mint a token", english).contains { $0.page == .identities && $0.groupID == "can-sign-in" })
+    #expect(found("Abrir en GitHub", spanish).contains { $0.page == .identities && $0.rowID == "open-on-github" })
 }

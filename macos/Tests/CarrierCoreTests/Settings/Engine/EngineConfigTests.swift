@@ -24,11 +24,12 @@ private func object(_ data: Data?) -> [String: Any] {
     config.logLevel = "loud"
     config.maxConcurrentEpics = 0
     config.maxReviews = 0
+    config.maxLeadRounds = 0
     config.maxExecutionRetries = -1
     config.maxExecutionHours = 0
     config.githubCallTimeoutSeconds = 0
     config.finishedWindowDays = 0
-    #expect(Set(config.problems(bundle: english.bundle, locale: english.locale).keys) == ["pollIntervalMinutes", "logLevel", "maxConcurrentEpics", "maxReviews", "maxExecutionRetries", "maxExecutionHours", "githubCallTimeoutSeconds", "finishedWindowDays"])
+    #expect(Set(config.problems(bundle: english.bundle, locale: english.locale).keys) == ["pollIntervalMinutes", "logLevel", "maxConcurrentEpics", "maxReviews", "maxLeadRounds", "maxExecutionRetries", "maxExecutionHours", "githubCallTimeoutSeconds", "finishedWindowDays"])
     config.maxExecutionRetries = 0
     config.maxExecutionHours = nil
     #expect(config.problems(bundle: english.bundle, locale: english.locale)["maxExecutionRetries"] == nil && config.problems(bundle: english.bundle, locale: english.locale)["maxExecutionHours"] == nil)

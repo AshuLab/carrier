@@ -205,7 +205,8 @@ public struct RolesPage: Equatable {
 }
 
 /// The page for `config`; nil when it is not a JSON object (the engine is not configured). `providers` is `providers.json`, nil when it is not there.
-public func rolesPage(config: Data, providers: Data?, bots: ForgeBots, bundle: Bundle? = nil, locale: Locale = .current) -> RolesPage? {
+/// `extraKeys` is the order of the extra reviewers when it is not the file's `agents.extraReviewers` (a repo's own map, merged in).
+public func rolesPage(config: Data, providers: Data?, bots: ForgeBots, extraKeys: [String]? = nil, bundle: Bundle? = nil, locale: Locale = .current) -> RolesPage? {
     guard let file = (try? JSONSerialization.jsonObject(with: config)) as? [String: Any] else { return nil }
     let roles = file["agents"] as? [String: Any] ?? [:]
     let profiles = file["profiles"] as? [String: Any] ?? [:]
@@ -246,7 +247,7 @@ public func rolesPage(config: Data, providers: Data?, bots: ForgeBots, bundle: B
     // the engine's rule (`failoverStepsOfSlot`): an extra reviewer's own steps when it declares a list, else the Reviewer's
     // a list, which the engine refuses, has no keys: no row
     let map = roles["extraReviewers"] as? [String: Any] ?? [:]
-    let extras = (jsonKeys(in: config, at: ["agents", "extraReviewers"]) ?? []).prefix(RoleSlot.maxExtra).compactMap { key -> RoleRow? in
+    let extras = (extraKeys ?? jsonKeys(in: config, at: ["agents", "extraReviewers"]) ?? []).prefix(RoleSlot.maxExtra).compactMap { key -> RoleRow? in
         guard let entry = map[key] as? [String: Any] else { return nil }
         return row(.extra(key: key), entry: entry, steps: entry["failover"] == nil ? reviewerSteps : steps(entry["failover"]), ownSteps: entry["failover"] != nil)
     }

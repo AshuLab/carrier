@@ -44,7 +44,10 @@ struct RepoScreen: View {
                     SettingsTabRow(
                         title: reviewer.title(), detail: reviewer.headline(), first: index == 0, leading: AnyView(roleAvatar(reviewer, page: roles.page, icons: icons, size: 30))
                     ) {
-                        if roles.extras == .sameAsEverywhere { StatusChip(text: Copy.watchingMoreFromRoles(), tint: .secondary) }
+                        HStack(spacing: Tokens.Space.s4) {
+                            if let type = reviewer.type { StatusChip(text: Copy.rolesExtraType(type: type), tint: .secondary) }
+                            if roles.extras == .sameAsEverywhere { StatusChip(text: Copy.watchingMoreFromRoles(), tint: .secondary) }
+                        }
                     }
                 }
                 if roles.reviewers.isEmpty {

@@ -73,13 +73,13 @@ public struct RepoRoleRow: Equatable, Identifiable {
     public func title(bundle: Bundle? = nil, locale: Locale = .current) -> String { role.title(bundle: bundle, locale: locale) }
 }
 
-/// A repo's extra reviewers: its `agents.extraReviewers` replaces the global list whole, so there are three states and nothing in between.
+/// A repo's extra reviewers: its `agents.extraReviewers` replaces the global map whole, so there are three states and nothing in between.
 public enum RepoExtraReviewers: Equatable, CaseIterable, Sendable {
     /// no key: the list of Roles runs there
     case sameAsEverywhere
-    /// a list of its own
+    /// a map of its own
     case ownList
-    /// `[]`: only the Reviewer reviews there
+    /// `{}`: only the Reviewer reviews there
     case noExtras
 }
 
@@ -122,9 +122,9 @@ public func repoRoles(json: Data, repo: String) -> RepoRoles? {
     let own = entry?["agents"] as? [String: Any] ?? [:]
     let roles = AgentRole.allCases.filter { $0 != .leadReviewer || global[$0.rawValue] is [String: Any] }
     let extras: RepoExtraReviewers =
-        switch own["extraReviewers"] as? [Any] {
+        switch own["extraReviewers"] as? [String: Any] {
         case nil: .sameAsEverywhere
-        case let list? where list.isEmpty: .noExtras
+        case let map? where map.isEmpty: .noExtras
         default: .ownList
         }
     return RepoRoles(
@@ -154,8 +154,8 @@ public func repoRolesPage(config: Data, providers: Data?, bots: ForgeBots, repo:
     return page
 }
 
-/// The extra reviewers that run in `repo`, in their order: the repo's own list when it has the key (empty for `[]`), else the global one, each with its identity and
-/// model as the Roles page reads it. nil when `config` is not a JSON object.
+/// The extra reviewers that run in `repo`, in the order of the map: the repo's own map when it has the key (empty for `{}`), else the global one, each with its name,
+/// type, identity and model as the Roles page reads it. nil when `config` is not a JSON object.
 public func repoExtraReviewers(config: Data, providers: Data?, bots: ForgeBots, repo: String, bundle: Bundle? = nil, locale: Locale = .current) -> [RoleRow]? {
     repoPage(config: config, providers: providers, bots: bots, repo: repo, bundle: bundle, locale: locale)?.rows.filter { $0.slot.isExtra }
 }
@@ -163,15 +163,20 @@ public func repoExtraReviewers(config: Data, providers: Data?, bots: ForgeBots, 
 private func repoPage(config: Data, providers: Data?, bots: ForgeBots, repo: String, bundle: Bundle?, locale: Locale) -> RolesPage? {
     guard var file = (try? JSONSerialization.jsonObject(with: config)) as? [String: Any] else { return nil }
     var agents = file["agents"] as? [String: Any] ?? [:]
-    let own = ((file["repos"] as? [[String: Any]])?.first { $0["name"] as? String == repo })?["agents"] as? [String: Any] ?? [:]
-    for (role, fields) in own {
+    let position = (file["repos"] as? [[String: Any]])?.firstIndex { $0["name"] as? String == repo }
+    let own = position.flatMap { (file["repos"] as? [[String: Any]])?[$0]["agents"] as? [String: Any] } ?? [:]
+    for (role, fields) in own where role != "extraReviewers" {
         guard var merged = agents[role] as? [String: Any], let mine = fields as? [String: Any] else { continue }
         for (key, value) in mine { merged[key] = value }
         agents[role] = merged
     }
-    // the list replaces the global one whole
-    if let list = own["extraReviewers"] as? [Any] { agents["extraReviewers"] = list }
+    // the map replaces the global one whole, and keeps the order of the repo's own
+    var extraKeys: [String]?
+    if let map = own["extraReviewers"] as? [String: Any], let position {
+        agents["extraReviewers"] = map
+        extraKeys = jsonKeys(in: config, at: ["repos", String(position), "agents", "extraReviewers"])
+    }
     file["agents"] = agents
     guard let merged = try? JSONSerialization.data(withJSONObject: file) else { return nil }
-    return rolesPage(config: merged, providers: providers, bots: bots, bundle: bundle, locale: locale)
+    return rolesPage(config: merged, providers: providers, bots: bots, extraKeys: extraKeys, bundle: bundle, locale: locale)
 }

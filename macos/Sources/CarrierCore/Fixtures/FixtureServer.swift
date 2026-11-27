@@ -20,13 +20,13 @@ public enum FixtureError: Error, Equatable {
 /// It owns a temporary home (`home`) holding an `engine.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents, a `projects.json` with four projects (`writeProjects`) and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 /// The `engine.json` of the fixture home: the repos of the fixture snapshot, the profiles, the three global roles and two extra reviewers (one with failover steps of its own, one without), and the repos' own settings: one overrides the
-/// reviewer's model, one has an own list of one extra reviewer and one has `[]`, so the Watching page shows an inherited role, a mixed one and the three states of the list (`acme/api` follows Roles).
+/// reviewer's model, one has an own map of one extra reviewer and one has `{}`, so the Watching page shows an inherited role, a mixed one and the three states of the list (`acme/api` follows Roles).
 public let fixtureConfig = """
 {
   "repos": [
-    {"name": "acme/web", "agents": {"extraReviewers": [{"profile": "acme-reviewer-2", "provider": "claude-work", "model": "claude-opus-5", "effort": "medium"}]}},
+    {"name": "acme/web", "agents": {"extraReviewers": {"rendimiento": {"type": "performance", "name": "Rendimiento", "profile": "acme-seguridad-api", "provider": "claude-work", "model": "claude-opus-5", "effort": "medium"}}}},
     {"name": "acme/api", "agents": {"reviewer": {"model": "gpt-5-mini"}}},
-    {"name": "acme/a-really-long-repository-name-for-the-sidebar", "agents": {"extraReviewers": []}}
+    {"name": "acme/a-really-long-repository-name-for-the-sidebar", "agents": {"extraReviewers": {}}}
   ],
   "profiles": {
     "acme-author": {"kind": "forge", "agent": "acme-author"},

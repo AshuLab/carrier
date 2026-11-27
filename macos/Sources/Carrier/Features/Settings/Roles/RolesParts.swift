@@ -115,9 +115,6 @@ private struct RoleRailRow: View {
     let action: () -> Void
     @State private var hovering = false
 
-    /// A Lead reviewer that is off in Roles is not the repo's to open: it has nothing of its own to set until Roles turns it on.
-    private var opens: Bool { own == nil || row.off == false }
-
     var body: some View {
         Button(action: action) {
             HStack(spacing: Tokens.Space.s12) {
@@ -128,15 +125,14 @@ private struct RoleRailRow: View {
                 }
                 Spacer(minLength: 8)
                 trailing
-                if let own, opens { StatusChip(text: own ? Copy.rolesOwn() : Copy.rolesSameAsEverywhere(), tint: own ? theme.accent : .secondary) }
-                if opens { Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary) }
+                if let own { StatusChip(text: own ? Copy.rolesOwn() : Copy.rolesSameAsEverywhere(), tint: own ? theme.accent : .secondary) }
+                Glyph(.chevronRight, size: 13, bold: true).foregroundStyle(.tertiary)
             }
             .padding(.horizontal, Tokens.Space.s8).frame(minHeight: 54)
             .background(RoundedRectangle(cornerRadius: Tokens.Radius.tile, style: .continuous).fill(Color.primary.opacity(hovering ? 0.05 : 0)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(opens == false)
         .onHover { hovering = $0 }
         .accessibilityElement(children: .combine)
         .settingsAnchored(row.id, group: EpicRail.groupID)

@@ -99,9 +99,9 @@ private func rows(_ json: Data, _ repo: String = "a/b") throws -> [AgentRole: Re
 @Test func theRolesPageOfARepoIsTheGlobalRolesWithTheReposOwnOverThem() throws {
     let bots = ForgeBots(names: [])
     let global = try #require(rolesPage(config: config(), providers: nil, bots: bots))
-    // a repo with nothing of its own reads as Roles does, less the Lead reviewer that is off
+    // a repo with nothing of its own reads as Roles does, the Lead reviewer that is off included
     let plain = try #require(repoRolesPage(config: config(), providers: nil, bots: bots, repo: "a/b"))
-    #expect(plain.rows.map(\.role) == [.author, .reviewer] && plain.rows == Array(global.rows.prefix(2)))
+    #expect(plain.rows.map(\.role) == [.author, .reviewer, .leadReviewer] && plain.rows == global.rows && plain.rows[2].off)
     let own = try #require(repoRolesPage(config: config(repoAgents: #"{"author": {"model": "opus", "persona": {"prompt": "Be brief"}}}"#), providers: nil, bots: bots, repo: "a/b"))
     #expect(own.rows[0].fields == RoleFields(profile: "b-author", provider: "claude", model: "opus", effort: "high", persona: RolePersona(name: nil, prompt: "Be brief")))
     #expect(own.rows[1] == plain.rows[1])
@@ -115,8 +115,80 @@ private func rows(_ json: Data, _ repo: String = "a/b") throws -> [AgentRole: Re
     let bots = ForgeBots(names: [])
     // the global block of `config` has no lead reviewer
     let own = #"{"leadReviewer": {"model": "opus"}}"#
-    #expect(try #require(repoRolesPage(config: config(repoAgents: own), providers: nil, bots: bots, repo: "a/b")).rows.map(\.role) == [.author, .reviewer])
+    let off = try #require(repoRolesPage(config: config(repoAgents: own), providers: nil, bots: bots, repo: "a/b"))
+    #expect(off.rows.map(\.role) == [.author, .reviewer, .leadReviewer] && off.rows[2].off)
     let lead = Data(#"{"profiles": {"p": {"kind": "gh"}}, "agents": {"author": {"profile": "p", "provider": "claude", "model": "m"}, "reviewer": {"profile": "p", "provider": "claude", "model": "m"}, "leadReviewer": {"profile": "p", "provider": "claude", "model": "m"}}, "repos": [{"name": "a/b", "agents": {"leadReviewer": {"model": "opus"}}}]}"#.utf8)
     let page = try #require(repoRolesPage(config: lead, providers: nil, bots: bots, repo: "a/b"))
     #expect(page.rows.map(\.role) == [.author, .reviewer, .leadReviewer] && page.rows[2].fields.model == "opus")
+}
+
+private let twoExtras = #", "agents": {"author": {"profile": "b-author", "provider": "claude", "model": "sonnet"}, "reviewer": {"profile": "a-reviewer", "provider": "codex", "model": "gpt-5"}, "extraReviewers": {"seguridad": {"type": "security", "name": "Seguridad", "profile": "b-other", "provider": "claude", "model": "opus"}, "usabilidad": {"type": "ux", "name": "Usabilidad", "profile": "b-author", "provider": "codex", "model": "mini"}}}"#
+
+private func withExtras(own: String?) -> Data {
+    let entry = own.map { #", "agents": {"extraReviewers": \#($0)}"# } ?? ""
+    return Data(#"{"profiles": {"a-reviewer": {"kind": "gh"}, "b-author": {"kind": "gh"}, "b-other": {"kind": "gh"}}\#(twoExtras), "repos": [{"name": "a/b"\#(entry)}, {"name": "c/d"}]}"#.utf8)
+}
+
+@Test func aRepoWithNoKeyFollowsTheListOfRoles() throws {
+    #expect(try #require(repoRoles(json: config(), repo: "a/b")).extras == .sameAsEverywhere)
+    #expect(try #require(repoRoles(json: config(repoAgents: #"{"author": {"model": "opus"}}"#), repo: "a/b")).extras == .sameAsEverywhere)
+    #expect(try #require(repoRoles(json: withExtras(own: nil), repo: "a/b")).extras == .sameAsEverywhere)
+    let bots = ForgeBots(names: [])
+    let reviewers = try #require(repoExtraReviewers(config: withExtras(own: nil), providers: nil, bots: bots, repo: "a/b"))
+    #expect(reviewers.map(\.slot) == [.extra(key: "seguridad"), .extra(key: "usabilidad")] && reviewers.map(\.fields.model) == ["opus", "mini"])
+    #expect(reviewers.map { $0.title() } == ["Seguridad", "Usabilidad"] && reviewers.map(\.type) == ["security", "ux"])
+}
+
+@Test func aReposOwnMapReplacesTheGlobalOneWholeAndKeepsItsOrder() throws {
+    let own = #"{"rendimiento": {"type": "performance", "name": "Rendimiento", "profile": "a-reviewer", "provider": "ollama", "model": "qwen", "effort": "low"}}"#
+    #expect(try #require(repoRoles(json: withExtras(own: own), repo: "a/b")).extras == .ownList)
+    let reviewers = try #require(repoExtraReviewers(config: withExtras(own: own), providers: nil, bots: ForgeBots(names: []), repo: "a/b"))
+    #expect(reviewers.count == 1 && reviewers[0].slot == .extra(key: "rendimiento") && reviewers[0].title() == "Rendimiento" && reviewers[0].type == "performance")
+    #expect(reviewers[0].fields == RoleFields(profile: "a-reviewer", provider: "ollama", model: "qwen", effort: "low"))
+    #expect(reviewers[0].identity == .gh && reviewers[0].headline(bundle: english.bundle, locale: english.locale) == "qwen · low · a-reviewer")
+    // another repo keeps the global list
+    #expect(try #require(repoExtraReviewers(config: withExtras(own: own), providers: nil, bots: ForgeBots(names: []), repo: "c/d")).count == 2)
+    #expect(try #require(repoRoles(json: withExtras(own: own), repo: "c/d")).extras == .sameAsEverywhere)
+}
+
+@Test func anEmptyMapLeavesOnlyTheReviewer() throws {
+    #expect(try #require(repoRoles(json: withExtras(own: "{}"), repo: "a/b")).extras == .noExtras)
+    let bots = ForgeBots(names: [])
+    #expect(try #require(repoExtraReviewers(config: withExtras(own: "{}"), providers: nil, bots: bots, repo: "a/b")).isEmpty)
+    // the rail of the repo has the Reviewer alone, with or without extras
+    #expect(try #require(repoRolesPage(config: withExtras(own: "{}"), providers: nil, bots: bots, repo: "a/b")).rows.map(\.slot) == [.author, .reviewer, .lead])
+    #expect(try #require(repoRolesPage(config: withExtras(own: nil), providers: nil, bots: bots, repo: "a/b")).rows.map(\.slot) == [.author, .reviewer, .lead])
+}
+
+@Test func theOrderOfARepoOwnMapIsTheOrderOfTheFileWhateverTheRepoIsAndTheMapsAreNotMerged() throws {
+    let entry = { (key: String) in #""\#(key)": {"type": "t", "name": "N \#(key)", "profile": "a-reviewer", "provider": "codex", "model": "m"}"# }
+    let own = "{" + ["zeta", "alfa", "mitad"].map(entry).joined(separator: ", ") + "}"
+    let json = Data(#"{"profiles": {"a-reviewer": {"kind": "gh"}}\#(twoExtras), "repos": [{"name": "c/d"}, {"name": "a/b", "agents": {"extraReviewers": \#(own)}}]}"#.utf8)
+    let reviewers = try #require(repoExtraReviewers(config: json, providers: nil, bots: ForgeBots(names: []), repo: "a/b"))
+    // the global keys are not in it: the repo's map replaces the whole
+    #expect(reviewers.map(\.slot) == [.extra(key: "zeta"), .extra(key: "alfa"), .extra(key: "mitad")])
+    #expect(try #require(repoExtraReviewers(config: json, providers: nil, bots: ForgeBots(names: []), repo: "c/d")).map(\.slot) == [.extra(key: "seguridad"), .extra(key: "usabilidad")])
+    // a list is not a map: the engine refuses it, and the app reads the repo as following Roles
+    #expect(try #require(repoRoles(json: withExtras(own: "[]"), repo: "a/b")).extras == .sameAsEverywhere)
+}
+
+@Test func theExtraReviewersOfAConfigThatIsNotAJSONObjectAreNotRead() {
+    #expect(repoExtraReviewers(config: Data("[]".utf8), providers: nil, bots: ForgeBots(names: []), repo: "a/b") == nil)
+}
+
+@Test func theFixtureHasARepoWithAnOwnMapAndOneWithNone() throws {
+    let json = Data(fixtureConfig.utf8)
+    let own = try #require(repoExtraReviewers(config: json, providers: nil, bots: ForgeBots(names: []), repo: "acme/web"))
+    #expect(own.map(\.slot) == [.extra(key: "rendimiento")] && own[0].title() == "Rendimiento")
+    #expect(try #require(repoRoles(json: json, repo: "acme/web")).extras == .ownList)
+    #expect(try #require(repoRoles(json: json, repo: "acme/a-really-long-repository-name-for-the-sidebar")).extras == .noExtras)
+    #expect(try #require(repoRoles(json: json, repo: "acme/api")).extras == .sameAsEverywhere)
+}
+
+@Test func theStatesSayWhatTheyAreInEnglishAndSpanish() {
+    #expect(RepoExtraReviewers.allCases.map { $0.title(bundle: english.bundle, locale: english.locale) } == ["Same as everywhere", "Own list", "None"])
+    #expect(RepoExtraReviewers.allCases.map { $0.title(bundle: spanish.bundle, locale: spanish.locale) } == ["Igual que en todas partes", "Lista propia", "Ninguno"])
+    for state in RepoExtraReviewers.allCases {
+        #expect(state.footer(bundle: english.bundle, locale: english.locale).hasSuffix("edit it in engine.json."))
+    }
 }

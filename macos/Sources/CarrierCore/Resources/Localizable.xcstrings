@@ -54456,6 +54456,23 @@
         }
       }
     },
+    "settingsIndexWatchingMoreReviewersDetail": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whether the repository follows the list of Roles, has its own or has none, and who reviews there"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si el repositorio sigue la lista de Roles, tiene la suya o ninguna, y quién revisa allí"
+          }
+        }
+      }
+    },
     "settingsIndexWatchingOnGithubDetail": {
       "extractionState": "manual",
       "localizations": {
@@ -71975,6 +71992,40 @@
         }
       }
     },
+    "watchingChipNoReviewers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No more reviewers"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin más revisores"
+          }
+        }
+      }
+    },
+    "watchingChipOwnReviewers": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Own reviewers"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisores propios"
+          }
+        }
+      }
+    },
     "watchingClone": {
       "extractionState": "manual",
       "localizations": {
@@ -72192,6 +72243,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "GitHub lo rechazó"
+          }
+        }
+      }
+    },
+    "watchingGroupMore": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More reviewers here"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más revisores aquí"
           }
         }
       }
@@ -72447,6 +72515,125 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aviso"
+          }
+        }
+      }
+    },
+    "watchingMoreFooter.noExtras": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The list of Roles does not run here."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La lista de Roles no corre aquí."
+          }
+        }
+      }
+    },
+    "watchingMoreFooter.ownList": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This list replaces the one of Roles, in this repository only. Their persona, failover steps and skills come from the Reviewer."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta lista reemplaza la de Roles, solo en este repositorio. Su persona, sus pasos de respaldo y sus skills vienen del Revisor."
+          }
+        }
+      }
+    },
+    "watchingMoreFooter.sameAsEverywhere": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Follows Roles: a reviewer added there runs here too."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sigue a Roles: un revisor añadido allí también corre aquí."
+          }
+        }
+      }
+    },
+    "watchingMoreFromRoles": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From Roles"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desde Roles"
+          }
+        }
+      }
+    },
+    "watchingMoreNoneInRoles": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No more reviewers in Roles"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay más revisores en Roles"
+          }
+        }
+      }
+    },
+    "watchingMoreOnlyReviewer": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only the Reviewer reviews here"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aquí solo revisa el Revisor"
+          }
+        }
+      }
+    },
+    "watchingMoreReadOnly": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app does not change this list yet: edit it in engine.json."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La app aún no cambia esta lista: edítala en engine.json."
           }
         }
       }
@@ -72729,6 +72916,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abre el repositorio"
+          }
+        }
+      }
+    },
+    "watchingOwnList": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Own list"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lista propia"
           }
         }
       }

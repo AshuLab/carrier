@@ -1,6 +1,7 @@
 import Foundation
 
 /// The keys of the JSON object that `path` leads to in `data`, in the order the file has them; nil when `path` leads to anything but an object.
+/// A step that is a whole number goes into the array at the cursor by position (`["repos", "1", "agents", "extraReviewers"]`).
 /// `JSONSerialization` gives a dictionary, which loses the order, and the map of extra reviewers keeps it (ADR 0057). The keys are read as they are
 /// written, which is all a slug needs; `data` is already known to be JSON, so a malformed one just gives nil.
 func jsonKeys(in data: Data, at path: [String]) -> [String]? {
@@ -60,6 +61,10 @@ private struct KeyScanner {
 
     /// The members of the object at the cursor: the keys when `path` is spent, else the keys of the member `path` names.
     mutating func keys(at path: ArraySlice<String>) -> [String]? {
+        if let position = path.first.flatMap({ Int($0) }), take("[") {
+            for _ in 0..<position { guard skipValue(), take(",") else { return nil } }
+            return keys(at: path.dropFirst())
+        }
         guard take("{") else { return nil }
         var found: [String] = []
         while take("}") == false {

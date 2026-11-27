@@ -10038,6 +10038,47 @@ public enum Copy {
         String(localized: "watchingWhoFooter", bundle: bundle ?? carrierResources, locale: locale)
     }
 
+    public static func watchingGroupMore(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingGroupMore", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingOwnList(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingOwnList", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public enum WatchingMoreFooter: Sendable { case sameAsEverywhere; case ownList; case noExtras }
+    public static func watchingMoreFooter(which: WatchingMoreFooter, bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        switch which {
+        case .sameAsEverywhere: return String(localized: "watchingMoreFooter.sameAsEverywhere", bundle: bundle ?? carrierResources, locale: locale)
+        case .ownList: return String(localized: "watchingMoreFooter.ownList", bundle: bundle ?? carrierResources, locale: locale)
+        case .noExtras: return String(localized: "watchingMoreFooter.noExtras", bundle: bundle ?? carrierResources, locale: locale)
+        }
+    }
+
+    public static func watchingMoreReadOnly(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingMoreReadOnly", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingMoreOnlyReviewer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingMoreOnlyReviewer", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingMoreNoneInRoles(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingMoreNoneInRoles", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingMoreFromRoles(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingMoreFromRoles", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingChipOwnReviewers(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingChipOwnReviewers", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func watchingChipNoReviewers(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "watchingChipNoReviewers", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
     public static func watchingGroupRepository(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "watchingGroupRepository", bundle: bundle ?? carrierResources, locale: locale)
     }
@@ -11954,6 +11995,10 @@ public enum Copy {
 
     public static func settingsIndexWatchingWhoWorksHereDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
         String(localized: "settingsIndexWatchingWhoWorksHereDetail", bundle: bundle ?? carrierResources, locale: locale)
+    }
+
+    public static func settingsIndexWatchingMoreReviewersDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+        String(localized: "settingsIndexWatchingMoreReviewersDetail", bundle: bundle ?? carrierResources, locale: locale)
     }
 
     public static func settingsIndexWatchingProjectDetail(bundle: Bundle? = nil, locale: Locale = .current) -> String {

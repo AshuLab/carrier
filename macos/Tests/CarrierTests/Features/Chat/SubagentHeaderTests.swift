@@ -1,4 +1,5 @@
 @testable import CarrierCore
+import CarrierUI
 import SwiftUI
 import Testing
 @testable import Carrier
@@ -103,4 +104,25 @@ func aSliceCardsHeaderKeepsTheConversationHeadersHeightForEveryRoleAndState(widt
     let header = SubagentHeader(lane: lane, role: "Builder", epic: "The epic")
     #expect(header.startedAt == nil)
     #expect(header.stateWords(now: 1_800_000_000_000, bundle: Copy.bundle("en"), locale: Locale(identifier: "en_US")) == "Running")
+}
+
+// With the Subagents button before the state pill and Stop, the header keeps its height in light and dark at every detail width.
+@MainActor @Test(arguments: [CGFloat(480), 560, 900])
+func theSubagentHeaderWithTheSubagentsButtonKeepsItsHeightAtEveryWidth(width: CGFloat) throws {
+    let long = String(String(repeating: "a title of the subagent that is far too long ", count: 3).prefix(120))
+    let running = SubagentHeader(title: long, type: "general-purpose", state: .running, startedAt: 0, durationMs: nil, taskId: "t1", hostStops: true)
+    for dark in [false, true] {
+        let row = HStack(spacing: 10) {
+            SubagentTitle(title: running.title, subtitle: running.subtitle(of: "Fix the login that fails when the token is old and the clock is wrong"))
+            Spacer(minLength: 0)
+            SubagentsButton(state: .running(count: 3), spoken: "3 subagents, 2 running", moves: false, action: {})
+            SubagentStatePill(header: running, clock: Date(timeIntervalSince1970: 71))
+            ToolbarPillButton(title: Copy.epicsToolbarStop(), icon: .stopFilled, iconTint: .red, action: {})
+        }
+        let renderer = ImageRenderer(content: row.environment(\.colorScheme, dark ? .dark : .light).frame(width: width))
+        renderer.scale = 2
+        let image = try #require(renderer.cgImage)
+        #expect(image.width == Int(width) * 2)
+        #expect(image.height == Int(SubagentTitle.height) * 2)
+    }
 }

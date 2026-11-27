@@ -53,7 +53,7 @@ extension PanelView {
         if let session = openSession {
             let drawerOpen = shell.isTerminalDrawerOpen(for: .session(session.id))
             if let open = shell.subagentHeader {
-                // a subagent view wears the window's header: Back next to the sidebar's button, its title, and its state where the worktree pill is
+                // a subagent view wears the window's header: Back next to the sidebar's button, its title, the Subagents button, its state and Stop
                 ToolbarItem(placement: .navigation) {
                     Button { shell.leaveSubagent() } label: { Label(Copy.epicsToolbarBack(), systemIcon: .chevronLeft) }
                         .help(shell.subagents.count > 1 ? Copy.epicsToolbarBackToSubagent() : Copy.epicsToolbarBackToConversation())
@@ -63,6 +63,10 @@ extension PanelView {
                         .frame(maxWidth: windowSize.width * 0.35, alignment: .leading)
                 }
                 .sharedBackgroundVisibility(.hidden)
+                if shell.subagentsList.buttonState != .hidden {
+                    ToolbarItem(placement: .primaryAction) { subagentsToolbarButton(shell) }
+                        .sharedBackgroundVisibility(.hidden)
+                }
                 ToolbarItem(placement: .primaryAction) { SubagentStatePill(header: open) }
                     .sharedBackgroundVisibility(.hidden)
                 if open.canStop {
@@ -76,24 +80,10 @@ extension PanelView {
             } else {
                 ToolbarItem(placement: .primaryAction) { SessionPlacePill(row: session) }
                     .sharedBackgroundVisibility(.hidden)
-            }
-            if shell.subagentsList.buttonState != .hidden {
-                ToolbarItem(placement: .primaryAction) {
-                    SubagentsButton(
-                        state: shell.subagentsList.buttonState,
-                        spoken: shell.subagentsList.buttonSpoken(),
-                        open: subagentsOpen
-                    ) {
-                        subagentsOpen.toggle()
-                    }
-                    .popover(isPresented: $subagentsOpen, arrowEdge: .bottom) {
-                        SubagentsListPopover(list: shell.subagentsList) { id in
-                            subagentsOpen = false
-                            shell.openSubagent(id)
-                        }
-                    }
+                if shell.subagentsList.buttonState != .hidden {
+                    ToolbarItem(placement: .primaryAction) { subagentsToolbarButton(shell) }
+                        .sharedBackgroundVisibility(.hidden)
                 }
-                .sharedBackgroundVisibility(.hidden)
             }
             ToolbarSpacer(.fixed, placement: .primaryAction)
             ToolbarItem(placement: .primaryAction) {
@@ -139,6 +129,22 @@ extension PanelView {
                 .padding(.trailing, Tokens.Space.s10)
             }
             .sharedBackgroundVisibility(.hidden)
+        }
+    }
+
+    private func subagentsToolbarButton(_ shell: WindowShell) -> some View {
+        SubagentsButton(
+            state: shell.subagentsList.buttonState,
+            spoken: shell.subagentsList.buttonSpoken(),
+            open: subagentsOpen
+        ) {
+            subagentsOpen.toggle()
+        }
+        .popover(isPresented: $subagentsOpen, arrowEdge: .bottom) {
+            SubagentsListPopover(list: shell.subagentsList) { id in
+                subagentsOpen = false
+                shell.jumpToSubagent(id)
+            }
         }
     }
 }

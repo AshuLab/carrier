@@ -164,6 +164,12 @@ public struct ArchiveRequest: Equatable {
     }
 
     public func openSubagent(_ call: String) { subagents.append(call) }
+    /// Opens a subagent from the header's Subagents list, replacing any open subagent at the conversation's level; choosing the one already
+    /// open changes nothing.
+    public func jumpToSubagent(_ call: String) {
+        guard subagents.last != call else { return }
+        subagents = [call]
+    }
     /// Back: one level up, to the subagent that launched this one or to the conversation.
     public func leaveSubagent() { _ = subagents.popLast() }
 

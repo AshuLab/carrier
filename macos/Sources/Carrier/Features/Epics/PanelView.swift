@@ -260,6 +260,9 @@ struct PanelView: View {
                     shell.setTerminalDrawerOpen(false, for: target.owner)
                 }
             }
+            .onChange(of: model.shell.subagents) { _, _ in
+                subagentsOpen = false
+            }
             .onChange(of: model.shell.subagentsList.buttonState) { _, state in
                 if state == .hidden { subagentsOpen = false }
             }

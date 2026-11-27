@@ -7,10 +7,10 @@ import Observation
 /// a line once answered, and a plain line when it is neither (the turn ended without it).
 /// A `reasoning` event is a thought of the run of calls it comes in (the host stores each block where the agent had it); one that comes
 /// before the first call of a run waits for it, and one with no call after it is a run of its own, before the message or the end of its
-/// turn: the agent's work is always above its answer. A subagent is a row of the run that launched it, built from the `task` events that share its
+/// turn: the agent's work is always above its answer. A subagent belongs to the run that launched it, built from the `task` events that share its
 /// launching call's id and the events made inside it (`parentCallId`); the launching call is not one of the run's calls, and a subagent goes on
-/// from events that come after the turn ended. What a nested subagent does is not drawn here. A subagent that started and never ended, in a
-/// session that is not `working`, is shown stopped: the host that ran it is gone.
+/// from events that come after the turn ended. Neither its own steps nor a nested subagent is drawn in the conversation; `subagentsList` lists them
+/// in the header. A subagent that started and never ended, in a session that is not `working`, is shown stopped: the host that ran it is gone.
 /// Anything else the host may add is not drawn.
 public func chatFeed(
     _ events: [ChatEvent], streaming: String = "", pending: Set<String> = [], working: Bool = true, bundle: Bundle? = nil, locale: Locale = .current

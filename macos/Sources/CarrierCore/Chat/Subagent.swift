@@ -22,7 +22,7 @@ public enum SubagentStep: Equatable {
 }
 
 /// One subagent the main agent launched, built from the `task` events that share its launching call's id and the events made inside it
-/// (`parentCallId` is that call). It is a row under the run that launched it; the launching `Agent` call is not a call of the run.
+/// (`parentCallId` is that call). It is counted on the run line that launched it and listed in the Subagents list; the launching `Agent` call is not a call of the run.
 public struct Subagent: Equatable, Identifiable {
     /// The launching call's id.
     public let id: String

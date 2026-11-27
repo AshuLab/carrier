@@ -208,6 +208,21 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(model.folder == nil)
 }
 
+@MainActor @Test func whatWasWrittenInTheDraftStaysWhenItOpensAgainUntilItIsSent() async {
+    let model = await draft(FakeChat())
+    await model.choose(folder: "/w/api")
+    model.text = "half a thought"
+    model.pastes = [PastedEntry(text: "a long log")]
+    model.files = [AttachedFile(path: "/c/pending/1/shot.png", kind: .image, size: 10)]
+    // the person goes to another session and comes back, or asks for New session again: the place starts over, what was written does not
+    await model.load()
+    model.reopen()
+    #expect(model.folder == nil && model.text == "half a thought" && model.pastes.map(\.text) == ["a long log"] && model.files.count == 1)
+    await model.choose(folder: "/w/api")
+    #expect(await model.send() == opened)
+    #expect(model.text == "" && model.pastes.isEmpty && model.files.isEmpty)
+}
+
 @MainActor @Test func aSessionsNewSessionOnItsBranchOpensTheDraftWithAWorktreeCutFromThatBranch() async {
     let host = FakeChat()
     host.workspaces["/w/api"] = WorkspaceInfo(
@@ -574,7 +589,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(model.worktree == false && model.worktreeName.isEmpty && model.startBranch == "main" && model.nameState == .suggesting)
 }
 
-@MainActor @Test func theDraftIsBlankAfterLoadWhateverWasChosenBefore() async {
+@MainActor @Test func theWorkspaceIsBlankAfterLoadWhateverWasChosenBeforeAndTheTextStays() async {
     let host = FakeChat()
     let model = await draft(host)
     await model.choose(folder: "/w/api")
@@ -582,7 +597,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     model.choose(startBranch: "origin/main")
     model.text = "half a thought"
     await model.load()
-    #expect(model.folder == nil && model.workspace == nil && model.worktree == false && model.worktreeName.isEmpty && model.picked == nil && model.text.isEmpty)
+    #expect(model.folder == nil && model.workspace == nil && model.worktree == false && model.worktreeName.isEmpty && model.picked == nil && model.text == "half a thought")
     #expect(model.sentence == "Work in Choose a workspace… on the base folder")
 }
 
@@ -1530,9 +1545,9 @@ private func gitHealth(_ git: ToolState) -> HostHealth { HostHealth(git: git, gh
     #expect(model.chosenOptions == ["model": "haiku"])
     // nothing was made on the machine
     #expect(host.calls.filter { $0.hasPrefix("open") }.isEmpty)
-    // and it is given back once: the next opening is blank
+    // the place is given back once: the next opening has none, and the text stays until it is sent
     await model.load()
-    #expect(model.folder == nil && model.text.isEmpty)
+    #expect(model.folder == nil && model.text == "build the thing\nthen test it")
 }
 
 @MainActor @Test func aRestoredWorktreePlanBringsBackTheBranchItStartsFromAndItsName() async {

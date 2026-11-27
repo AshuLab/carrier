@@ -44,6 +44,9 @@ The pill asks the host (`stopTask`) and the view says Stopped, as the row does, 
 The message box's Stop, which shows while the session works, interrupts the turn and then asks the host to stop each subagent still running (a host that does not list `stopTask` gets only the interrupt); the Subagents list rows say Stopped as the events arrive.
 Back leaves for the conversation, and so does choosing another session or page.
 Back from the last level puts the cursor in the message box again, as when the session opened.
+What is in a session's box and not sent is still there when the person comes back to the session: the text, the long pasted texts, the dropped files and the message held while the agent answers (`ConversationModel.draft`, `pastes`, `files` and `queued`, kept in `OptionsMemory` as `Unsent`, in memory only like the text).
+A held message goes as soon as the agent is idle, which the poll sees when the session is open again.
+
 The place of the message box holds "Subagent work is read-only." and a ‹ Back to chat button, so nothing can be typed to it.
 A completed subagent whose `task` event carried a `summary` shows it after its work in a Result block (the same card as the work cards, folded at six lines with a control to open the rest).
 A failed subagent shows its `summary` in the Result block when it has one and only "Failed" when not, while a stopped subagent shows no Result block because the provider sends its title there.

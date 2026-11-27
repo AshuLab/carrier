@@ -43,7 +43,7 @@ struct ConversationBox: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             MessageBox(
-                text: $model.draft, placeholder: Copy.chatComposerPlaceholder(), minLines: 2,
+                text: $model.draft, attachments: $model.files, pastes: $model.pastes, placeholder: Copy.chatComposerPlaceholder(), minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, canSendWithText: true, busy: model.busy,
                 focus: $boxFocused, commands: model.shownCommands, dictationOwner: "session:\(model.sessionId)", dictateRequest: dictations,
                 meter: showsContextUsage ? AnyView(ContextUsageButton(context: contextUse(model.rows), account: model.agent, store: AppUsage.store, busy: model.busy)) : nil,

@@ -260,6 +260,25 @@ private final class AgentBox: @unchecked Sendable {
     #expect(ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory).draft.isEmpty)
 }
 
+@MainActor @Test func theFilesThePastesAndTheHeldMessageAreStillThereWhenThePersonComesBackToTheSession() {
+    let box = UnsentBox()
+    let memory = OptionsMemory(load: { _ in [] }, save: { _, _ in }, loadUnsent: { box.stored[$0] ?? Unsent() }, saveUnsent: { box.stored[$0] = $1 })
+    let first = ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory)
+    first.files = [AttachedFile(path: "/c/pending/1/shot.png", kind: .image, size: 10)]
+    first.pastes = [PastedEntry(text: "a long log")]
+    first.queued = "hold on"
+    let back = ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory)
+    #expect(back.files.map(\.path) == ["/c/pending/1/shot.png"] && back.pastes.map(\.text) == ["a long log"] && back.queued == "hold on")
+    #expect(ConversationModel(host: OptionsHost(), sessionId: "other", log: { _ in }, memory: memory).files.isEmpty)
+    // sent or taken out of the box: nothing comes back
+    first.files = []
+    first.pastes = []
+    first.cancelQueued()
+    #expect(ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory).queued == nil && box.stored["s"] == Unsent())
+}
+
+private final class UnsentBox: @unchecked Sendable { var stored: [String: Unsent] = [:] }
+
 // MARK: forgetting a deleted session
 
 private func keptKeys(_ defaults: UserDefaults, for id: String) -> Set<String> {

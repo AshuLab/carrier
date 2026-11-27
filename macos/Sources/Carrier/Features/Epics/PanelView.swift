@@ -121,8 +121,8 @@ struct PanelView: View {
                 .onChange(of: shell.selection) { old, _ in
                     if case .session(let id) = old { model.leave(id) } else { model.refreshUnread() }
                 }
-                // the menu or the + while the draft is open: it starts blank again
-                .onChange(of: shell.newSessionOpened) { model.newSession.blank() }
+                // the menu or the + while the draft is open: it starts over, but what was written stays
+                .onChange(of: shell.newSessionOpened) { model.newSession.reopen() }
                 .onChange(of: terminalStore.standaloneTerminals().map(\.id)) { old, new in
                     // the selection leaves a closed terminal first, so the history can forget it
                     reconcileSelectedTerminal()

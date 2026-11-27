@@ -5,7 +5,7 @@ extension NewSessionModel {
     /// Reads the agents and the recent folders again, each time the draft opens. A host that does not answer is started (the + is always
     /// on, so this is where it comes up) and asked once more; one that still does not answer leaves what was there.
     public func load() async {
-        blank()
+        reopen()
         do {
             do { try await read() } catch {
                 guard await ensureHost() else { throw error }
@@ -81,12 +81,20 @@ extension NewSessionModel {
         }
     }
 
-    /// Every opening of New session starts here: no workspace (nor the branch and worktree that depend on it), no text, nothing the last
-    /// opening left half done. The agent and its options are the person's taste, not part of where the session works, and stay.
-    public func blank() {
+    /// Every opening of New session starts here: no workspace (nor the branch and worktree that depend on it) and nothing the last opening
+    /// left half done, except what the person wrote (the text, the pasted texts and the files): it stays until it is sent. The agent and its
+    /// options are the person's taste, not part of where the session works, and stay.
+    public func reopen() {
         clearWorkspace()
-        text = ""
         refusal = nil
+    }
+
+    /// After a send, nothing of it is left: `reopen`, and no text either.
+    public func blank() {
+        reopen()
+        text = ""
+        pastes = []
+        files = []
     }
 
     /// The workspace chip's ✕: drops the workspace and what depends on it (branch, worktree choice and name).

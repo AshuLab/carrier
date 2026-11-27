@@ -224,7 +224,7 @@ struct NewSessionView: View {
     /// model, the reasoning and the access.
     private var box: some View {
         MessageBox(
-            text: $model.text, placeholder: model.folder == nil ? Copy.newSessionPlaceholderNone() : Copy.newSessionPlaceholderWrite(),
+            text: $model.text, attachments: $model.files, pastes: $model.pastes, placeholder: model.folder == nil ? Copy.newSessionPlaceholderNone() : Copy.newSessionPlaceholderWrite(),
             canSend: model.canSend, canSendWithText: model.canSendWithText, sendHelp: model.canSend ? Copy.newSessionSend() : model.hostOlder ? model.olderHostNotice : model.noAgentReason ?? Copy.newSessionSendHelp(),
             focus: $boxFocused, commands: model.agentCommands, dictationOwner: "new-session", dictateRequest: dictations, send: send
         ) {

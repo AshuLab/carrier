@@ -30,7 +30,7 @@ final class MessageBoxDictationKeysTests: XCTestCase {
         registry.register(recognizer)
         let dictation = DictationController(registry: registry, capture: ScriptedCapture())
         let view = MessageBox(
-            text: .constant("hola"), placeholder: "", canSend: true, canSendWithText: true, focus: .constant(false),
+            text: .constant("hola"), attachments: .constant([]), pastes: .constant([]), placeholder: "", canSend: true, canSendWithText: true, focus: .constant(false),
             dictationOwner: "box", dictation: dictation, send: { [unowned self] in sent += 1 }
         ) { Text("Claude Code") }
         let host = NSHostingView(rootView: view.frame(width: 600))

@@ -35,7 +35,10 @@ import Observation
     /// Whether the agent is answering (or waiting for an approval): the host refuses a message then, so the box queues it and the send button is Stop.
     public internal(set) var busy = false
     /// The message typed while the agent answered: one at a time, sent when the turn ends.
-    public internal(set) var queued: String?
+    public internal(set) var queued: String? { didSet { if queued != oldValue { keepUnsent() } } }
+    /// The long texts pasted into the box and the files dropped on it, which go with the next message; kept like the draft.
+    public var pastes: [PastedEntry] = [] { didSet { if pastes != oldValue { keepUnsent() } } }
+    public var files: [AttachedFile] = [] { didSet { if files != oldValue { keepUnsent() } } }
     /// Whether the host can switch the session to another agent (its hello lists `switchAgent`), the agents it could switch to, and whether a switch is
     /// under way. The panel of the message box lists the agents and changes one with `switchAgent`.
     public internal(set) var canSwitchAgent = false
@@ -164,7 +167,13 @@ import Observation
         agent = memory.loadAgent(sessionId)
         savedAgent = agent
         draft = memory.loadDraft(sessionId)
+        let kept = memory.loadUnsent(sessionId)
+        pastes = kept.pastes.map { PastedEntry(text: $0) }
+        files = kept.files
+        queued = kept.queued
     }
+
+    private func keepUnsent() { memory.saveUnsent(sessionId, Unsent(pastes: pastes.map(\.text), files: files, queued: queued)) }
 
     /// Polls until the task is cancelled or `sleep` throws, as often as who is looking and what the agent is doing call for.
     /// These `events` are what keeps the session awake in the host, which closes an idle one that no request names for ten minutes: the wait must stay well under half of that.

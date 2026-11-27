@@ -15,7 +15,7 @@ Adding a `chat.json` field: [`src/config/AGENTS.md`](../config/AGENTS.md#adding-
 - `idle.ts`: the rule that ends the host.
 - `sessions.ts`: what the requests do (open, send, events, close, the idle close of a session no request names, `openPlan`).
   An archive of a live idle session does not wait for its agent to end; a delete does: its worktree cannot go under a running agent.
-  Both stop a session's background processes first and then check it again before the close: a message, a turn, agent work or a switch that came in meanwhile refuses the archive or delete with the usual codes, and the session stays open.
+  Both stop its processes, then recheck before closing.
   `openPlan`: a plan (a folder, a repository to clone or a new project, with a branch or a worktree) becomes a `preparing` session; its steps (`clone`, `fetch`, `worktree`, `checkout`, `action`) run in the background and are stored as `step` events (ADR 0018; `startFrom`, `worktreeStart` and the fetch before the cut: [spec](../../docs/specs/session-worktrees.md)).
   A project's actions (ADR 0039, `runActions`; rules and environment: [projects spec](../../docs/specs/projects.md)) are read from `projects.json` at each preparation: `afterClone` after the `clone` step, `newWorktree` after `worktree` or `checkout` and before the agent; `restore` (`folderOf`) runs the `newWorktree` ones when a cleaned folder comes back, one per session (`restoring`: cleanup, delete, archive refuse, `summary` says `running`).
   A stop or `cancelPreparation` aborts the running action; a restore keeps its folder and the next open goes on from that action, `retryPreparation` repeats a failed preparation from where it stopped, and `cancelPreparation` deletes the session and answers the plan.

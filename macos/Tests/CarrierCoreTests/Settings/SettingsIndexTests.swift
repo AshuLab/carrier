@@ -153,11 +153,15 @@ private func found(_ query: String, _ language: (bundle: Bundle, locale: Locale)
     for entry in spanishIndex { for key in entry.copyKeys { #expect(entry.title != key && entry.detail != key && entry.group != key, Comment(rawValue: key)) } }
 }
 
-@Test func theSearchFindsEachExtraReviewersRowAndOpensItsScreen() {
-    for position in RoleSlot.extraPositions {
-        let entry = englishIndex.first { $0.page == .roles && $0.rowID == "reviewer-\(position)" }
-        #expect(entry?.title == "Reviewer \(position)" && entry?.groupID == "how-an-epic-runs" && entry?.path.isEmpty == true)
-    }
+@Test func theSearchFindsEachExtraReviewerByItsNameAndItsTypeAndTheStaticIndexHasNoneOfThem() {
+    let file = Data(#"{"agents": {"extraReviewers": {"seguridad-api": {"type": "security", "name": "Seguridad API"}, "usabilidad": {"type": "ux", "name": "Usabilidad"}}}}"#.utf8)
+    let entries = rolesSearchEntries(config: file, bundle: english.bundle, locale: english.locale)
+    #expect(entries.map(\.title) == ["Seguridad API", "Usabilidad"] && entries.map(\.rowID) == ["seguridad-api", "usabilidad"])
+    #expect(entries.allSatisfy { $0.page == .roles && $0.groupID == "how-an-epic-runs" && $0.path.isEmpty })
+    #expect(settingsResults("seguridad", in: englishIndex + entries, bundle: english.bundle, locale: english.locale).first?.rowID == "seguridad-api")
+    #expect(settingsResults("security", in: englishIndex + entries, bundle: english.bundle, locale: english.locale).first?.rowID == "seguridad-api")
+    #expect(rolesSearchEntries(config: Data(#"{"agents": {"extraReviewers": []}}"#.utf8)).isEmpty && rolesSearchEntries(config: Data("nope".utf8)).isEmpty)
+    #expect(englishIndex.filter { $0.page == .roles && $0.groupID == "how-an-epic-runs" }.map(\.title) == ["Author", "Reviewer", "Lead reviewer"])
 }
 
 @Test func theIdentitiesPageIsSearchableByItsNameItsRowsAndCreateABotMovedToItFromRoles() {

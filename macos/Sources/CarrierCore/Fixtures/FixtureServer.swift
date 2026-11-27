@@ -32,16 +32,16 @@ public let fixtureConfig = """
     "acme-author": {"kind": "forge", "agent": "acme-author"},
     "acme-reviewer": {"kind": "forge", "agent": "acme-reviewer"},
     "acme-lead": {"kind": "forge", "agent": "acme-lead"},
-    "acme-reviewer-2": {"kind": "forge", "agent": "acme-reviewer-2"},
+    "acme-seguridad-api": {"kind": "forge", "agent": "acme-seguridad-api"},
     "gh": {"kind": "gh"}
   },
   "agents": {
     "author": {"profile": "acme-author", "provider": "claude", "model": "claude-sonnet-5-5", "effort": "high"},
     "reviewer": {"profile": "acme-reviewer", "provider": "codex", "model": "gpt-5", "effort": "high"},
-    "extraReviewers": [
-      {"profile": "acme-reviewer-2", "provider": "claude-work", "model": "claude-sonnet-5-5", "effort": "medium", "failover": [{"provider": "codex", "model": "gpt-5"}]},
-      {"profile": "gh", "provider": "codex", "model": "gpt-5-mini", "persona": {"name": "Skeptic", "prompt": "Assume the change is wrong until the tests say it is not."}}
-    ],
+    "extraReviewers": {
+      "seguridad-api": {"type": "security", "name": "Seguridad API", "profile": "acme-seguridad-api", "provider": "claude-work", "model": "claude-sonnet-5-5", "effort": "medium", "failover": [{"provider": "codex", "model": "gpt-5"}]},
+      "usabilidad": {"type": "ux", "name": "Usabilidad", "profile": "gh", "provider": "codex", "model": "gpt-5-mini", "persona": {"name": "Skeptic", "prompt": "Assume the change is wrong until the tests say it is not."}}
+    },
     "leadReviewer": {"profile": "acme-lead", "provider": "claude", "model": "claude-opus-5"}
   },
   "failover": {
@@ -56,7 +56,7 @@ public let fixtureConfig = """
 /// The Agent Forge registry of the fixture home (`AGENT_FORGE_CONFIG` points at it under `--fixture`): the bots of the roles and a spare one.
 /// A key would never be in a file the app reads, so none is here either.
 public let fixtureForgeRegistry = """
-{"agents": [{"name": "acme-author", "appId": "1000001"}, {"name": "acme-reviewer", "appId": "1000002"}, {"name": "acme-lead"}, {"name": "acme-reviewer-2", "appId": "1000003"}, {"name": "acme-spare", "label": "A bot no role uses"}]}
+{"agents": [{"name": "acme-author", "appId": "1000001"}, {"name": "acme-reviewer", "appId": "1000002"}, {"name": "acme-lead"}, {"name": "acme-seguridad-api", "appId": "1000003"}, {"name": "acme-spare", "label": "A bot no role uses"}]}
 """
 
 /// The golden doctor output the fixture home holds, for the app to answer its doctor run with in `--fixture` mode.

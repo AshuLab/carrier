@@ -6,16 +6,19 @@ import Foundation
 /// One thing in the way of a role: said with the role's name in front.
 public struct RoleProblem: Equatable, Identifiable {
     public let role: RoleSlot
+    /// The role's name: the name the person gave an extra reviewer.
+    public let title: String
     public let text: String
     /// The text with the role's name in front, in the language it was made in.
     public let line: String
     /// A role can have several, so the line is the id, not the role.
     public var id: String { line }
 
-    public init(role: RoleSlot, text: String, bundle: Bundle? = nil, locale: Locale = .current) {
+    public init(role: RoleSlot, title: String, text: String, bundle: Bundle? = nil, locale: Locale = .current) {
         self.role = role
+        self.title = title
         self.text = text
-        line = Copy.rolesProblemLine(role: role.title(bundle: bundle, locale: locale), text: text, bundle: bundle, locale: locale)
+        line = Copy.rolesProblemLine(role: title, text: text, bundle: bundle, locale: locale)
     }
 }
 
@@ -27,8 +30,6 @@ public struct RolesReadiness: Equatable {
     /// What the card says under its title: what is wrong, one line each, or what is fine and what is off.
     public let notes: [String]
     public let problems: [RoleProblem]
-    /// The role to open to fix the first problem.
-    public var fix: RoleSlot? { problems.first?.role }
 }
 
 /// Whether Author, Reviewer, every extra reviewer and (when it is on) the Lead reviewer each have an identity, an account of `providers.json` and a model. It says nothing
@@ -36,22 +37,23 @@ public struct RolesReadiness: Equatable {
 public func rolesReadiness(_ page: RolesPage, bundle: Bundle? = nil, locale: Locale = .current) -> RolesReadiness {
     let active = page.rows.filter { $0.off == false }
     var problems: [RoleProblem] = []
+    func problem(_ row: RoleRow, _ text: String) -> RoleProblem { RoleProblem(role: row.slot, title: row.title(bundle: bundle, locale: locale), text: text, bundle: bundle, locale: locale) }
     for row in active {
         switch row.identity {
         case .forge, .gh: break
         case .missing:
-            problems.append(RoleProblem(role: row.slot, text: Copy.rolesProblemIdentity(profile: row.fields.profile ?? "", bundle: bundle, locale: locale), bundle: bundle, locale: locale))
-        case .unset: problems.append(RoleProblem(role: row.slot, text: Copy.rolesProblemNoIdentity(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+            problems.append(problem(row, Copy.rolesProblemIdentity(profile: row.fields.profile ?? "", bundle: bundle, locale: locale)))
+        case .unset: problems.append(problem(row, Copy.rolesProblemNoIdentity(bundle: bundle, locale: locale)))
         }
         if let provider = row.fields.provider, provider.isEmpty == false {
             if row.providerMissing {
-                problems.append(RoleProblem(role: row.slot, text: Copy.rolesProblemAccount(provider: provider, bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+                problems.append(problem(row, Copy.rolesProblemAccount(provider: provider, bundle: bundle, locale: locale)))
             }
         } else {
-            problems.append(RoleProblem(role: row.slot, text: Copy.rolesProblemNoAccount(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+            problems.append(problem(row, Copy.rolesProblemNoAccount(bundle: bundle, locale: locale)))
         }
         if row.fields.model?.isEmpty ?? true {
-            problems.append(RoleProblem(role: row.slot, text: Copy.rolesProblemNoModel(bundle: bundle, locale: locale), bundle: bundle, locale: locale))
+            problems.append(problem(row, Copy.rolesProblemNoModel(bundle: bundle, locale: locale)))
         }
     }
     let lead = page.rows.first { $0.slot == .lead }

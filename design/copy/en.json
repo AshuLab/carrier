@@ -2607,7 +2607,7 @@
   "rolesRailAsks": "↺ asks for changes, the author answers",
   "rolesRailLeadOff": "Lead reviewer is off",
   "rolesRailPasses": "When every reviewer agrees · up to {rounds, plural, one {# round} other {# rounds}} with the author",
-  "rolesExtraReviewer": "Reviewer {position, number}",
+  "rolesExtraType": "Type: {type}",
   "rolesPurposeExtra": "Reviews the same commit, in parallel",
   "rolesRailParallel": "In parallel, on the same commit · one verdict is enough",
   "rolesRailFoot": "Each reviewer is one more agent on every epic.",

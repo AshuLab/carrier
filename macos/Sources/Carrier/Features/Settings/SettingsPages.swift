@@ -104,7 +104,7 @@ struct SettingsPages: View {
         case .providers: ProvidersTabView(place: navigator.place, go: navigator.go, back: navigator.back, openRoles: { navigator.go(.roles) })
         case .engine: EngineTabView(setup: setup)
         case .behavior: BehaviorTabView(go: navigator.go)
-        case .watching: WatchingTabView(place: navigator.place, go: navigator.go, state: state, canReload: canReload, openRoles: { navigator.go(.roles) })
+        case .watching: WatchingTabView(place: navigator.place, go: navigator.go, state: state, canReload: canReload, openRoles: { navigator.go(.roles) }, canEditExtras: canEditExtraReviewers)
         case .roles: RolesTabView(place: navigator.place, go: navigator.go, canEditExtras: canEditExtraReviewers)
         case .identities: IdentitiesTabView(place: navigator.place, go: navigator.go)
         case .sessions: SessionsTabView()

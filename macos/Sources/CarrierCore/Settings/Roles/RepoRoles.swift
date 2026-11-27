@@ -93,15 +93,15 @@ extension RepoExtraReviewers {
         }
     }
 
-    /// What the state means, and that the app only shows it.
-    public func footer(bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    /// What the state means, and when the app cannot change it (the engine does not announce `extraReviewers`) that it only shows it.
+    public func footer(editable: Bool, bundle: Bundle? = nil, locale: Locale = .current) -> String {
         let meaning =
             switch self {
             case .sameAsEverywhere: Copy.watchingMoreFooter(which: .sameAsEverywhere, bundle: bundle, locale: locale)
             case .ownList: Copy.watchingMoreFooter(which: .ownList, bundle: bundle, locale: locale)
             case .noExtras: Copy.watchingMoreFooter(which: .noExtras, bundle: bundle, locale: locale)
             }
-        return meaning + " " + Copy.watchingMoreReadOnly(bundle: bundle, locale: locale)
+        return editable ? meaning : meaning + " " + Copy.watchingMoreReadOnly(bundle: bundle, locale: locale)
     }
 }
 

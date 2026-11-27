@@ -1,0 +1,39 @@
+{
+  "request": {
+    "cmd": "editPersona",
+    "role": {
+      "extraReviewer": "seguridad-api"
+    },
+    "name": "Centinela",
+    "prompt": null
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "agents": {
+          "extraReviewers": {
+            "seguridad-api": {
+              "type": "security",
+              "name": "Seguridad API",
+              "profile": "author-bot",
+              "provider": "claude",
+              "model": "sonnet",
+              "effort": "high",
+              "persona": {
+                "name": "Centinela"
+              },
+              "failover": [
+                {
+                  "provider": "codex",
+                  "model": "gpt-5"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "engine": "applied"
+    }
+  }
+}

@@ -102,13 +102,16 @@ public func clearSessionsQuestion(count: Int, previews: [SessionDeletePreview] =
     )
 }
 
-/// Delete on one archived row, with what the host says its worktree holds (nil for a session in a base folder, which keeps the plain text).
+/// Delete on one row, with what the host says its worktree holds (nil for a session in a base folder, which keeps the plain text) and, first, what
+/// it stops when the session has processes.
 public func deleteSessionQuestion(_ row: SessionRow, worktree: SessionDeletePreview.Worktree? = nil, bundle: Bundle? = nil, locale: Locale = .current) -> Question {
     var message = Copy.archiveDeleteMessage(bundle: bundle, locale: locale)
     if let worktree {
         message = lostWork(files: worktree.dirty, commits: worktree.unpushed, bundle: bundle, locale: locale)
             .map { Copy.archiveDeleteMessageLosing(lost: $0, bundle: bundle, locale: locale) } ?? Copy.archiveDeleteMessageWorktree(bundle: bundle, locale: locale)
     }
+    let processes = processesStopped(row)
+    if processes.isEmpty == false { message = "\(stopsMessage(processes, bundle: bundle, locale: locale))\n\(message)" }
     return Question(title: Copy.archiveDeleteTitle(title: row.title, bundle: bundle, locale: locale), message: message, confirm: Copy.sessionDelete(bundle: bundle, locale: locale))
 }
 
@@ -118,7 +121,7 @@ public func archivedSessionNotice(bundle: Bundle? = nil, locale: Locale = .curre
 }
 
 public enum SessionMenuAction: Equatable {
-    case stop, pin, unpin, rename, regenerateTitle, openInTerminal(path: String), filterWorkspace(String), archive, restore, delete
+    case stop, sleep, pin, unpin, rename, regenerateTitle, openInTerminal(path: String), filterWorkspace(String), archive, restore, delete
     case markUnread, markRead
     /// A new session in the project at `base`, cut from `branch` in a worktree when it is given.
     case newSession(base: String, branch: String?)
@@ -143,23 +146,47 @@ public struct SessionMenuItem: Equatable {
     }
 }
 
-/// Why a session cannot be archived now, nil when it can: the host refuses one that works or waits for an answer, so the buttons say it
-/// beforehand and are off, and the person knows to stop it first.
+/// Why a session cannot be archived now, nil when it can: the host refuses one that works, waits for an answer or has agent work running in the
+/// background, so the buttons say it beforehand and are off, and the person knows to stop it first. A background process does not block it: the
+/// archive stops it (`processesStopped`).
 public func archiveBlock(_ row: SessionRow, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     switch row.state {
     case .working: Copy.archiveBlockWorking(bundle: bundle, locale: locale)
     case .waiting: Copy.archiveBlockWaiting(bundle: bundle, locale: locale)
-    case .idle, .done: row.background.isEmpty ? nil : Copy.archiveBlockBackground(count: row.background.count, bundle: bundle, locale: locale)
+    case .idle, .done: agentWorkCount(row) == 0 ? nil : Copy.archiveBlockBackground(count: agentWorkCount(row), bundle: bundle, locale: locale)
     }
 }
 
-/// Why a session cannot be deleted now, nil when it can: the host refuses one that works or waits, as it does an archive, and its worktree cannot be
-/// removed under a running agent.
+private func agentWorkCount(_ row: SessionRow) -> Int { row.background.filter(\.agentWork).count }
+
+/// The background processes an archive or a delete of the session would stop, in the order the host lists them; none for a session with no
+/// process, and none for one the host refuses anyway (it stops nothing then).
+public func processesStopped(_ row: SessionRow) -> [BackgroundTask] {
+    archiveBlock(row) == nil ? row.processes : []
+}
+
+/// What an archive or a delete says it stops: up to three names, then "+n more", as the hover card does ("pnpm dev, tsc +2 more").
+func stopsMessage(_ processes: [BackgroundTask], bundle: Bundle? = nil, locale: Locale = .current) -> String {
+    let shown = processes.prefix(3).map(\.name).joined(separator: ", ")
+    let more = processes.count - 3
+    let names = more > 0 ? "\(shown) \(Copy.chatPeekMoreTasks(count: more, bundle: bundle, locale: locale))" : shown
+    return Copy.archiveStopsMessage(names: names, bundle: bundle, locale: locale)
+}
+
+/// What is asked before archiving a session that has processes, naming what the archive stops; nil for one with none, which is archived without asking.
+public func archiveStopsQuestion(_ row: SessionRow, bundle: Bundle? = nil, locale: Locale = .current) -> Question? {
+    let processes = processesStopped(row)
+    guard processes.isEmpty == false else { return nil }
+    return Question(title: Copy.archiveStopsTitle(title: row.title, bundle: bundle, locale: locale), message: stopsMessage(processes, bundle: bundle, locale: locale), confirm: Copy.sessionArchive(bundle: bundle, locale: locale))
+}
+
+/// Why a session cannot be deleted now, nil when it can: the host refuses one that works, waits or has agent work in the background, as it does an
+/// archive, and its worktree cannot be removed under a running agent.
 public func deleteBlock(_ row: SessionRow, bundle: Bundle? = nil, locale: Locale = .current) -> String? {
     switch row.state {
     case .working: Copy.deleteBlockWorking(bundle: bundle, locale: locale)
     case .waiting: Copy.deleteBlockWaiting(bundle: bundle, locale: locale)
-    case .idle, .done: row.background.isEmpty ? nil : Copy.deleteBlockBackground(count: row.background.count, bundle: bundle, locale: locale)
+    case .idle, .done: agentWorkCount(row) == 0 ? nil : Copy.deleteBlockBackground(count: agentWorkCount(row), bundle: bundle, locale: locale)
     }
 }
 
@@ -215,6 +242,10 @@ public func sessionMenu(
                 ? SessionMenuItem(Copy.sessionMenuMarkRead(bundle: bundle, locale: locale), "circle", .markRead, disabledReason: reason)
                 : SessionMenuItem(Copy.sessionMenuMarkUnread(bundle: bundle, locale: locale), "circle.fill", .markUnread, disabledReason: reason)
         )
+    }
+    // an agent that works or waits is ended with Stop, not put to sleep; one that is asleep already is not offered
+    if row.archived == false, row.asleep == false, row.isWorking == false, row.state != .waiting {
+        control.append(SessionMenuItem(Copy.sessionMenuSleep(bundle: bundle, locale: locale), "moon.zzz", .sleep))
     }
     var open: [SessionMenuItem] = []
     if context.startsSessions, row.archived == false {

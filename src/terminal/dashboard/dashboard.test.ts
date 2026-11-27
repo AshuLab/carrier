@@ -433,11 +433,11 @@ test('an epic with no stage yet says it is starting, and a read-only dashboard o
 
 // --- a round of several reviewers: how many gave a verdict, and why each other gave none ---
 
-const severalReviewers = { given: 1, of: 3, none: [{ slot: 'reviewer-2' as const, why: 'cannot verify\x1b[2J the migration' }, { slot: 'reviewer-3' as const, why: 'ran out of usage' }] };
+const severalReviewers = { given: 1, of: 3, none: [{ slot: 'seguridad-api' as const, why: 'cannot verify\x1b[2J the migration' }, { slot: 'usabilidad' as const, why: 'ran out of usage' }] };
 
 test('a running card with several reviewers shows the count and the reason of each reviewer without a verdict, after the stage line', () => {
   const out = plain(snap({ epics: [epic({ stage: 'fix', round: 1, reviewers: severalReviewers })] }));
-  expect(out).toContain('┃ 12m 40s in stage · active 8s ago\n ┃ reviewers 1 of 3 gave a verdict\n ┃   · reviewer-2: cannot verify [2J the migration\n ┃   · reviewer-3: ran out of usage');
+  expect(out).toContain('┃ 12m 40s in stage · active 8s ago\n ┃ reviewers 1 of 3 gave a verdict\n ┃   · seguridad-api: cannot verify [2J the migration\n ┃   · usabilidad: ran out of usage');
   expect(out).not.toMatch(/\x1b\[2J/);
 });
 
@@ -447,10 +447,10 @@ test('a card with every verdict shows only the count, and an epic with one revie
 });
 
 test('an epic that needs you, and one ready for test, show the count and the reasons under their rows', () => {
-  const done = { repo: 'AshuLab/carrier', issue: 28, title: 'Menu bar', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: null, reviewers: { given: 1, of: 2, none: [{ slot: 'reviewer-2' as const, why: 'ran out of usage' }] } };
-  const out = plain(snap({ epics: [epic({ issue: 29, status: 'needs_human', needsHumanReason: 'no reviewer gave a verdict in round 1', reviewers: { given: 0, of: 2, none: [{ slot: 'reviewer' as const, why: 'cannot verify' }, { slot: 'reviewer-2' as const, why: 'ran out of usage' }] } })], done: [done] }));
-  expect(out).toContain('NEEDS YOU ▲\n   AshuLab/carrier #29\n   no reviewer gave a verdict in round 1\n   reviewers 0 of 2 gave a verdict\n     · reviewer: cannot verify\n     · reviewer-2: ran out of usage');
-  expect(out).toContain('READY FOR TEST ✔\n   AshuLab/carrier #28 · PR #44 · 2h 00m ago  Menu bar\n   reviewers 1 of 2 gave a verdict\n     · reviewer-2: ran out of usage');
+  const done = { repo: 'AshuLab/carrier', issue: 28, title: 'Menu bar', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: null, reviewers: { given: 1, of: 2, none: [{ slot: 'seguridad-api' as const, why: 'ran out of usage' }] } };
+  const out = plain(snap({ epics: [epic({ issue: 29, status: 'needs_human', needsHumanReason: 'no reviewer gave a verdict in round 1', reviewers: { given: 0, of: 2, none: [{ slot: 'reviewer' as const, why: 'cannot verify' }, { slot: 'seguridad-api' as const, why: 'ran out of usage' }] } })], done: [done] }));
+  expect(out).toContain('NEEDS YOU ▲\n   AshuLab/carrier #29\n   no reviewer gave a verdict in round 1\n   reviewers 0 of 2 gave a verdict\n     · reviewer: cannot verify\n     · seguridad-api: ran out of usage');
+  expect(out).toContain('READY FOR TEST ✔\n   AshuLab/carrier #28 · PR #44 · 2h 00m ago  Menu bar\n   reviewers 1 of 2 gave a verdict\n     · seguridad-api: ran out of usage');
 });
 
 test('the lines of the reviewers are never cut away by the 50-column floor of the count', () => {

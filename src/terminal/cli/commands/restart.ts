@@ -3,25 +3,28 @@ import type { ControlSnapshot, EpicAdditions, PanelEpic } from '../../../status/
 import { cancelled, makeClackUi } from '../../prompts/clack.ts';
 import { Cancelled, type Ui } from '../../prompts/types.ts';
 import type { EpicTarget } from '../args.ts';
+import type { TextParams } from '../../../orchestration/text-params.ts';
 import { CliError } from '../cli-error.ts';
 import { connectControl, ControlRefused, ControlUnreachable, type CarrierClient } from '../control-client.ts';
 
 // The engine waits up to 30 seconds for the epic to start again before it refuses.
 const RESTART_WAIT_MS = 40_000;
 
-// What the request names for each role: the extra reviewers are `reviewer2` to `reviewer4`, as the request spells them.
-const roleKeys = ['author', 'reviewer', 'reviewer2', 'reviewer3', 'reviewer4', 'lead'] as const;
-type Chosen = Partial<Record<(typeof roleKeys)[number], string>>;
-type Flags = Chosen & { from?: 'ship' | 'review' | 'fix'; extraRounds?: number };
+// The roles the command chooses an option for; an extra reviewer is chosen by its key, in the request's `extraReviewers`.
+const flagRoles = ['author', 'reviewer', 'lead'] as const;
+type Chosen = Partial<Record<(typeof flagRoles)[number], string>> & { extraReviewers?: Record<string, string> };
+type Flags = Partial<Record<(typeof flagRoles)[number], string>> & { extraReviewers?: Record<string, string>; from?: 'ship' | 'review' | 'fix'; extraRounds?: number };
 
-// What each refusal code means for the person, and what to do next.
-export const refusals: Record<string, (target: string) => string> = {
+// What each refusal code means for the person, and what to do next; `params` are the engine's.
+export const refusals: Record<string, (target: string, params?: TextParams) => string> = {
   'epic.unknown': (target) => `Carrier does not know ${target}. Use the owner/repo#issue that carrier status shows.`,
   'resume.notStopped': (target) => `${target} is not stopped, so there is nothing to restart.`,
   'github.unavailable': () => 'GitHub did not answer, so nothing changed. Try again in a moment.',
   'resume.didNotRestart': () => 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.',
   'resume.optionUnknown': () => 'That account is not declared in providers.json. Use a name declared there.',
   'resume.roleUnknown': (target) => `${target} does not have that reviewer or lead. Name only the roles its configuration has.`,
+  'resume.extraReviewerUnknown': (target, { key } = {}) => `${target} does not have an extra reviewer with the key ${key}. Name only the keys its configuration has.`,
+  'resume.reviewersWithoutKey': (target) => `${target} was saved before its extra reviewers had names, so it cannot be restarted. Start it again from its issue.`,
   'resume.noPullRequest': (target) => `${target} has no pull request yet, so it can only be restarted from ship.`,
   'resume.extraRoundsNeedStage': () => '--extra-rounds needs --from review or --from fix: a restart from ship starts the rounds over.',
   'resume.extraRoundsNeedReviewLimit': (target) => `--extra-rounds grants rounds to an epic that stopped on the review limit, and ${target} stopped for another reason.`,
@@ -30,7 +33,7 @@ export const refusals: Record<string, (target: string) => string> = {
 };
 
 /**
- * One question per role the epic has (the author, the reviewer, each extra reviewer and the lead, the last two only with `reviewers`, which says the engine takes them),
+ * One question per role the epic has (the author, the reviewer, each extra reviewer by its key and the lead, the last two only with `reviewers`, which says the engine takes them),
  * with the role's current option preselected, and the option of the role of the execution that stopped the epic marked.
  * When that role ran out of usage its option is not preselected: two Enters would run the same option again.
  * Nothing is asked of an epic that has fewer than two options to choose from (or predates options).
@@ -38,17 +41,23 @@ export const refusals: Record<string, (target: string) => string> = {
 export async function askRestartOptions(epic: (Pick<PanelEpic, 'stage' | 'options'> & Partial<Pick<EpicAdditions, 'needsHumanKind'>>) | undefined, ui: Pick<Ui, 'select'>, reviewers = true): Promise<Chosen> {
   const options = epic?.options;
   if (!options || options.names.length < 2) return {};
-  const failed = (options.failed ?? (epic.stage === 'review' ? 'reviewer' : 'author')).replace('-', '');
-  const roles = roleKeys.filter((role) => role === 'author' || role === 'reviewer' || (reviewers && (role === 'lead' ? options.lead !== undefined : options.extraReviewers?.[Number(role.slice(-1)) - 2] !== undefined)));
+  const failed = options.failed ?? (epic.stage === 'review' ? 'reviewer' : 'author');
+  const roles = [
+    { role: 'author', current: options.author },
+    { role: 'reviewer', current: options.reviewer },
+    ...(reviewers ? Object.entries(options.extraReviewers ?? {}).map(([role, current]) => ({ role, current })) : []),
+    ...(reviewers && options.lead !== undefined ? [{ role: 'lead', current: options.lead }] : []),
+  ];
   const chosen: Chosen = {};
-  for (const role of roles) {
-    const current = (role === 'lead' ? options.lead : role === 'author' || role === 'reviewer' ? options[role] : options.extraReviewers![Number(role.slice(-1)) - 2]) ?? null;
+  for (const { role, current } of roles) {
     const ranOut = role === failed && epic.needsHumanKind === 'usage_limit';
-    chosen[role] = await ui.select({
-      message: `Option for the ${role.replace(/(\d)$/, ' $1')}`,
+    const option = await ui.select({
+      message: `Option for the ${role}`,
       initialValue: (ranOut ? options.names.find((name) => name !== current) : current) ?? undefined,
       options: options.names.map((name) => ({ value: name, label: name, ...(name === current && { hint: ranOut ? 'ran out' : role === failed ? 'current, failed' : 'current' }) })),
     });
+    if (role === 'author' || role === 'reviewer' || role === 'lead') chosen[role] = option;
+    else chosen.extraReviewers = { ...chosen.extraReviewers, [role]: option };
   }
   return chosen;
 }
@@ -68,12 +77,14 @@ export async function restartCommand(folder: string, { repo, issue }: EpicTarget
   try {
     // an engine that does not list `resumeFromStage` would only answer "invalid request"
     if ((flags.from !== undefined || flags.extraRounds !== undefined) && client.hello.capabilities.includes('resumeFromStage') === false) throw new CliError(1, 'The running Carrier is too old to resume from a stage: restart it to get --from.');
-    const named = roleKeys.filter((role) => flags[role] !== undefined);
+    const named = flagRoles.filter((role) => flags[role] !== undefined);
+    const extras = Object.keys(flags.extraReviewers ?? {});
     // an engine that does not list `resumeReviewerOptions` would only answer "invalid request"
     const reviewers = client.hello.capabilities.includes('resumeReviewerOptions');
-    if (reviewers === false && named.some((role) => role !== 'author' && role !== 'reviewer')) throw new CliError(1, 'The running Carrier is too old to restart the extra reviewers and the lead on an option: restart it to get --reviewer-2, --reviewer-3, --reviewer-4 and --lead.');
-    let chosen: Chosen = Object.fromEntries(named.map((role) => [role, flags[role]!]));
-    if (named.length === 0 && process.stdin.isTTY && process.stdout.isTTY) {
+    if (reviewers === false && named.includes('lead')) throw new CliError(1, 'The running Carrier is too old to restart the lead on an option: restart it to get --lead.');
+    if (reviewers === false && extras.length > 0) throw new CliError(1, 'The running Carrier is too old to restart an extra reviewer on an option: restart it to get --extra-reviewer-option.');
+    let chosen: Chosen = { ...Object.fromEntries(named.map((role) => [role, flags[role]!])), ...(extras.length > 0 && { extraReviewers: flags.extraReviewers }) };
+    if (named.length === 0 && extras.length === 0 && process.stdin.isTTY && process.stdout.isTTY) {
       const { epics } = (await client.request('snapshot')) as ControlSnapshot;
       const epic = epics.find((e) => e.repo === repo && e.issue === issue);
       // Before any question: an epic the engine would refuse is not worth asking about.
@@ -94,7 +105,7 @@ export async function restartCommand(folder: string, { repo, issue }: EpicTarget
     if (error instanceof ControlUnreachable) throw new CliError(1, `Carrier does not answer on ${path}`);
     const code = error instanceof ControlRefused ? error.code : undefined;
     const words = error instanceof Error ? error.message : String(error);
-    throw new CliError(1, (code === undefined ? undefined : refusals[code]?.(`${repo}#${issue}`)) ?? `Carrier refused: ${words}`);
+    throw new CliError(1, (code === undefined ? undefined : refusals[code]?.(`${repo}#${issue}`, error instanceof ControlRefused ? error.params : {})) ?? `Carrier refused: ${words}`);
   } finally {
     client.close();
   }

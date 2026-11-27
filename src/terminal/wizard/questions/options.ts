@@ -4,13 +4,14 @@ import { optionNamePattern } from '../../../config/providers.ts';
 import type { LocalProvider } from '../../../harnesses/local.ts';
 import type { HarnessName } from '../../../harnesses/names.ts';
 import type { Ui } from '../../prompts/types.ts';
-import { parseHarnessModel, parseProvider, type AIProvider, type Failover, type Role } from '../build-config.ts';
+import { parseHarnessModel, parseProvider, type AIProvider, type Role } from '../build-config.ts';
 import type { InitDeps } from '../deps.ts';
-import { providerLine } from '../summary.ts';
+import { roleName, type Block } from '../roles.ts';
+import { providerLine, stepsLine } from '../summary.ts';
 import { askAIProvider, askModel } from './agent.ts';
 
 export type Providers = Record<string, AIProvider>;
-type RoleName = 'author' | 'reviewer' | 'lead reviewer';
+export type Steps = { provider: string; model?: string }[];
 
 const uniqueName = (items: Record<string, unknown>, base: string) => {
   let name = base;
@@ -37,12 +38,24 @@ export function suggestProviderName(providers: Providers, provider: AIProvider) 
   return uniqueName(providers, optionNamePattern.test(slug) ? slug : provider.harness);
 }
 
-/** The accounts section: CLI, config folder, and local provider. No models. */
-export async function askProviders(ui: Ui, start: Providers, installed: readonly HarnessName[], locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps, from: 'found' | 'file'): Promise<Providers> {
-  const there = Object.entries(start).map(([name, provider]) => `${name}: ${providerLine(provider)}`);
-  const count = Object.keys(start).length;
-  const intro = from === 'file' ? 'The accounts of your config:' : `${styleText('bold', count === 1 ? '1 account was added' : `${count} accounts were added`)} for you, one per agent CLI found on this Mac, using the login each CLI already has:`;
-  ui.note([intro, '', ...there, '', 'Next you choose which account the author uses and which the reviewer uses; both can use the same one.', 'Add another account only if you want a different login (a second Claude account, say) or a local model server.'].join('\n'), 'AI accounts');
+/** The accounts Carrier starts from: the ones `providers.json` already holds, untouched, plus one per agent CLI found that has none, under the harness's name. Never replaces and never removes. */
+export function mergeAccounts(held: Providers, harnesses: readonly HarnessName[]): Providers {
+  const merged = { ...held };
+  for (const harness of harnesses) if (!Object.values(held).some((account) => account.harness === harness)) merged[uniqueName(merged, harness)] = { harness };
+  return merged;
+}
+
+/** The accounts section: CLI, config folder, and local provider. No models. `held` says which of `start` were there before this run. */
+export async function askProviders(ui: Ui, start: Providers, installed: readonly HarnessName[], locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps, held: readonly string[]): Promise<Providers> {
+  const line = (name: string) => `${name}: ${providerLine(start[name]!)}`;
+  const added = Object.keys(start).filter((name) => !held.includes(name));
+  const intro = [
+    ...(held.length > 0 ? ['Your accounts, kept as they are:', ...held.map(line), ''] : []),
+    ...(added.length > 0 ? [`${styleText('bold', added.length === 1 ? '1 account was added' : `${added.length} accounts were added`)} for the agent CLIs found on this Mac that had none, using the login each CLI already has:`, ...added.map(line), ''] : []),
+    'Next you choose which account each role uses; roles can share one.',
+    'Add another account only if you want a different login (a second Claude account, say) or a local model server.',
+  ];
+  ui.note(intro.join('\n'), 'AI accounts');
   let providers = start;
   while (Object.keys(providers).length === 0 || (await ui.confirm('Add another account?', false))) {
     const provider = await askAIProvider(ui, installed, Object.values(providers).map((p) => p.harness), locals, deps);
@@ -62,11 +75,11 @@ export async function askProviders(ui: Ui, start: Providers, installed: readonly
   return providers;
 }
 
-export async function askRoleProvider(ui: Ui, role: RoleName, providers: Providers, current?: string, other?: string): Promise<string> {
+export async function askRoleProvider(ui: Ui, slot: Block, providers: Providers, current?: string, other?: string): Promise<string> {
   const names = Object.keys(providers);
   if (names.length === 1) return names[0]!;
   return ui.select({
-    message: `Which account runs the ${role}?`,
+    message: `Which account runs the ${roleName(slot)}?`,
     options: names.map((name) => ({ value: name, label: name, hint: providerLine(providers[name]!) })),
     initialValue: [current, names.find((name) => name !== other)].find((name) => name !== undefined && name in providers) ?? names[0]!,
   });
@@ -85,28 +98,30 @@ export function declareFlaggedProvider(providers: Providers, role: string, flag:
 const done = '\0done';
 const ordinal = ['first', 'second'];
 
-/** With two or more providers, for each role the person wants it on: up to two steps, each a provider and a model, that the role moves through when its credits run out or errors occur. A step may not repeat another or be the role's own provider and model. */
-export async function askFailover(ui: Ui, providers: Providers, roles: { role: RoleName; key: 'author' | 'reviewer' | 'leadReviewer'; own: Pick<Role, 'provider' | 'model'> }[], locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps): Promise<Failover | undefined> {
+/** A role's failover, inside its block: with two or more accounts, up to two steps, each an account and a model, that the role moves through when its credits run out or errors occur; a step may not repeat another or be the role's own account and model. With fewer accounts there is nowhere to move: one line says so and nothing is asked. A failover the file has is offered first ("keep the failover you have?"). */
+export async function askRoleFailover(ui: Ui, providers: Providers, slot: Block, own: Pick<Role, 'provider' | 'model'>, locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps, current: Steps | undefined, said: { failover: boolean }): Promise<Steps | undefined> {
+  const role = roleName(slot);
   const names = Object.keys(providers);
-  if (names.length < 2) return undefined;
-  const chosen: NonNullable<Failover['roles']> = {};
-  for (const { role, key, own } of roles) {
-    if (!(await ui.confirm(`Turn failover on for the ${role}? When it runs out of credits it moves to the steps you list, each an account and a model.`, false))) continue;
-    const steps: { provider: string; model: string }[] = [];
-    while (steps.length < ordinal.length) {
-      const pick = await ui.select({
-        message: `Failover for the ${role}: which account goes ${ordinal[steps.length]}?`,
-        options: [
-          ...names.map((name) => ({ value: name, label: name, hint: providerLine(providers[name]!) })),
-          ...(steps.length > 0 ? [{ value: done, label: 'That is all' }] : []),
-        ],
-      });
-      if (pick === done) break;
-      const model = await askModel(ui, providers[pick]!.harness, providers[pick]!.provider, locals, deps, `${role}'s ${ordinal[steps.length]} failover step`);
-      if ([own, ...steps].some((step) => step.provider === pick && step.model === model)) ui.warn(`${pick} · ${model} is already the ${role}'s own or an earlier step, so it would move nowhere: pick another.`);
-      else steps.push({ provider: pick, model });
-    }
-    if (steps.length > 0) chosen[key] = steps;
+  if (names.length < 2) {
+    if (!said.failover) ui.note('Failover needs a second account, so no role has one.', 'Failover'); // once for the run, not in every block
+    said.failover = true;
+    return undefined;
   }
-  return Object.keys(chosen).length > 0 ? { triggers: ['usage_limit', 'rate_limit', 'service_down'], roles: chosen } : undefined;
+  if (current !== undefined && current.length > 0 && (await ui.confirm(`Keep the failover you have? ${role}: ${stepsLine(current)}`, true))) return current;
+  if (!(await ui.confirm(`Turn failover on for the ${role}? When it runs out of credits it moves to the steps you list, each an account and a model.`, false))) return undefined;
+  const steps: { provider: string; model: string }[] = [];
+  while (steps.length < ordinal.length) {
+    const pick = await ui.select({
+      message: `Failover for the ${role}: which account goes ${ordinal[steps.length]}?`,
+      options: [
+        ...names.map((name) => ({ value: name, label: name, hint: providerLine(providers[name]!) })),
+        ...(steps.length > 0 ? [{ value: done, label: 'That is all' }] : []),
+      ],
+    });
+    if (pick === done) break;
+    const model = await askModel(ui, providers[pick]!.harness, providers[pick]!.provider, locals, deps, `${role}'s ${ordinal[steps.length]} failover step`);
+    if ([own, ...steps].some((step) => step.provider === pick && step.model === model)) ui.warn(`${pick} · ${model} is already the ${role}'s own or an earlier step, so it would move nowhere: pick another.`);
+    else steps.push({ provider: pick, model });
+  }
+  return steps.length > 0 ? steps : undefined;
 }

@@ -1,7 +1,7 @@
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { invoke, skillsOf } from './invoke.ts';
 
-// With several reviewers each finding says whose it is, as `reviewer-2:B1` (the reviewer's own id, when it gave one).
+// With several reviewers each finding says whose it is, as `seguridad-api:B1` (the reviewer's own id, when it gave one).
 const item = (b: { id?: string; title: string; url?: string; reviewer?: string }) => `- ${b.reviewer ? `${[b.reviewer, b.id].filter(Boolean).join(':')}: ` : ''}${b.title}${b.url ? ` (${b.url})` : ''}`;
 const contradict = (kind: 'blockers' | 'observations') =>
   `When the ${kind} of two reviewers contradict each other, you decide: say in your summary which one you did not follow and why, because the reviewers read your summary in their next round.`;

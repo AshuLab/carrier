@@ -11,8 +11,8 @@ export type PullRequestInfo = { number: number; url: string; state: PullRequestS
 
 /** What the host takes of GitHub for the pull requests of its sessions, so a test injects a fake. Both go through the person's own `gh` login (ADR 0015) and say nothing when GitHub cannot be reached. */
 export interface PullRequests {
-  /** The pull request whose head is `branch` of `repo` (`owner/name`): the newest open one, else the newest. Null when there is none, or GitHub did not answer. */
-  find(repo: string, branch: string): Promise<PullRequestInfo | null>;
+  /** The pull request whose head is `branch` of `repo` (`owner/name`): the newest open one, else the newest closed at or after `since` (ms). Null when there is none, or GitHub did not answer. */
+  find(repo: string, branch: string, since: number): Promise<PullRequestInfo | null>;
   /** The state of each pull request, by `repo#number`; the ones GitHub did not answer for are left out. One request for all of them. */
   states(refs: { repo: string; number: number }[]): Promise<Map<string, PullRequestInfo>>;
 }
@@ -21,7 +21,7 @@ export const pullRequestKey = (repo: string, number: number) => `${repo.toLowerC
 
 const FIELDS = `number url state isDraft commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }`;
 
-type Node = { number?: unknown; url?: unknown; state?: unknown; isDraft?: unknown; headRepository?: { nameWithOwner?: unknown } | null; commits?: { nodes?: { commit?: { statusCheckRollup?: { state?: unknown } | null } }[] } };
+type Node = { number?: unknown; url?: unknown; state?: unknown; isDraft?: unknown; closedAt?: unknown; headRepository?: { nameWithOwner?: unknown } | null; commits?: { nodes?: { commit?: { statusCheckRollup?: { state?: unknown } | null } }[] } };
 
 const checksOf = (rollup: unknown): PullRequestChecks | null => {
   if (rollup === 'SUCCESS') return 'passing';
@@ -37,9 +37,13 @@ export function infoOf(node: Node | null | undefined): PullRequestInfo | null {
   return { number: node.number, url: node.url, state, checks: state === 'merged' || state === 'closed' ? null : checksOf(node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state) };
 }
 
-/** Of the pull requests a branch has had, the one to show: the newest open one (they come newest first), else the newest. Those from a fork of the repository are not the branch's. */
-export function pickPullRequest(repo: string, nodes: Node[]): PullRequestInfo | null {
-  const own = nodes.filter((node) => String(node.headRepository?.nameWithOwner ?? '').toLowerCase() === repo.toLowerCase());
+/**
+ * Of the pull requests a branch has had, the one to show: the newest open one (they come newest first), else the newest closed at or after `since`.
+ * Those from a fork of the repository are not the branch's, and one closed before `since` (the session started) belongs to an older branch of the same name.
+ */
+export function pickPullRequest(repo: string, nodes: Node[], since: number): PullRequestInfo | null {
+  const closedBefore = (node: Node) => typeof node.closedAt === 'string' && Date.parse(node.closedAt) < since;
+  const own = nodes.filter((node) => String(node.headRepository?.nameWithOwner ?? '').toLowerCase() === repo.toLowerCase() && closedBefore(node) === false);
   const infos = own.map(infoOf).filter((info): info is PullRequestInfo => info !== null);
   return infos.find((info) => info.state === 'open' || info.state === 'draft') ?? infos[0] ?? null;
 }
@@ -68,15 +72,15 @@ async function graphql(query: string, variables: Record<string, string | number>
 /** The pull requests of GitHub as `gh` reads them for the person who is signed in. */
 export function ghPullRequests(timeoutMs: number): PullRequests {
   return {
-    async find(repo, branch) {
+    async find(repo, branch, since) {
       const found = OWNER_NAME.exec(repo);
       if (found === null) return null;
       const data = await graphql(
-        `query($owner: String!, $name: String!, $branch: String!) { repository(owner: $owner, name: $name) { pullRequests(headRefName: $branch, first: 10, orderBy: { field: CREATED_AT, direction: DESC }) { nodes { ${FIELDS} headRepository { nameWithOwner } } } } }`,
+        `query($owner: String!, $name: String!, $branch: String!) { repository(owner: $owner, name: $name) { pullRequests(headRefName: $branch, first: 10, orderBy: { field: CREATED_AT, direction: DESC }) { nodes { ${FIELDS} closedAt headRepository { nameWithOwner } } } } }`,
         { owner: found[1]!, name: found[2]!, branch },
         timeoutMs,
       );
-      return pickPullRequest(repo, data?.repository?.pullRequests?.nodes ?? []);
+      return pickPullRequest(repo, data?.repository?.pullRequests?.nodes ?? [], since);
     },
 
     async states(refs) {

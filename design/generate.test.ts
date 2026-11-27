@@ -589,9 +589,9 @@ describe('the tokens', () => {
     ]);
   });
 
-  it('commit the nine themes and the seven accent presets', () => {
+  it('commit the twenty themes and the seven accent presets', () => {
     const { themes, accents } = loadSources(REPOSITORY_ROOT).tokens;
-    expect(themes.map(([name]) => name)).toEqual(['carrier', 'graphite', 'ocean', 'forest', 'sunset', 'paper', 'rose', 'lavender', 'midnight']);
+    expect(themes.map(([name]) => name)).toEqual(['carrier', 'graphite', 'ocean', 'forest', 'sunset', 'paper', 'rose', 'lavender', 'midnight', 'solarized', 'nord', 'gruvbox', 'dracula', 'tokyoNight', 'catppuccin', 'oneDark', 'monokai', 'rosePine', 'everforest', 'ayu']);
     expect(accents.map(([name]) => name)).toEqual(['blue', 'purple', 'pink', 'red', 'orange', 'green', 'graphite']);
   });
 });
@@ -799,7 +799,7 @@ describe('the words of the text codes', () => {
   const unused: Record<string, string[]> = {
     'account.harnessTakesOne': ['harness'],
     'doctor.labelsMissing': ['count'],
-    'epic.stop.usageLimitWakeRefused': ['ranOut'],
+    'epic.stop.usageLimitWakeRefused': ['ranOut', 'role'],
     'session.notice.actionWentOn': ['reasonCode'],
     'session.notice.projectNotAdded': ['reasonCode'],
     'session.notice.startedFromFetched': ['reasonCode'],

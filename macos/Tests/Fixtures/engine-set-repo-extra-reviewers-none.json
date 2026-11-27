@@ -1,0 +1,26 @@
+{
+  "request": {
+    "cmd": "setRepoExtraReviewers",
+    "repo": "acme/web",
+    "reviewers": {}
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "repos": [
+          {
+            "name": "acme/web",
+            "agents": {
+              "author": {
+                "model": "opus"
+              },
+              "extraReviewers": {}
+            }
+          }
+        ]
+      },
+      "engine": "applied"
+    }
+  }
+}

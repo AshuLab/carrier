@@ -140,7 +140,7 @@
       "round": 2,
       "harness": "agy",
       "model": "gemini-3",
-      "reviewer": "reviewer-2",
+      "reviewer": "seguridad-api",
       "startedAt": 40100,
       "last": null
     },
@@ -238,16 +238,27 @@
           {
             "harness": "agy",
             "model": "gemini-3",
-            "provider": null
+            "provider": null,
+            "key": "seguridad-api",
+            "name": "Seguridad API",
+            "type": "security"
+          },
+          {
+            "harness": "claude",
+            "model": "claude-haiku-5",
+            "provider": null,
+            "key": "usabilidad",
+            "name": "Usabilidad",
+            "type": "ux"
           }
         ]
       },
       "reviewers": {
-        "given": 1,
-        "of": 2,
+        "given": 2,
+        "of": 3,
         "none": [
           {
-            "slot": "reviewer-2",
+            "slot": "seguridad-api",
             "why": "cannot verify the migration"
           }
         ]

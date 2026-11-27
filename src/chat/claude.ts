@@ -22,6 +22,9 @@ const PERMISSION_MODES = [
 /** The variable of the claude process that holds the chat MCP's token; the header of the injected server names it. */
 const MCP_TOKEN_ENV = 'CARRIER_MCP_TOKEN';
 
+// What the model goes on working on while it runs (Carrier's rule, ADR 0056); any other `task_type` is a background process.
+const AGENT_WORK = new Set(['local_agent', 'local_workflow', 'in_process_teammate', 'remote_agent']);
+
 /** The statuses of an MCP server that cannot be used (`pending` is still connecting, and is not a failure). */
 const MCP_DOWN = ['failed', 'needs-auth', 'disabled', 'disconnected'];
 
@@ -340,7 +343,8 @@ class ClaudeConversation implements ChatConversation {
     // the whole set of live background tasks each time (the SDK's level signal); the ones that are not activity (watchers) are left out
     if (m.type === 'system' && m.subtype === 'background_tasks_changed' && Array.isArray(m.tasks)) {
       const tasks = (m.tasks as { task_id?: unknown; task_type?: unknown; description?: unknown; ambient?: unknown }[]).filter((task) => task.ambient !== true && typeof task.task_id === 'string');
-      return [{ kind: 'background', tasks: tasks.map((task) => ({ id: String(task.task_id), kind: String(task.task_type ?? 'task'), description: String(task.description ?? '') })) }];
+      // agent work is an allowlist on the exact `task_type` (the SDK types it as a free string): anything else, known or not, is a process
+      return [{ kind: 'background', tasks: tasks.map((task) => ({ id: String(task.task_id), kind: String(task.task_type ?? 'task'), description: String(task.description ?? ''), agentWork: typeof task.task_type === 'string' && AGENT_WORK.has(task.task_type) })) }];
     }
     if (this.hidden > 0) return [];
     switch (m.type) {

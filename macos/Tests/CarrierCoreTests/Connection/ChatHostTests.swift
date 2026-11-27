@@ -28,12 +28,12 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(AgentAccounts.harness(of: "nobody") == "nobody")
 
     let active = try await host.list(archived: false)
-    // the fifth is a session whose turn ended while a build runs; the twelve after it fill the sidebar's other states (unread, a single task, plain, pinned, a worktree preparing, a long title, every component of a conversation, every tool...), and the last two are the subagent sessions
+    // the fifth is a session whose turn ended while a build runs; the thirteen after it fill the sidebar's other states (unread, a single task, plain, pinned, a turn with a process (the long branch), two processes before the providers, a worktree preparing, a long title, every component of a conversation, every tool...), and the last two are the subagent sessions
     #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle, .idle, .idle, .idle, .working, .idle, .working, .idle, .preparing, .idle, .waitingApproval, .working, .idle, .idle, .idle, .working])
     #expect(active.map(\.live) == [true, true, false, false, true, true, true, true, true, true, true, true, false, true, true, true, true, false, true])
     let worktree = "/Users/dev/work/web"
     #expect(active.map { $0.workspace?.base } == [nil, nil, nil, worktree, nil, nil, nil, nil, nil, worktree, worktree, worktree, nil, nil, nil, nil, nil, nil, nil])
-    #expect(active.map(\.background.count) == [0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    #expect(active.map(\.background.count) == [0, 0, 0, 0, 3, 0, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0])
     #expect(active.compactMap(\.pullRequest).map(\.number) == [983, 979, 412, 88, 1051, 1060, 431, 398, 77] && active.compactMap(\.diff).count == 10)
     #expect(try await host.list(archived: true).map(\.archived) == [true, true])
     // the parent carries its children and none of the other sessions has a parent or children
@@ -71,7 +71,19 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     // and the three tasks of the build session started minutes before
     #expect(active[0].lastActiveAt + 5_000 >= beforeMs && active[0].lastActiveAt + 5_000 <= afterMs)
     #expect(active[4].background.allSatisfy { ($0.startedAt.map { Date().timeIntervalSince($0) } ?? 0) > 90 })
-    #expect(server.unreadSessionIds == ["a1000000-0000-4000-8000-000000000001"] && server.pinnedSessionIds == ["a1000000-0000-4000-8000-000000000004"])
+    #expect(server.unreadSessionIds == ["a1000000-0000-4000-8000-000000000001", "a1000000-0000-4000-8000-000000000002"] && server.pinnedSessionIds == ["a1000000-0000-4000-8000-000000000004"])
+}
+
+@Test func theFixtureHasASessionWithOnlyProcessesThatReadsDoneAndOneWithASubagentThatWorks() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    var rows = sessionRows(try await host.list(archived: false), bundle: english.bundle, locale: english.locale)
+    for index in rows.indices { rows[index].unread = server.unreadSessionIds.contains(rows[index].id) }
+    let processes = try #require(rows.first { $0.id == "a1000000-0000-4000-8000-000000000002" })
+    #expect(processes.processes.isEmpty == false && processes.isWorking == false && processes.status == .unread)
+    let subagent = try #require(rows.first { $0.id == "9b8c7d6e-5f4a-4b3c-8d2e-1f0a9b8c7d07" })
+    #expect(subagent.isWorking && subagent.status == .working && subagent.processes.count == 2)
 }
 
 @Test func theFixtureHostCutsAPlansWorktreeFromTheRemoteBranchWhenTheStartIsRemote() async throws {

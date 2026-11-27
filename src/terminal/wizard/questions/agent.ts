@@ -2,6 +2,7 @@ import { isAbsolute } from 'node:path';
 import { localKinds, localLabel, type LocalProvider } from '../../../harnesses/local.ts';
 import { harnessLabel, localProvidersOf, nativeProvider, type HarnessName } from '../../../harnesses/names.ts';
 import type { Option, Ui } from '../../prompts/types.ts';
+import type { Effort } from '../build-config.ts';
 import type { InitDeps } from '../deps.ts';
 import { tilde } from '../summary.ts';
 
@@ -11,6 +12,8 @@ const claudeModels: Option<string>[] = [
   { value: 'opus', label: 'opus', hint: 'latest Opus' },
   { value: 'fable', label: 'fable', hint: 'latest Fable' },
 ];
+/** The Antigravity model a role starts on, with its effort already in the id. The one place it is written: update it by hand when `agy models` stops listing it. */
+export const antigravityModel = 'gemini-4-hydrogen-high';
 const otherModel = '\0other';
 const native = '\0native';
 const inherit = '\0inherit';
@@ -29,6 +32,19 @@ export async function askConfigDir(ui: Ui, harness: 'claude' | 'codex', deps: In
   if (choice !== typedPath) return tilde(choice);
   const typed = await ui.text({ message: `Config folder of this ${harnessLabel[harness]} ${noun} (absolute, or starting with ~/)`, validate: (v) => (isAbsolute(v.trim()) || v.trim().startsWith('~/') ? undefined : 'An absolute path, or one starting with ~/') });
   return typed.trim();
+}
+
+/** The model and effort a role starts on when nothing in the file says otherwise. Claude: `sonnet` at `high`. Codex: the model in its own `config.toml`, else the first it lists, at `high`. Antigravity: `antigravityModel`, else the first `agy models` lists, with no effort (it is in the id). A local server: its first model. No model when there is none to start from: it is typed. */
+export async function defaultsFor(ui: Ui, harness: HarnessName, provider: LocalProvider | undefined, locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps): Promise<{ model?: string; effort?: Effort }> {
+  const effort = harness === 'agy' ? {} : { effort: 'high' as const };
+  if (provider) return { ...(locals[provider]?.[0] && { model: locals[provider][0] }), ...effort };
+  if (harness === 'claude') return { model: 'sonnet', ...effort };
+  if (harness === 'codex') {
+    const model = deps.codexModel() ?? deps.codexModels()[0]?.value;
+    return { ...(model && { model }), ...effort };
+  }
+  const listed = await ui.busy('Asking Antigravity which models it has…', async () => deps.agyModels());
+  return { model: listed.length === 0 || listed.some((m) => m.value === antigravityModel) ? antigravityModel : listed[0]!.value };
 }
 
 /** Ask the model for a role (or one of its failover steps) on a specific harness. */

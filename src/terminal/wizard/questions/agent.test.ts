@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { Ui } from '../../prompts/types.ts';
+import { antigravityModel, defaultsFor } from './agent.ts';
 import { fakeDeps, fakeMachine, quietUi, roleOf, useTempDir } from '../testing.ts';
 import { runInit } from '../wizard.ts';
 
@@ -8,19 +10,62 @@ const dir = useTempDir();
 
 const running = { machine: fakeMachine({ localModels: async (local: string) => (local === 'lmstudio' ? ['google/gemma-4-12b', 'qwen/qwen3.8-27b'] : Promise.reject(new Error('down'))) }) };
 
-test('the model is picked from what the CLI offers; Codex starts on the model it already runs with', async () => {
+const found = (...binaries: string[]) => ({ machine: fakeMachine({ resolveBinary: (name) => (binaries.includes(name) ? `/opt/bin/${name}` : Promise.reject(new Error('not found')) as never) }) });
+const agy = (listed: string[]) => ({ ...found('claude', 'codex', 'agy'), agyModels: () => listed.map((value) => ({ value, label: value })) });
+const effortOf = (written: Record<string, string>, out: string, role: 'author' | 'reviewer') => JSON.parse(written[out]!).agents[role].effort;
+
+test('defaults: Claude starts on sonnet at high, Codex on the model its own config.toml has, at high', async () => {
   const { deps, written } = fakeDeps({ codexModels: () => [{ value: 'gpt-a', label: 'gpt-a' }, { value: 'gpt-test', label: 'gpt-test' }] });
   const { ui, asked } = quietUi();
   const out = join(dir, 'm.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  expect(asked.filter((q) => q.startsWith('Model for the'))).toHaveLength(2); // a select each, answered by its initial value
+  expect(asked.filter((q) => q.startsWith('Model for the') || q.startsWith('Effort for the'))).toEqual([]); // nothing to answer: Enter kept the defaults
   expect(roleOf(written, out, 'author')).toMatchObject({ model: 'sonnet' });
   expect(roleOf(written, out, 'reviewer')).toMatchObject({ model: 'gpt-test' });
+  expect([effortOf(written, out, 'author'), effortOf(written, out, 'reviewer')]).toEqual(['high', 'high']);
+});
+
+test('defaults: with no model in Codex\'s config.toml the first one it lists, and no model id of Codex is in the code', async () => {
+  const { deps, written } = fakeDeps({ codexModel: () => undefined, codexModels: () => [{ value: 'gpt-a', label: 'gpt-a' }, { value: 'gpt-b', label: 'gpt-b' }] });
+  const out = join(dir, 'm2.json');
+  await runInit({ repo: ['A/b'], out }, quietUi().ui, deps);
+  expect(roleOf(written, out, 'reviewer')).toMatchObject({ harness: 'codex', model: 'gpt-a' });
+  expect(readFileSync(join(import.meta.dirname, 'agent.ts'), 'utf8')).not.toMatch(/gpt-\d|codex-\w+-\d/);
+});
+
+test('defaults: Antigravity starts on gemini-4-hydrogen-high with no effort, else on the first model `agy models` lists', async () => {
+  for (const [listed, expected] of [[['gemini-3.8-flash-low', antigravityModel], antigravityModel], [['gemini-3.8-flash-low', 'x'], 'gemini-3.8-flash-low'], [[], antigravityModel]] as const) {
+    const { deps, written } = fakeDeps(agy([...listed]));
+    const out = join(dir, `a-${expected}-${listed.length}.json`);
+    await runInit({ repo: ['A/b'], out }, quietUi({ 'Which account runs the author?': 'agy' }).ui, deps);
+    expect(roleOf(written, out, 'author')).toMatchObject({ harness: 'agy', model: expected });
+    expect(JSON.parse(written[out]!).agents.author).not.toHaveProperty('effort');
+  }
+});
+
+test('defaultsFor gives the model and effort a harness starts on, and none when a local server offers no model', async () => {
+  const { deps } = fakeDeps({ codexModel: () => undefined, codexModels: () => [] });
+  expect(await defaultsFor(quietUi().ui, 'claude', undefined, {}, deps)).toEqual({ model: 'sonnet', effort: 'high' });
+  expect(await defaultsFor(quietUi().ui, 'codex', undefined, {}, deps)).toEqual({ effort: 'high' }); // nothing to start from: the model is typed
+  expect(await defaultsFor(quietUi().ui, 'codex', 'ollama', { ollama: ['qwen3:8b', 'x'] }, deps)).toEqual({ model: 'qwen3:8b', effort: 'high' });
+  expect(await defaultsFor(quietUi().ui, 'agy', undefined, {}, deps)).toEqual({ model: antigravityModel });
+});
+
+test('"Change them?" opens the model and then the effort, starting from the defaults', async () => {
+  const { deps, written } = fakeDeps({ codexModels: () => [{ value: 'gpt-a', label: 'gpt-a' }, { value: 'gpt-test', label: 'gpt-test' }] });
+  const initial: Record<string, unknown> = {};
+  const { ui, asked } = quietUi({ 'Model and effort: sonnet at high, change them?': true, 'Model for the author': 'opus', 'Effort for the author': 'low' });
+  const out = join(dir, 'm3.json');
+  await runInit({ repo: ['A/b'], out }, { ...ui, select: async (o) => ((initial[o.message] = o.initialValue), ui.select(o)) }, deps);
+  expect(asked.indexOf('Model for the author')).toBeLessThan(asked.indexOf('Effort for the author'));
+  expect(initial).toMatchObject({ 'Model for the author': 'sonnet', 'Effort for the author': 'high' });
+  expect(roleOf(written, out, 'author').model).toBe('opus');
+  expect(effortOf(written, out, 'author')).toBe('low');
 });
 
 test('"Other…" in the model list asks for the id', async () => {
   const { deps, written } = fakeDeps();
-  const { ui } = quietUi({ 'Model for the author': '\0other' });
+  const { ui } = quietUi({ 'Model and effort: sonnet at high, change them?': true, 'Model for the author': '\0other' });
   const withText: Ui = { ...ui, text: async (o) => (o.message === 'Model for the author' ? 'claude-x-1' : ui.text(o)) };
   const out = join(dir, 'n.json');
   await runInit({ repo: ['A/b'], out }, withText, deps);
@@ -30,7 +75,7 @@ test('"Other…" in the model list asks for the id', async () => {
 test('each question has one meaning: harness, then provider (only when there is a choice), then that provider\'s models, then the folder', async () => {
   const { deps, written } = fakeDeps({ ...running, configFolders: (h) => (h === 'codex' ? ['/home/d/.codex'] : []) });
   const selects: Record<string, string[]> = {};
-  const { ui } = quietUi({ 'Add another account?': [true, false], 'Which agent CLI runs this account?': 'codex', 'Where does this account run?': 'lmstudio', 'Which account runs the reviewer?': 'codex-2' });
+  const { ui } = quietUi({ 'Add another account?': [true, false], 'Which agent CLI runs this account?': 'codex', 'Where does this account run?': 'lmstudio', 'Which account runs the reviewer?': 'codex-2', 'Model and effort: google/gemma-4-12b at high, change them?': true });
   const spy: Ui = { ...ui, select: async (o) => ((selects[o.message] = o.options.map((x) => `${x.value}${x.disabled ? ' (disabled)' : ''}`)), ui.select(o)) };
   const out = join(dir, 'p.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);

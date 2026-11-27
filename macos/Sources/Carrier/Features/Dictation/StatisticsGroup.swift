@@ -28,7 +28,7 @@ struct StatisticsGroup: View {
             } else {
                 let speed = min(max(wpm, AppPreferences.dictationTypingSpeedRange.lowerBound), AppPreferences.dictationTypingSpeedRange.upperBound)
                 let figures = dictationFigures(records.counts, range: range, now: Date())
-                SettingsGroup(id: "overview", title: Copy.dictationGroupOverview(), accessory: {
+                SettingsGroup(id: "overview", title: Copy.dictationGroupOverview(), card: false, accessory: {
                     SegmentedChoice(options: StatisticsRange.allCases.map { (value: $0, title: $0.title(), icon: nil) }, selection: $range)
                 }, content: { cards(figures, wpm: speed) })
                 SettingsGroup(title: Copy.dictationPerDay(metric: metric.title()), accessory: {
@@ -61,7 +61,7 @@ struct StatisticsGroup: View {
     }
 
     /// The cards of a group, with no container behind them: four in a row while each has the room its longest title and value need (equal shares, at the
-    /// person's text size), two by two when the window is narrow. In the form the row has no background and no inset, so the cards are the group.
+    /// person's text size), two by two when the window is narrow. The group puts them outside the section's container (`SettingsGroup(card: false)`).
     private func cardGrid(_ cards: [StatisticsCard]) -> some View {
         let four = cardsWidth >= 4 * 130 * CGFloat(textScale.percent) / 100 + 30
         return Group {
@@ -76,7 +76,6 @@ struct StatisticsGroup: View {
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { cardsWidth = $0 }
         .padding(.vertical, Tokens.Space.s4)
-        .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
     }
 
     /// 24 cells, one per hour, as strong as the dictations of that hour, and the line that says the hour the person dictates most.
@@ -113,7 +112,7 @@ struct StatisticsGroup: View {
 
     private func recordsGroup(_ records: StatisticsRecords) -> some View {
         func on(_ day: Date?) -> String { day?.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) ?? Copy.dictationNothingYet() }
-        return SettingsGroup(id: "records", title: Copy.dictationGroupRecords(), footer: Copy.dictationRecordsFooter()) {
+        return SettingsGroup(id: "records", title: Copy.dictationGroupRecords(), footer: Copy.dictationRecordsFooter(), card: false) {
             cardGrid([
                 StatisticsCard(title: Copy.dictationRecordMostDictations(), value: (records.mostDictations?.value ?? 0).formatted(), line: on(records.mostDictations?.day)),
                 StatisticsCard(title: Copy.dictationRecordMostWords(), value: (records.mostWords?.value ?? 0).formatted(), line: on(records.mostWords?.day)),
@@ -214,7 +213,7 @@ private struct WeekChart: View {
                 .accessibilityLabel(day.day.formatted(.dateTime.weekday(.wide).month().day()))
                 .accessibilityValue(Copy.dictationWordsCount(count: day.words))
         }
-        .chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.narrow)) } }
+        .chartXAxis { AxisMarks(values: .stride(by: .day)) { _ in AxisValueLabel(format: .dateTime.weekday(.abbreviated), centered: true) } }
         .chartYAxis(.hidden)
         .frame(height: 70)
         .accessibilityLabel(Copy.dictationWeekChartLabel())

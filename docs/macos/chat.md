@@ -50,6 +50,11 @@ A failed subagent shows its `summary` in the Result block when it has one and on
 While it runs, its live line is the conversation's, for it; once it ended or its session stopped working, a call that never ended shows stopped.
 Once the run finishes, its summary counts MCP calls apart from other tools.
 A poll that fails shows its reason under the feed and is logged once; polling goes on.
+The background processes a session left running (the tasks the host says are not agent work, `BackgroundTask.agentWork`) are one grey card over the message box, in the family of the queued-message card (`ProcessesCardView`, a `NoticeCard`; what it says is `ProcessesCard`, in `CarrierCore/Chat/ProcessesCard.swift`, tested through `ConversationModel.processesCard`).
+It reads "N processes still running" ("1 process still running") and then their names on the same line, cut at the end (what the agent called each, else its kind), with Stop (Stop all with more than one) and a chevron that opens it in place to a row for each process: its name, how long it has run (from when the host first saw it) and its own Stop.
+It has no ring, no glow and no shimmer, and no timer but the rows'; it stacks with the other notices and is gone with the last process.
+Stop asks the host's `stopTask` for one process at a time (Stop all asks for each of them, `ConversationModel.stopProcesses`) and never `interrupt`, which with no turn running would stop agent work as well; a host that does not list `stopTask` gets the card with no Stop.
+The cyan card is given agent work only (`ConversationModel.agentWork`), so a session with a process and a subagent shows both, each with its own tasks, and one with only a subagent shows only the cyan one.
 
 The conversation's title bar is the window's: the title (`conversationTitle`, "New session" while the host has none), under it `conversationSubtitle` ("workspace · folder name" in a worktree, the workspace alone in a folder), on the right the place pill (`SessionPlacePill`: the branch checked out now for a worktree, "In the folder" otherwise) and the Open menu (`OpenMenu`, items from `openMenuItems`: Reveal in Finder, Copy path and, for a worktree, Copy branch name; a copy item says "Copied" for a moment).
 

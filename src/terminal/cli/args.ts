@@ -1,5 +1,10 @@
 import { parseArgs } from 'node:util';
+import { slugPattern } from '../../config/extra-reviewer-key.ts';
 import { engineConfigPathOf } from '../../config/places.ts';
+import { efforts } from '../../config/schema.ts';
+import { localKinds } from '../../harnesses/local.ts';
+import { harnessNames } from '../../harnesses/names.ts';
+import { roleSlots, roleFlagSuffixes, extraFlagSuffixes, type RoleSlot } from '../wizard/roles.ts';
 
 export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'reload', 'restart', 'recover', 'chat', 'chat-host', 'usage', 'config'] as const;
 export type CommandName = (typeof commandNames)[number];
@@ -13,7 +18,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier watch                     the live panel of the running Carrier; q leaves it running (exit 1: not running)
        carrier stop|pause|resume|check   stop Carrier, pause or resume intake, look at GitHub now
        carrier reload                    make the running Carrier read engine.json and providers.json again (exit 1: not running, or a file is wrong)
-       carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--reviewer-2 <option>] [--reviewer-3 <option>] [--reviewer-4 <option>] [--lead <option>] [--from <ship|review|fix>] [--extra-rounds <K>]   resume a stopped epic on the options you choose
+       carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>] [--lead <option>] [--extra-reviewer-option "<key>=<option>"] [--from <ship|review|fix>] [--extra-rounds <K>]   resume a stopped epic on the options you choose
        carrier recover <owner/name>#<issue>   continue a running epic whose agent is not alive, from where it really is
        carrier chat --workspace <folder> [--agent <name>]   talk to an agent in a folder (starts the chat host if needed)
        carrier chat --resume <id>        go on with a closed chat session, after the end of its transcript
@@ -27,49 +32,48 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
 
 --config defaults to ${engineConfigPathOf()} (where init writes it) when that file exists.
 
-restart: with no option flag it asks for each role in a terminal and keeps the current options without one. --author, --reviewer, --reviewer-2 to --reviewer-4 and --lead name an option
-of the config here, not the <harness>:<model> of init.
+restart: with no option flag it asks for each role in a terminal and keeps the current options without one. --author, --reviewer and --lead name an option
+of the config here, not the <harness>:<model> of init. --extra-reviewer-option "<key>=<option>" does it for an extra reviewer by its key (the key carrier status shows); repeat it for several.
 restart --from review or fix keeps the epic's round, pull request and worktree and starts at that stage; ship (the default) starts over with the rounds reset.
 restart --extra-rounds K, with --from review or fix, sets how many review rounds an epic that stopped on the review limit gets from its current one (default: limits.maxReviews).
 
 init flags (each one skips its question; --yes never asks):
   --repo <owner/name>            repeat for several repos
-  --author-profile <forge:<agent>|gh>   --reviewer-profile <forge:<agent>|gh>   --lead-reviewer-profile <forge:<agent>|gh>
-  --author <harness>:<model>            --reviewer <harness>:<model>            --lead-reviewer <harness>:<model>
-  --author-provider <lmstudio|ollama>   --reviewer-provider <lmstudio|ollama>   --lead-reviewer-provider <lmstudio|ollama>
-  --author-effort <level>        --reviewer-effort <level>        --lead-reviewer-effort <level>     level: low, medium, high, xhigh or max
-  --author-persona-name <text>   --reviewer-persona-name <text>   --lead-reviewer-persona-name <text>
-  --author-persona-prompt <text> --reviewer-persona-prompt <text> --lead-reviewer-persona-prompt <text>
+  --orchestrator-profile <forge:<agent>|gh>   the orchestrator's GitHub profile
+  --<role>[-profile|-provider|-effort|-persona-name|-persona-prompt|-failover] <value>   for every role: ${roleSlots.join(', ')}
+      --<role> <harness>:<model>              harness: ${harnessNames.join(', ')}
+      --<role>-profile <forge:<agent>|gh>
+      --<role>-provider <${localKinds.join('|')}>
+      --<role>-effort <level>                 level: ${efforts.join(', ')}
+      --<role>-persona-name <text>   --<role>-persona-prompt <text>
+      --<role>-failover <account>[:<model>]   repeat for up to two steps, in order; the account is one of this Mac or providers.json
+  --extra-reviewer "<name>=<harness>:<model>"   create an extra reviewer (up to three); repeat it, the reviewers keep the order given
+  --extra-reviewer-<field> "<name>=<value>"     set a field of the reviewer with that name (the name is everything before the first =, compared without regard to case)
+      fields: profile <forge:<agent>|gh>, provider <${localKinds.join('|')}>, effort <level>, type <slug>, persona-name, persona-prompt, failover <account>[:<model>] (repeat for up to two steps)
+      a field no flag answers is asked, or takes its default under --yes
   --out <path>                   default is the --config default above
-  --yes                          no questions; overwrite the output file (without --author and --reviewer, one claude option runs both roles)`;
+  --yes                          no questions (needs --repo); overwrite the output file; the author and the reviewer take the first of each agent found (claude for the author and codex for the reviewer when both exist)`;
+
+/** What `--<role>`, `--<role>-profile` and the rest of a role's flags are, from the table of slots. */
+const roleOptions = Object.fromEntries(
+  roleSlots.flatMap((slot) => [...roleFlagSuffixes.map((suffix) => [`${slot}${suffix}`, { type: 'string' }]), [`${slot}-failover`, { type: 'string', multiple: true }]]),
+) as { [Name in `${RoleSlot}${(typeof roleFlagSuffixes)[number]}`]: { readonly type: 'string' } } & { [Name in `${RoleSlot}-failover`]: { readonly type: 'string'; readonly multiple: true } };
+
+/** `--extra-reviewer` and one flag per field: each repeats, since each takes a reviewer's name before its value. */
+const extraOptions = Object.fromEntries(['', ...extraFlagSuffixes].map((suffix) => [`extra-reviewer${suffix}`, { type: 'string', multiple: true }])) as {
+  [Name in `extra-reviewer${'' | (typeof extraFlagSuffixes)[number]}`]: { readonly type: 'string'; readonly multiple: true };
+};
 
 const options = {
+  ...roleOptions,
+  ...extraOptions,
   config: { type: 'string' },
   repo: { type: 'string', multiple: true },
-  'author-profile': { type: 'string' },
-  'reviewer-profile': { type: 'string' },
-  'lead-reviewer-profile': { type: 'string' },
-  author: { type: 'string' },
-  reviewer: { type: 'string' },
-  'reviewer-2': { type: 'string' },
-  'reviewer-3': { type: 'string' },
-  'reviewer-4': { type: 'string' },
+  'orchestrator-profile': { type: 'string' },
   lead: { type: 'string' },
+  'extra-reviewer-option': { type: 'string', multiple: true },
   from: { type: 'string' },
   'extra-rounds': { type: 'string' },
-  'lead-reviewer': { type: 'string' },
-  'author-provider': { type: 'string' },
-  'reviewer-provider': { type: 'string' },
-  'lead-reviewer-provider': { type: 'string' },
-  'author-effort': { type: 'string' },
-  'reviewer-effort': { type: 'string' },
-  'lead-reviewer-effort': { type: 'string' },
-  'author-persona-name': { type: 'string' },
-  'author-persona-prompt': { type: 'string' },
-  'reviewer-persona-name': { type: 'string' },
-  'reviewer-persona-prompt': { type: 'string' },
-  'lead-reviewer-persona-name': { type: 'string' },
-  'lead-reviewer-persona-prompt': { type: 'string' },
   out: { type: 'string' },
   yes: { type: 'boolean' },
   json: { type: 'boolean' },
@@ -91,6 +95,19 @@ const options = {
 } as const;
 
 export type Flags = ReturnType<typeof parseArgs<{ options: typeof options; allowPositionals: true }>>['values'];
+/** The options `--extra-reviewer-option "<key>=<option>"` chose, by key; the key is everything before the first `=`. */
+export function extraReviewerOptionsOf(values: string[] = []): { ok: true; options: Record<string, string> } | { ok: false; message: string } {
+  const options: Record<string, string> = {};
+  for (const value of values) {
+    const at = value.indexOf('=');
+    const [key, option] = [value.slice(0, at), value.slice(at + 1)];
+    if (at < 0 || !slugPattern.test(key) || option === '') return { ok: false, message: `--extra-reviewer-option takes "<key>=<option>", and "${value}" is not one` };
+    if (Object.hasOwn(options, key)) return { ok: false, message: `--extra-reviewer-option names ${key} twice` };
+    options[key] = option;
+  }
+  return { ok: true, options };
+}
+
 /** What `restart` and `recover` act on, from `owner/name#N`. */
 export type EpicTarget = { repo: string; issue: number };
 export type Parsed = { ok: true; command: CommandName | undefined; flags: Flags; target?: EpicTarget } | { ok: false; message: string };
@@ -114,6 +131,8 @@ export function parseCli(argv: string[]): Parsed {
     if (command === 'restart' && parsed.values.from !== undefined && !resumeStages.includes(parsed.values.from)) return { ok: false, message: `--from takes ${resumeStages.join(', ')}` };
     const rounds = parsed.values['extra-rounds'];
     if (command === 'restart' && rounds !== undefined && !/^[1-9]\d{0,8}$/.test(rounds)) return { ok: false, message: '--extra-rounds takes a positive whole number' };
+    const extras = command === 'restart' ? extraReviewerOptionsOf(parsed.values['extra-reviewer-option']) : { ok: true as const };
+    if (!extras.ok) return extras;
     return { ok: true, command, flags: parsed.values, target: { repo: repo!, issue: Number(match[2]) } };
   }
   if (extra.length > 0 || (command !== undefined && !(commandNames as readonly string[]).includes(command))) return { ok: false, message: `Unknown command: ${parsed.positionals.join(' ')}` };

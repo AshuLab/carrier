@@ -74,6 +74,10 @@ import Observation
     public internal(set) var background: [BackgroundTask] = []
     /// Whether the host can stop one of those tasks by itself (it lists `stopTask`): read from its hello once.
     public internal(set) var canStopTask = false
+    /// The tasks that are the model's own work (a subagent, a workflow): the cyan card over the box is given these alone.
+    public var agentWork: [BackgroundTask] { background.filter(\.agentWork) }
+    /// The grey card over the box for the background processes; nil when there is none.
+    public var processesCard: ProcessesCard? { ProcessesCard(background, canStop: canStopTask) }
     /// The message whose send or resume the host refused, for the banner's Try again; nil with no refusal or when it was not a send.
     public internal(set) var refusedText: String?
     /// Why the last send, resume, stop or answer was refused, said under the box; nil when it worked.

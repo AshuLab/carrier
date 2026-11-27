@@ -331,10 +331,21 @@ test('the background tasks the SDK reports are the whole set each time, without 
   const { conversation, events } = await openWith([{ text: 'hi', lines }]);
   const got = (await turn(conversation, events, 'hi')).filter((e) => e.kind === 'background');
   expect(got).toEqual([
-    { kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: 'run a' }, { id: 'b', kind: 'local_agent', description: 'review the diff' }] },
-    { kind: 'background', tasks: [{ id: 'b', kind: 'local_bash', description: 'run b' }] },
+    { kind: 'background', tasks: [{ id: 'a', kind: 'local_bash', description: 'run a', agentWork: false }, { id: 'b', kind: 'local_agent', description: 'review the diff', agentWork: true }] },
+    { kind: 'background', tasks: [{ id: 'b', kind: 'local_bash', description: 'run b', agentWork: false }] },
     { kind: 'background', tasks: [] },
   ]);
+});
+
+test('a background task is agent work only for the exact types of the allowlist, and every other value, missing or wrong-typed is a process', async () => {
+  const types: [unknown, boolean][] = [
+    ['local_agent', true], ['local_workflow', true], ['in_process_teammate', true], ['remote_agent', true],
+    ['local_bash', false], ['monitor_mcp', false], ['monitor_ws', false], ['mcp_task', false], ['local_script', false], ['Local_Agent', false], ['', false], [7, false], [undefined, false],
+  ];
+  const tasks = types.map(([task_type], i) => ({ task_id: `t${i}`, task_type, description: 'x' }));
+  const { conversation, events } = await openWith([{ text: 'hi', lines: [{ type: 'system', subtype: 'background_tasks_changed', tasks }, { type: 'result', subtype: 'success', is_error: false, usage: {} }] }]);
+  const got = (await turn(conversation, events, 'hi')).find((e) => e.kind === 'background');
+  expect(got?.kind === 'background' && got.tasks.map((t) => t.agentWork)).toEqual(types.map(([, agentWork]) => agentWork));
 });
 
 test('a compaction is one event with the context before and after it, from either spelling of the numbers, and a failed one says why', async () => {

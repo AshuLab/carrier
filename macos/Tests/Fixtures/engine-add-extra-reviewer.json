@@ -1,0 +1,49 @@
+{
+  "request": {
+    "cmd": "addExtraReviewer",
+    "draft": {
+      "name": "Seguridad API",
+      "type": "security",
+      "identity": {
+        "kind": "forge",
+        "agent": "nova"
+      },
+      "provider": "claude",
+      "model": "sonnet",
+      "effort": "high"
+    }
+  },
+  "reply": {
+    "ok": true,
+    "data": {
+      "saved": {
+        "agents": {
+          "extraReviewers": {
+            "seguridad-api": {
+              "type": "security",
+              "name": "Seguridad API",
+              "profile": "nova",
+              "provider": "claude",
+              "model": "sonnet",
+              "effort": "high"
+            }
+          }
+        },
+        "profiles": {
+          "author-bot": {
+            "kind": "forge",
+            "agent": "artanis-agent"
+          },
+          "reviewer-bot": {
+            "kind": "gh"
+          },
+          "nova": {
+            "kind": "forge",
+            "agent": "nova"
+          }
+        }
+      },
+      "engine": "applied"
+    }
+  }
+}

@@ -30,6 +30,17 @@ It does not count toward `maxReviews` and does not change the epic's review roun
 A resume at a stage starts it over: the lead gets its rounds again once the reviewers agree.
 _Avoid_: round (that is a review round).
 
+**Extra reviewer** - A reviewer beyond the mandatory one, up to three, held in `agents.extraReviewers` as a map from its key to its entry ([0057](../adr/review/0057-an-extra-reviewer-is-an-entry-of-a-map-with-a-key-a-name-and-a-type.md)). It reviews every round with the others, on the same head, and one verdict among all the reviewers is enough for a round to count ([ADR 0048](../adr/review/0048-a-review-round-has-several-reviewers-in-parallel-and-a-lead-reviewer-closes-it.md)).
+It takes the Reviewer's failover steps when it declares none.
+The engine names it by its key everywhere: in its stored executions, its blockers' ids, its checkout, `carrier restart`, the epic's status and the doctor.
+Its key is a unique slug that addresses it in the file and in the engine's requests; its name is a unique text the app shows; its type is a label for what it looks at (Reviewer type).
+It signs `🤖 Reviewer [NAME] via Carrier` with its persona's name when it has one and its name otherwise.
+Removing one removes its entry and nothing else: the GitHub profile it signed with stays.
+_Avoid_: second reviewer, co-reviewer, reviewer 2 to reviewer 4 (the names of a position in the earlier list, which no longer exist).
+
+**Reviewer type** - The label of an extra reviewer that says what kind of review it does: `general`, `ux`, `security`, or any slug a person writes. It is only a label, the engine runs nothing different for it, and several reviewers can share one type.
+_Avoid_: role (the Author, the Reviewer, an extra reviewer and the Lead reviewer are roles), category.
+
 **Re-review (of a moved head)** - A review made again on the new head, without counting a round, because the pull request's head moved while the review ran; at most twice in a row, then the epic stops in `pr_invalid`.
 It is not a review round: the round count is about how many times the author and the reviewer disagree.
 See [ADR 0047](../adr/review/0047-a-review-is-tied-to-the-head-it-was-given-and-a-moved-head-is-reviewed-again.md).

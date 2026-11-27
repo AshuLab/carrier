@@ -52,6 +52,8 @@ import SwiftUI
 /// The one Settings window: made the first time it is asked for and kept, so it comes back where it was (its place, its size, its page).
 @MainActor final class SettingsWindowController: NSObject, NSWindowDelegate {
     static let shared = SettingsWindowController()
+    /// The smallest the content can be made: the split view's sidebar and a page that still reads. `contentMinSize` is not enough, the hosted split view lets the window go below it.
+    static let minContent = NSSize(width: 950, height: 480)
     private(set) var window: NSWindow?
     private let navigator = SettingsNavigator()
 
@@ -77,21 +79,25 @@ import SwiftUI
         window.title = Copy.settingsWindowTitle()
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.isReleasedWhenClosed = false
-        window.contentMinSize = NSSize(width: 760, height: 480)
         window.delegate = self
         // where it was and how big; the first time, the size of a page that does not need a scroll to be read.
         // The name is accepted even when nothing was saved under it, so a frame too small to be a Settings window (the first time, the host
         // gives it none) or on no screen any more is not used, as the main window's
         _ = window.setFrameAutosaveName("CarrierSettingsWindow")
         let kept = window.contentRect(forFrameRect: window.frame).size
-        let usable = kept.width >= window.contentMinSize.width && kept.height >= window.contentMinSize.height
+        let usable = kept.width >= Self.minContent.width && kept.height >= Self.minContent.height
             && NSScreen.screens.contains { $0.visibleFrame.intersects(window.frame) }
         if usable == false {
-            window.setContentSize(NSSize(width: 940, height: 660))
+            window.setContentSize(NSSize(width: 1000, height: 660))
             // over the main window, so on the screen the person is using; centered on the main screen when that one is not there to look at
             if let parent, parent.isVisible { window.setFrameOrigin(NSPoint(x: parent.frame.midX - window.frame.width / 2, y: parent.frame.midY - window.frame.height / 2)) } else { window.center() }
         }
         return window
+    }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        let least = sender.frameRect(forContentRect: NSRect(origin: .zero, size: Self.minContent)).size
+        return NSSize(width: max(frameSize.width, least.width), height: max(frameSize.height, least.height))
     }
 
     /// What the person fixed here is what the chat host needs: look again when they are done.

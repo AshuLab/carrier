@@ -278,8 +278,9 @@ struct PanelView: View {
         .onChange(of: shell.archiveRequest) {
             guard let id = shell.archiveRequest?.sessionId else { return }
             // the shortcut has no button to be off: a session that works says why it is not archived, as the buttons do in their tooltip
-            if let reason = model.sessions.rows.first(where: { $0.id == id }).flatMap { archiveBlock($0) } { return tell(reason) }
-            Task { if let refusal = await model.actions.archive(id) { tell(refusal) } }
+            guard let row = model.sessions.rows.first(where: { $0.id == id }) else { return }
+            if let reason = archiveBlock(row) { return tell(reason) }
+            Task { if let refusal = await archiveAsking(row, model.actions) { tell(refusal) } }
         }
         .onChange(of: snapshot) {
             if let snapshot {

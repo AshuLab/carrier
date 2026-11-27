@@ -581,10 +581,13 @@ test('a review that does not publish with another skill has no check for it', as
 
 // --- extra reviewers and the lead ---
 
+/** The extra reviewers as the map the config has: each entry under its key, with the name the person gave it. */
+const extrasMap = (entries: Record<string, unknown>[]) => Object.fromEntries(entries.map((entry, i) => [['seguridad-api', 'usabilidad', 'rendimiento'][i]!, { type: 'general', name: ['Seguridad API', 'Usabilidad', 'Rendimiento'][i]!, ...entry }]));
+
 const withExtras = (extra: Record<string, unknown>[], more: Record<string, unknown> = {}) => config({
   profiles: { ...base.profiles, c: { kind: 'forge', agent: 'rev-two' } },
   providers: { ...base.providers, second: { harness: 'claude', configDir: '/tmp/second' }, local: { harness: 'codex', provider: 'lmstudio' }, agy: { harness: 'agy' } },
-  agents: { ...base.agents, extraReviewers: extra },
+  agents: { ...base.agents, extraReviewers: extrasMap(extra) },
   ...more,
 });
 
@@ -613,7 +616,7 @@ test('the skills each extra reviewer and the lead invoke are asked of their own 
   const skills = new FakeSkills();
   const cfg = withExtras([], {
     skills: { review: { publish: 'g-post' }, lead: { review: 'my-lead', publish: null } },
-    agents: { ...base.agents, extraReviewers: [{ profile: 'c', provider: 'second', model: 'm', skills: { review: { review: 'my-review', publish: null } } }, { profile: 'b', provider: 'codex', model: 'm' }], leadReviewer: { profile: 'c', provider: 'agy', model: 'g' } },
+    agents: { ...base.agents, extraReviewers: extrasMap([{ profile: 'c', provider: 'second', model: 'm', skills: { review: { review: 'my-review', publish: null } } }, { profile: 'b', provider: 'codex', model: 'm' }]), leadReviewer: { profile: 'c', provider: 'agy', model: 'g' } },
   });
   const checks = skillChecks(await doctor(cfg, deps({ skills })));
   expect(checks.map((check) => [check.name, check.status])).toEqual([
@@ -621,9 +624,9 @@ test('the skills each extra reviewer and the lead invoke are asked of their own 
     ['AshuLab/carrier author can use the skill code-resolve', 'ok'],
     ['AshuLab/carrier reviewer can use the skill code-review', 'ok'],
     ['AshuLab/carrier reviewer can use the skill g-post', 'ok'],
-    ['AshuLab/carrier reviewer-2 can use the skill my-review', 'ok'],
-    ['AshuLab/carrier reviewer-3 can use the skill code-review', 'ok'],
-    ['AshuLab/carrier reviewer-3 can use the skill g-post', 'ok'],
+    ['AshuLab/carrier seguridad-api can use the skill my-review', 'ok'],
+    ['AshuLab/carrier usabilidad can use the skill code-review', 'ok'],
+    ['AshuLab/carrier usabilidad can use the skill g-post', 'ok'],
     ['AshuLab/carrier lead can use the skill my-lead', 'ok'],
   ]);
   expect(skills.asked.map((asked) => [asked.harness, asked.configDir, asked.name]).slice(4)).toEqual([
@@ -637,13 +640,14 @@ test('a skill an extra reviewer or the lead named that is absent fails, and a de
   skills.answers['my-lead'] = 'absent';
   skills.answers['code-post'] = 'absent';
   const cfg = withExtras([], {
-    agents: { ...base.agents, extraReviewers: [{ profile: 'c', provider: 'second', model: 'm', skills: { review: { review: 'my-review' } } }], leadReviewer: { profile: 'c', provider: 'claude', model: 'm', skills: { lead: { review: 'my-lead' } } } },
+    agents: { ...base.agents, extraReviewers: extrasMap([{ profile: 'c', provider: 'second', model: 'm', skills: { review: { review: 'my-review' } } }]), leadReviewer: { profile: 'c', provider: 'claude', model: 'm', skills: { lead: { review: 'my-lead' } } } },
   });
   const checks = skillChecks(await doctor(cfg, deps({ skills })));
   const byStatus = (status: string) => checks.filter((check) => check.status === status).map((check) => check.name);
-  expect(byStatus('fail')).toEqual(['AshuLab/carrier reviewer-2 can use the skill my-review', 'AshuLab/carrier lead can use the skill my-lead']);
-  expect(byStatus('warn')).toEqual(['AshuLab/carrier reviewer can use the skill code-post', 'AshuLab/carrier reviewer-2 can use the skill code-post', 'AshuLab/carrier lead can use the skill code-post']);
-  expect(checks.find((check) => check.status === 'fail')).toMatchObject({ detail: expect.stringContaining('does not find it for the account of the reviewer-2'), fix: expect.stringContaining('my-review') });
+  expect(byStatus('fail')).toEqual(['AshuLab/carrier seguridad-api can use the skill my-review', 'AshuLab/carrier lead can use the skill my-lead']);
+  expect(byStatus('warn')).toEqual(['AshuLab/carrier reviewer can use the skill code-post', 'AshuLab/carrier seguridad-api can use the skill code-post', 'AshuLab/carrier lead can use the skill code-post']);
+  expect(checks.find((check) => check.status === 'fail')).toMatchObject({ detail: expect.stringContaining('does not find it for the account of the Seguridad API'), fix: expect.stringContaining('my-review') });
+  expect(checks.find((check) => check.status === 'fail')).toMatchObject({ name: 'AshuLab/carrier seguridad-api can use the skill my-review', detailParams: { role: 'Seguridad API' } }); // the check is labelled by the key, its words name the reviewer
 });
 
 // The code and parameters of each detail, beside its words ([ADR 0055](../../docs/adr/design/0055-a-refusal-carries-a-code-and-its-parameters-and-its-english-words-are-the-fallback.md)).

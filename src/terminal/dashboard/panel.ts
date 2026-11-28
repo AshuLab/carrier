@@ -1,4 +1,4 @@
-import { renderDashboard } from './dashboard.ts';
+import { colorWanted, renderDashboard } from './dashboard.ts';
 import { renderPanel } from './plain.ts';
 import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
 
@@ -6,6 +6,10 @@ export interface PanelOutput {
   write(text: string): unknown;
   isTTY?: boolean;
   columns?: number;
+  rows?: number;
+  /** A terminal says when its size changed (`process.stdout` does, as 'resize'); what has none is not redrawn until its next tick. */
+  on?(event: 'resize', listener: () => void): unknown;
+  off?(event: 'resize', listener: () => void): unknown;
 }
 
 // What a person reads as "the state changed": durations tick every second and do not count.
@@ -21,7 +25,7 @@ export function startPanel(
   out: PanelOutput = process.stdout,
   intervalMs = 1000,
   /** What a terminal is shown; the dashboard unless the caller draws its own (with a selection, say). */
-  render: (s: PanelSnapshot, columns: number | undefined) => string[] = (s, columns) => renderDashboard(s, { columns }),
+  render: (s: PanelSnapshot, columns: number | undefined, rows: number | undefined) => string[] = (s, columns, rows) => renderDashboard(s, { columns, rows, color: colorWanted() }),
 ): (() => void) & { redraw: () => void } {
   let drawn = 0;
   const seen = new Map<string, string>();
@@ -36,7 +40,9 @@ export function startPanel(
 
   const redraw = (s: PanelSnapshot) => {
     // Lines wider than the terminal would wrap and break the cursor-up count; the dashboard cuts them itself.
-    const lines = render(s, out.columns);
+    // A frame taller than the terminal would scroll, and the cursor-up count could not reach its top: whoever draws is told the rows, and a renderer that ignores them is cut here.
+    const lines = render(s, out.columns, out.rows);
+    if (out.rows !== undefined && out.rows > 1 && lines.length >= out.rows) lines.length = out.rows - 1;
     out.write(`${drawn > 0 ? `\x1b[${drawn}A` : hideCursor}${lines.map((l) => `\r\x1b[2K${l}\n`).join('')}\x1b[J`);
     drawn = lines.length;
   };
@@ -65,8 +71,16 @@ export function startPanel(
   const tick = () => (out.isTTY ? redraw : emitChanges)(snapshot());
   tick();
   const timer = setInterval(tick, intervalMs);
+  // The old frame was laid out for another size and the terminal reflowed it, so the cursor-up count no longer reaches its top: clear the screen and draw from the corner, now rather than at the next tick.
+  const onResize = () => {
+    out.write('\x1b[2J\x1b[H');
+    drawn = 0;
+    tick();
+  };
+  if (out.isTTY) out.on?.('resize', onResize);
   const stop = () => {
     clearInterval(timer);
+    out.off?.('resize', onResize);
     if (out.isTTY) {
       process.removeListener('exit', restoreOnExit);
       out.write(showCursor);

@@ -3,7 +3,7 @@
 The terms Carrier uses, one file per topic.
 Read this index, then open only the topic that holds the term.
 
-**orchestration** ([glossary/orchestration.md](glossary/orchestration.md)): Carrier, Ready for test, Execution retry, Test/CI fix, Epic, Stage, Execution, Caller result, Human intervention, Control socket, Slice progress, Lane, Slot, Done, Cancelled, Finished window, Detached run, Resume (an epic), GitHub unavailable, Failure kind, Reload, Label role, Status label, Stage label, Reason label, Recover (an epic), Resume from a stage, Stage skill, Attempt (of an epic), Engine error, Wake-up (on quota), Cancelled before it started
+**orchestration** ([glossary/orchestration.md](glossary/orchestration.md)): Carrier, Ready for test, Execution retry, Test/CI fix, Epic, Stage, Execution, Caller result, Human intervention, Control socket, Slice progress, Lane, Slot, Done, Cancelled, Finished window, Dismissed epic, Detached run, Resume (an epic), GitHub unavailable, Failure kind, Reload, Label role, Status label, Stage label, Reason label, Recover (an epic), Resume from a stage, Stage skill, Attempt (of an epic), Engine error, Wake-up (on quota), Cancelled before it started
 
 **review** ([glossary/review.md](glossary/review.md)): Review round, Review thread, Blocker, Observation, Lead reviewer, Lead round, Extra reviewer, Reviewer type, Re-review (of a moved head), Unanswered observations
 

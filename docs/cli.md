@@ -156,7 +156,7 @@ See [configuration](configuration.md): the minimal file, every field with its de
 
 ## Run without a terminal
 
-`carrier start --config <path>` launches Carrier as a detached run (its own session, its output in `<folder>/engine/logs/start.log`) and returns once the control socket answers, within 15 seconds (it opens before the engine has recovered the epics that were running, and the panel says `starting` until then); in a Carrier folder where Carrier already runs it says so, does nothing and exits 0, and if it does not come up it prints the end of the log and exits 1. `carrier stop`, `pause`, `resume` and `check` do from any terminal what the panel's `Ctrl+C`, `p` and `r` do (`check` looks at GitHub now) and confirm in one line: exit 0 on success (`stop` also when none runs), 1 when no Carrier runs (or answers), 2 when it speaks another protocol. See [ADR 0010](adr/orchestration/0010-carrier-runs-in-the-background-as-a-detached-process.md).
+`carrier start --config <path>` launches Carrier as a detached run (its own session, its output in `<folder>/engine/logs/start.log`) and returns once the control socket answers, within 15 seconds (it opens before the engine has recovered the epics that were running, and the panel says `starting` until then); in a Carrier folder where Carrier already runs it says so, does nothing and exits 0, and if it does not come up it prints the end of the log and exits 1. `carrier stop`, `pause`, `resume` and `check` do from any terminal what the panel's `Ctrl+C`, `p` and `c` do (`check` looks at GitHub now) and confirm in one line: exit 0 on success (`stop` also when none runs), 1 when no Carrier runs (or answers), 2 when it speaks another protocol. See [ADR 0010](adr/orchestration/0010-carrier-runs-in-the-background-as-a-detached-process.md).
 
 `carrier reload` asks the running Carrier to read `engine.json` and `providers.json` again and run on them, without a restart: use it after editing the files by hand (the Mac app asks by itself after each save). It prints `Reloaded` and exits 0; when a file does not match it prints the problem with the key named, exits 1 and Carrier goes on with the settings it had. It also exits 1 when no Carrier runs or when the running one is too old to reload (restart it), and 2 when it speaks another protocol. Which settings follow, and what keeps what it started with: [configuration](configuration.md#changing-the-config-while-carrier-runs).
 
@@ -171,7 +171,33 @@ Under it each reviewer that gave none has a line with its slot (an extra reviewe
 An epic with one reviewer shows nothing new, and a round still waiting for a reviewer is not counted.
 The same round is an event of the epic (`round_decided`) with the count and the reasons.
 
-The panel is a dependency-free ANSI dashboard: uptime, repos watched and the next check, slots, a card per running epic (stage chain, review round, blockers, time in stage, last activity, links, errors), the queue, epics that need you and the ones ready for test, a hint when it is idle, and below it the epics that ended inside the finished window: DONE (merged) and CANCELLED (closed without a merge, with the stored reason), ten each and a `+N more` line; plain lines when there is no TTY. On a terminal it reads keys; a row is always selected (highlighted), each running card shows a `now` line of what its agent is doing (three lines when selected), and the footer lists only the keys that apply: `↑`/`↓` (or `j`/`k`) select, `enter` opens the PR or issue, `l` shows the agent's output, `r` checks GitHub now, `p` pauses or resumes taking new epics, `?` lists them, `q` quits like `Ctrl+C` (stops Carrier; in `watch` it only leaves).
+The panel is a dependency-free ANSI dashboard: uptime, repos watched and the next check, a line that sums up what there is (`3 running · 2 queued · ▲ 1 needs you · ✔ 1 ready`, leaving out what is zero), slots, a card per running epic (stage chain, review round, blockers, time in stage, last activity, links, errors), the queue, epics that need you and the ones ready for test, a hint when it is idle, and below it the epics that ended inside the finished window (merged, and cancelled, which is closed without a merge, with the stored reason). Plain lines when there is no TTY.
+On a terminal it reads keys and keeps to the height of the window: a row is always selected (highlighted), the header and the footer stay, and what does not fit scrolls to keep the selected row in view, with `↑ N more lines` and `↓ N more lines` where it is cut (a window below about nine rows has no room for more).
+Only the selected running card is whole (its stage chain, the stages with how each went, reviewers, links, three lines of `now`, what its agent is doing, and the open blockers); the others are two lines (the title, then the stage, round, blockers, slices, time in stage and last activity) plus the retry and the error when there are any.
+The merged and cancelled epics are one section, `CLOSED 7 ▸`, folded until you open it (`▾`): they are done, and their rows would push the live ones out of view.
+The heading is a row like the others: `↓` reaches it after the live epics, and `enter` or `→` opens it and `←` folds it (`f` does either from any row).
+While it is folded its epics cannot be selected; open, it lists DONE and CANCELLED, ten each and a `+N more` line.
+Ready for test is never folded: it still waits for its merge.
+`carrier status` and a pipe list them as before, with no folding.
+The footer lists only the keys that apply: `↑`/`↓` (or `j`/`k`) select, `enter` opens the PR or issue, `l` shows the agent's output, `enter` on the `CLOSED` heading (or `f`) shows or hides the closed epics, `d` dismisses the selected closed epic, `r` resumes the selected stopped epic, `c` checks GitHub now, `p` pauses or unpauses taking new epics, `?` lists them, `q` quits like `Ctrl+C` (stops Carrier; in `watch` it only leaves).
+
+On a card, `active 6m 00s ago ▲` turns yellow after 5 minutes without agent output and red after 15 (the `▲` is there without color too); an epic waiting out a retry is not marked, since it is quiet on purpose.
+The panel is drawn again at once when the terminal changes size, and paints nothing when `NO_COLOR` is set to a non-empty value or the terminal is `dumb`.
+`r` on a row of NEEDS YOU asks first (the status bar says what it will do, and a second `r` confirms; any other key withdraws it), then resumes the epic the way `carrier restart owner/name#N` does when it has no terminal to ask in: the same agents, from ship, as the Resume button of the Mac app (the panel never asks which agent to use).
+The engine answers when the epic has started again, up to 30 seconds later, so `carrier watch` sends it on a connection of its own and the panel shows `Resuming …` until the answer, then `Resumed …` or the engine's reason.
+An epic that stopped on its agent's quota says so in the question, since resuming it on the same account stops again: `carrier restart` lets you pick another agent.
+The key is offered only when the Carrier lists `resumeEpic` in its hello.
+`d` hides a merged or cancelled epic for good: it is not asked twice, the row leaves at the next snapshot and the selection moves to the next one, and the toast says `Dismissed owner/name#N` (or why Carrier refused).
+It hides; the epic, its logs and its issue and PR on GitHub stay as they were.
+Dismissing is stored by the engine, so the epic stays hidden in the next `carrier watch`, in the Mac app and after a restart.
+`d` is offered only on a closed row, and only when the Carrier you watch can do it.
+
+## Dismiss a finished epic
+
+The panel's `d` key (on a DONE or CANCELLED row) asks the running Carrier to take that epic out of the finished lists for good: the `dismissEpic` request of the socket, `{ repo, issue }`, answering `ok` and refusing with `epic.unknown` (Carrier does not know it) or `dismiss.notClosed` (it is not merged or cancelled).
+It sets `dismissedAt` on the epic and touches nothing else (its logs, sessions and events stay, and GitHub is not written); the epic is listed again if it finishes again.
+A Carrier that does not list `dismissEpic` in its hello is too old: `carrier watch` then does not offer the key (restart it to get it).
+See the [finished epics spec](specs/finished-epics-in-view.md#addendum-dismissing-a-finished-epic).
 
 ## Restart a stopped epic
 

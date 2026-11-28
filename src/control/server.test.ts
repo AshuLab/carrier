@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { acquireLock } from '../storage/lock.ts';
 import type { EpicReply, EventsReply, FileDiffReply, FilesReply } from './replies.ts';
+import { DismissRefused } from '../orchestration/dismiss-refused.ts';
 import { RecoverRefused } from '../orchestration/recover-refused.ts';
 import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
@@ -36,7 +37,7 @@ const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
 function fakeControls() {
   const state = { paused: false, polls: 0, repoPages: [] as number[] };
   const logs = vi.fn((id: string, count: number) => (id === executionId ? ['one', 'two', 'three'].slice(-count) : []));
-  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null | Promise<EpicReply | null> => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null | Promise<FilesReply | null> => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null | Promise<FileDiffReply | null> => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: (_repos: string[]): ConfigReply => ({ saved: {}, engine: 'applied' }), editBehavior: (_changes: Parameters<typeof editBehavior>[0]): ConfigReply => ({ saved: {}, engine: 'applied' }), editEngineFile: (_command: EngineFileRequest): ConfigReply => ({ saved: {}, engine: 'applied' }) } };
+  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null | Promise<EpicReply | null> => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null | Promise<FilesReply | null> => ({ sections: [], total: null, truncated: false }), fileDiff: (_repo: string, _issue: number, _section: string, _path: string): FileDiffReply | null | Promise<FileDiffReply | null> => ({ rows: [{ sign: '@', text: '@@ -1 +1 @@' }], truncated: false, note: null }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), dismissEpic: () => {}, reload: () => {}, setWatchedRepos: (_repos: string[]): ConfigReply => ({ saved: {}, engine: 'applied' }), editBehavior: (_changes: Parameters<typeof editBehavior>[0]): ConfigReply => ({ saved: {}, engine: 'applied' }), editEngineFile: (_command: EngineFileRequest): ConfigReply => ({ saved: {}, engine: 'applied' }) } };
 }
 
 const stop = async () => {};
@@ -81,7 +82,7 @@ async function client() {
 test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
   await open();
   const c = await client();
-  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config', 'extraReviewers'] });
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'dismissEpic', 'reload', 'config', 'extraReviewers'] });
   expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
   expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
 });
@@ -421,6 +422,31 @@ test('recoverEpic that fails for any other reason is an "internal error" without
   expect(await c.ask('{"id":3,"cmd":"snapshot"}')).toMatchObject({ id: 3, ok: true });
 });
 
+test('dismissEpic answers ok once the engine took the epic out of the finished lists, and asks it for that repo and issue alone', async () => {
+  const dismissEpic = vi.fn();
+  await open(undefined, { ...fakeControls().controls, dismissEpic });
+  expect(await (await client()).ask('{"id":4,"cmd":"dismissEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: true });
+  expect(dismissEpic.mock.calls).toEqual([['AshuLab/carrier', 5]]);
+});
+
+test.each([
+  ['epic.unknown', 'unknown epic'],
+  ['dismiss.notClosed', 'not closed'],
+] as const)('dismissEpic refused with %s answers "%s" as the words', async (code, reason) => {
+  await open(undefined, { ...fakeControls().controls, dismissEpic: () => { throw new DismissRefused(code, reason); } });
+  expect(await (await client()).ask('{"id":4,"cmd":"dismissEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: reason, code, params: {} });
+});
+
+test('dismissEpic that fails for any other reason is an "internal error" without the reason, and the server goes on', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  await open(undefined, { ...fakeControls().controls, dismissEpic: () => { throw new Error('SQLITE_BUSY at /secret/path'); } });
+  const c = await client();
+  const reply = await c.ask('{"id":2,"cmd":"dismissEpic","repo":"AshuLab/carrier","issue":5}');
+  expect(reply).toEqual({ id: 2, ok: false, error: 'internal error', code: 'request.internal', params: {} });
+  expect(JSON.stringify(reply)).not.toContain('secret');
+  expect(await c.ask('{"id":3,"cmd":"snapshot"}')).toMatchObject({ id: 3, ok: true });
+});
+
 test('reload asks the engine to reload and answers ok', async () => {
   const reload = vi.fn();
   await open(undefined, { ...fakeControls().controls, reload });
@@ -472,12 +498,13 @@ const validFields = {
   fileDiff: { repo: 'AshuLab/carrier', issue: 5, section: 'slice-12', path: 'src/a.ts' },
   resumeEpic: { repo: 'AshuLab/carrier', issue: 5, author: 'codex', reviewer: 'claude-ashu', from: 'review', extraRounds: 3 },
   recoverEpic: { repo: 'AshuLab/carrier', issue: 5 },
+  dismissEpic: { repo: 'AshuLab/carrier', issue: 5 },
 } as const;
 const badRepos = ['', 'carrier', 'a/b/c', '../b', 'a/..', './b', 'a/.', '/b', 'a/', 'a b/c', 'a/b?x', `${'a'.repeat(200)}/b`, 7, null];
 const invalid = (cmd: keyof typeof validFields, change: Record<string, unknown>) => ({ id: 3, cmd, ...validFields[cmd], ...change });
 
 const invalidRequests: (readonly [string, Record<string, unknown>])[] = [
-  ...(['sessions', 'epic', 'files', 'fileDiff', 'resumeEpic', 'recoverEpic'] as const).flatMap((cmd) => [
+  ...(['sessions', 'epic', 'files', 'fileDiff', 'resumeEpic', 'recoverEpic', 'dismissEpic'] as const).flatMap((cmd) => [
     ...badRepos.map((repo) => [`${cmd} with repo ${JSON.stringify(repo)}`, invalid(cmd, { repo })] as const),
     [`${cmd} with issue 0`, invalid(cmd, { issue: 0 })] as const,
     [`${cmd} with a string issue`, invalid(cmd, { issue: '5' })] as const,
@@ -507,7 +534,7 @@ const invalidRequests: (readonly [string, Record<string, unknown>])[] = [
   ['events with a negative cursor', invalid('events', { after: -1 })],
   ['events with a fractional cursor', invalid('events', { after: 0.5 })],
   ['events with a string cursor', invalid('events', { after: '1' })],
-  ...(['sessions', 'events', 'epic', 'files', 'fileDiff', 'resumeEpic', 'recoverEpic'] as const).flatMap((cmd) => [
+  ...(['sessions', 'events', 'epic', 'files', 'fileDiff', 'resumeEpic', 'recoverEpic', 'dismissEpic'] as const).flatMap((cmd) => [
     [`${cmd} with an extra field`, invalid(cmd, { extra: 1 })] as const,
     [`${cmd} with no fields`, { id: 3, cmd }] as const,
   ]),
@@ -528,6 +555,7 @@ test('no request takes a status, a stage or a round, and each accepts exactly th
     reload: [],
     resumeEpic: ['author', 'extraReviewers', 'extraRounds', 'from', 'issue', 'lead', 'repo', 'reviewer'],
     recoverEpic: ['issue', 'repo'],
+    dismissEpic: ['issue', 'repo'],
     setWatchedRepos: ['repos'],
     editBehavior: ['changes'],
     editRole: ['changes', 'role'],

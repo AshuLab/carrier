@@ -1,13 +1,16 @@
 import type { PanelSnapshot } from '../../../status/types.ts';
 import type { Sessions } from '../../dashboard/history.ts';
-import { renderDashboard } from '../../dashboard/dashboard.ts';
+import { colorWanted, renderDashboard } from '../../dashboard/dashboard.ts';
 import { startInteractivePanel, type Controls } from '../../dashboard/interactive.ts';
 import { startPanel } from '../../dashboard/panel.ts';
-import { ControlUnreachable, type CarrierClient } from '../control-client.ts';
+import { enginePlacesOf } from '../../../config/places.ts';
+import { connectControl, ControlRefused, ControlUnreachable, type CarrierClient } from '../control-client.ts';
+import { refusals } from './restart.ts';
 import { openUrl } from '../open-url.ts';
 import { attach, stagesOf } from './status.ts';
 
 const REFRESH_MS = 1000;
+const RESUME_WAIT_MS = 40_000; // the engine waits up to 30 seconds for the epic to start again before it refuses
 const TAIL_LINES = 18; // what the logs screen shows; the cards' "now" lines take the end of the same answer
 
 /**
@@ -17,7 +20,10 @@ const TAIL_LINES = 18; // what the logs screen shows; the cards' "now" lines tak
  * The stages of each epic work the same way: the panel's cache rule decides when to ask again, the request goes out
  * in the background, the last answer stays on screen meanwhile and the next redraw shows the new one.
  */
-export function socketPanel(client: Pick<CarrierClient, 'hello' | 'request'>, { open, quit, lost }: { open: (url: string) => void; quit: () => void; lost: () => void }) {
+export function socketPanel(
+  client: Pick<CarrierClient, 'hello' | 'request'>,
+  { open, quit, lost, connect }: { open: (url: string) => void; quit: () => void; lost: () => void; connect?: () => Promise<Pick<CarrierClient, 'request' | 'close'>> },
+) {
   let latest: PanelSnapshot;
   const tails = new Map<string, { lines: string[]; asking: boolean }>();
   // Another failure (the engine refused one request) leaves the panel as it was.
@@ -47,6 +53,35 @@ export function socketPanel(client: Pick<CarrierClient, 'hello' | 'request'>, { 
     setPaused: (paused) => guard(client.request(paused ? 'pause' : 'resume')),
     open,
     quit,
+    // An older Carrier would only answer "invalid request": the key is not offered.
+    ...(client.hello.capabilities.includes('dismissEpic') && {
+      dismiss: (repo: string, issue: number) =>
+        client.request('dismissEpic', { repo, issue }).then(
+          () => ({ ok: true as const }),
+          (error) => {
+            if (error instanceof ControlRefused) return { ok: false as const, reason: (error.code === undefined ? undefined : refusals[error.code]?.(`${repo}#${issue}`, error.params)) ?? `Carrier refused: ${error.message}` };
+            if (error instanceof ControlUnreachable) lost();
+            return { ok: false as const, reason: 'Carrier does not answer' };
+          },
+        ),
+    }),
+    // The engine answers a resume once the epic has started again, up to 30 seconds later, and this connection gives up on a request after 5:
+    // the resume goes on a connection of its own, so a slow answer cannot read as a Carrier that stopped answering.
+    ...(connect !== undefined && client.hello.capabilities.includes('resumeEpic') && {
+      resume: async (repo: string, issue: number) => {
+        let own: Awaited<ReturnType<NonNullable<typeof connect>>> | undefined;
+        try {
+          own = await connect();
+          await own.request('resumeEpic', { repo, issue });
+          return { ok: true as const };
+        } catch (error) {
+          if (error instanceof ControlRefused) return { ok: false as const, reason: (error.code === undefined ? undefined : refusals[error.code]?.(`${repo}#${issue}`, error.params)) ?? `Carrier refused: ${error.message}` };
+          return { ok: false as const, reason: 'Carrier does not answer' };
+        } finally {
+          own?.close();
+        }
+      },
+    }),
     logs: (executionId, count) => {
       const tail = tails.get(executionId) ?? { lines: [], asking: false };
       tails.set(executionId, tail);
@@ -87,7 +122,7 @@ export async function watchCommand(folder: string): Promise<number> {
       resolve(code);
     };
     const leave = () => finish(0);
-    const panel = socketPanel(client, { open: openUrl, quit: leave, lost: () => finish(1, 'Carrier stopped.') });
+    const panel = socketPanel(client, { open: openUrl, quit: leave, lost: () => finish(1, 'Carrier stopped.'), connect: () => connectControl(enginePlacesOf(folder).socket, { timeoutMs: RESUME_WAIT_MS }) });
     process.once('SIGINT', leave); // a Ctrl+C that is not a key: no raw mode, because stdin is not a terminal
 
     panel.refresh().then(
@@ -96,7 +131,7 @@ export async function watchCommand(folder: string): Promise<number> {
         stop =
           stdout.isTTY && stdin.isTTY
             ? startInteractivePanel({ snapshot: panel.snapshot, out: stdout, stdin, controls: panel.controls, quit: 'leave' })
-            : startPanel(panel.snapshot, stdout, REFRESH_MS, (s, columns) => renderDashboard(s, { columns, quit: 'leave', detail: panel.controls.detail }));
+            : startPanel(panel.snapshot, stdout, REFRESH_MS, (s, columns, rows) => renderDashboard(s, { columns, rows, color: colorWanted(), quit: 'leave', detail: panel.controls.detail }));
         let asking = false;
         timer = setInterval(() => {
           if (asking) return;

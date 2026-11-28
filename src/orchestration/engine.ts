@@ -25,6 +25,7 @@ import { epics, type cancelKinds, type needsHumanKinds } from '../storage/schema
 import type { Clock } from './clock.ts';
 import { latestBlockers, latestLeadBlockers, latestObservations, openBlockerSlots } from './blockers.ts';
 import { changesSlices } from './changes-slices.ts';
+import { DismissRefused } from './dismiss-refused.ts';
 import { RecoverRefused } from './recover-refused.ts';
 import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
@@ -2022,6 +2023,17 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       }
       // Every resume says what asked for it, as `recover` does; a plain one is from ship.
       db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'resumed', data: { from: chosen.from ?? 'ship', by: 'command', ...(picked.length > 0 && { options: Object.fromEntries(picked) }), ...(adopted && { headAdopted: { from: epic.prHeadSha, to: adopted } }) } }).run();
+    },
+    /**
+     * Takes a merged or cancelled epic out of the finished lists of the snapshot, for good: it keeps its row, logs, sessions and events, and GitHub is not written.
+     * Asking again is harmless. The epic shows again if it runs again and finishes again (the snapshot hides it only while `dismissedAt` is not before `finishedAt`).
+     * Throws DismissRefused for an epic the engine does not know or one that is not merged or cancelled.
+     */
+    dismissEpic(repo: string, issue: number) {
+      const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
+      if (!epic) throw new DismissRefused('epic.unknown', 'unknown epic');
+      if (epic.status !== 'merged' && epic.status !== 'cancelled') throw new DismissRefused('dismiss.notClosed', 'not closed');
+      db.update(epics).set({ dismissedAt: clock.now() }).where(and(eq(epics.id, epic.id), inArray(epics.status, ['merged', 'cancelled']))).run();
     },
     /**
      * Continues one running epic whose agent is not alive, from its real state, through the code of the poll's recovery (ADR 0044); resolves once it was continued.

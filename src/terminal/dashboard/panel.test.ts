@@ -126,3 +126,45 @@ test('without a terminal the finished epics are written once, and again only whe
   expect(writes.filter((w) => w.includes('done  acme/web#3')).length).toBe(1);
   stop();
 });
+
+test('the renderer is told the size of the terminal, and a frame that does not fit is cut to leave the last row free', () => {
+  const sizes: unknown[] = [];
+  const writes: string[] = [];
+  const out: PanelOutput = { isTTY: true, columns: 70, rows: 6, write: (t) => writes.push(t) };
+  const stop = startPanel(snapshot, out, 1000, (_, columns, rows) => (sizes.push([columns, rows]), Array.from({ length: 9 }, (_, i) => `line ${i}`)));
+  expect(sizes).toEqual([[70, 6]]);
+  expect(writes[0]!.match(/line \d/g)).toHaveLength(5); // rows - 1: the cursor-up of the next frame can reach the top
+  vi.advanceTimersByTime(1000);
+  expect(writes[1]).toContain('\x1b[5A');
+  stop();
+
+  const tall: PanelOutput = { isTTY: true, write: (t) => writes.push(t) }; // no rows (a pipe, a test): nothing is cut
+  writes.length = 0;
+  startPanel(snapshot, tall, 1000, () => Array.from({ length: 9 }, (_, i) => `line ${i}`))();
+  expect(writes[0]!.match(/line \d/g)).toHaveLength(9);
+});
+
+test('the default dashboard fits the terminal it is drawn on', () => {
+  const writes: string[] = [];
+  state.epics = Array.from({ length: 6 }, (_, i) => ({ ...epic, issue: i + 1 }));
+  const stop = startPanel(snapshot, { isTTY: true, columns: 80, rows: 15, write: (t) => writes.push(t) });
+  expect(writes[0]!.split('\n').length - 1).toBeLessThanOrEqual(14);
+  stop();
+});
+
+test('a terminal that changes size is cleared and drawn again at once, not at the next tick, and the listener goes with the panel', () => {
+  const writes: string[] = [];
+  const listeners: Array<() => void> = [];
+  const out: PanelOutput = { isTTY: true, columns: 80, rows: 30, write: (t) => writes.push(t), on: (_, l) => listeners.push(l), off: (_, l) => listeners.splice(listeners.indexOf(l), 1) };
+  const stop = startPanel(snapshot, out, 1000, () => ['a', 'b']);
+  expect(listeners).toHaveLength(1);
+  const drawn = writes.length;
+  listeners[0]!(); // the window was resized
+  expect(writes.slice(drawn).join('')).toBe('\x1b[2J\x1b[H\x1b[?25l\r\x1b[2Ka\n\r\x1b[2Kb\n\x1b[J'); // cleared, then a whole frame from the corner: no cursor-up count of the old size
+  stop();
+  expect(listeners).toHaveLength(0);
+  // not a terminal: nothing is listened to
+  const plain: PanelOutput = { isTTY: false, write: () => {}, on: () => listeners.push(() => {}) };
+  startPanel(snapshot, plain, 1000)();
+  expect(listeners).toHaveLength(0);
+});

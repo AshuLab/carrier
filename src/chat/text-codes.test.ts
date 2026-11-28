@@ -92,7 +92,7 @@ function found(): Found[] {
     const text = readFileSync(path, 'utf8');
     const at = path.slice(root.length);
     // a refusal takes its code, its words and its params; a reply takes its id first, and a probe's error its status
-    for (const call of text.matchAll(/new (?:Chat|Resume|Recover|Reload|Config)Refused\(|new PriceOverrideInvalid\(|new ProbeError\(|\brefused\((?=[^)])/g)) {
+    for (const call of text.matchAll(/new (?:Chat|Resume|Recover|Dismiss|Reload|Config)Refused\(|new PriceOverrideInvalid\(|new ProbeError\(|\brefused\((?=[^)])/g)) {
       const open = call.index + call[0].length - 1;
       const args = parts(text, open);
       const [code, params] = call[0].startsWith('new') && call[0] !== 'new ProbeError(' ? [args[0]!, args[2]] : [args[1]!, args[3]];

@@ -44,7 +44,7 @@ finishedWindowDays: 15,                       // load.ts defaults
 
 `z.int()` already refuses fractions and non-numbers, so `0`, `31`, `7.5` and `"7"` are all errors.
 
-The window test is `finishedAt >= now - days * 86_400_000` on the injected clock; `buildSnapshot` receives the window as an input like `maxReviews` and reads `merged` and `cancelled` rows ordered by `finishedAt` descending. No new table, no migration: the data is the epics row.
+The window test is `finishedAt >= now - days * 86_400_000` on the injected clock; `buildSnapshot` receives the window as an input like `maxReviews` and reads `merged` and `cancelled` rows ordered by `finishedAt` descending. No new table: the data is the epics row (the one column the dismissal adds, `dismissedAt`, is in the addendum at the end).
 
 The `finished` field is additive and is not a rename of `done`. A single field carries both statuses, and each group is the client filtering by `status`, so the engine runs one query.
 
@@ -62,6 +62,24 @@ Testing seams, per story:
 - Story 7: `EngineConfigTests.swift` and `BehaviorSaveTests.swift` (read, refuse out of range, save).
 - Story 8: `src/orchestration/engine.test.ts`, which already covers the cancel paths; the assertions change to the English text.
 
+## Addendum: dismissing a finished epic
+
+A person can take a merged or cancelled epic out of the finished lists.
+The epic keeps its row, logs, sessions and events (the retention purge is unchanged) and GitHub is not written; only the listing changes.
+
+- `epics.dismissedAt` (ms since epoch, nullable) is set by the control request `dismissEpic { repo, issue }` (capability `dismissEpic`), which answers `ok` with no data, and refuses with `epic.unknown` for an epic Carrier does not know and `dismiss.notClosed` for one that is not merged or cancelled.
+  Asking again is harmless.
+- The snapshot's `finished` leaves out an epic whose `dismissedAt` is not before its `finishedAt`.
+  An epic that runs again and finishes again has a newer `finishedAt` and is listed again, so nothing needs to clear the column.
+  `done` (ready for test) is not affected.
+- It is persistent and global: it holds across restarts of Carrier and for the terminal panel and the macOS app alike, which read the same snapshot.
+  The macOS app has no control for it yet.
+- A Carrier that does not list `dismissEpic` in its hello is not asked: the panel does not offer the key.
+- The terminal panel no longer shows DONE and CANCELLED under READY FOR TEST as the Solution and scope 4 describe.
+  It shows them as one `CLOSED` section, folded until opened, with the same ten rows each and `+N more` once open.
+  While it is folded its rows cannot be selected.
+  Ready for test stays visible.
+
 ## Out of scope
 
-A history view with search, filters or pagination. Reactivating, re-running or acting on a finished epic from the panel. Changing retention (the 30-day purge stays as it is). Counting finished epics in the menu bar icon or in notifications. A configurable row cap in the terminal panel. Epics in `repo_removed`, which keep their own state and are not finished.
+A history view with search, filters or pagination. Reactivating or re-running a finished epic (the one action on it from the panel is the dismissal of the addendum at the end). Changing retention (the 30-day purge stays as it is). Counting finished epics in the menu bar icon or in notifications. A configurable row cap in the terminal panel. Epics in `repo_removed`, which keep their own state and are not finished.

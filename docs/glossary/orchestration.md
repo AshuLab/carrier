@@ -46,6 +46,11 @@ _Avoid_: failed, aborted.
 
 **Finished window** - How many days after an epic ends it stays listed under Done or Cancelled (`finishedWindowDays`, 15 by default, at most 30 because the retention purge deletes logs and sessions at 30). Counted from when the epic left `running`. After it the epic is only reachable by its issue and PR on GitHub; its row stays in SQLite.
 
+**Dismissed epic** - A merged or cancelled epic a person took out of the finished lists (`dismissEpic` of the control socket; the `d` key of the terminal panel).
+Kept in SQLite as `dismissedAt`, so it stays out across restarts and for every client, until the epic finishes again after it.
+Only the listing changes: the row, its logs, sessions and events are untouched, and GitHub is not written.
+_Avoid_: deleted, archived, cleared.
+
 **Detached run** - Carrier started with `carrier start`: its own session, no terminal, its output in a log under the engine's logs folder (`engine/logs/` in the Carrier folder), reached through its control socket (`carrier status`, `watch`, `stop`, or the macOS app). Nothing starts it but a person; it is not a login service and nothing restarts it if it dies.
 _Avoid_: daemon, service (a launchd service is the alternative that was not chosen), background process.
 

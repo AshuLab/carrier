@@ -31,7 +31,7 @@ const controls = {
   epic: (): EpicReply | null => null,
   files: (): FilesReply | null => null,
   fileDiff: () => null,
-  availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }),
+  availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), recoverEpic: () => Promise.resolve(), dismissEpic: () => {}, reload: () => {}, setWatchedRepos: () => ({ saved: {}, engine: 'applied' as const }), editBehavior: () => ({ saved: {}, engine: 'applied' as const }), editEngineFile: () => ({ saved: {}, engine: 'applied' as const }),
 };
 
 async function realServer() {
@@ -63,7 +63,7 @@ test('connect returns the hello and a request resolves with the data of its repl
   await realServer();
   const client = await connectControl(path());
   closers.push(client.close);
-  expect(client.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config', 'extraReviewers'] });
+  expect(client.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'dismissEpic', 'reload', 'config', 'extraReviewers'] });
   expect(typeof client.hello.version).toBe('string');
   expect(await client.request('snapshot')).toEqual(snapshotData);
   expect(await client.request('pause')).toBeUndefined();

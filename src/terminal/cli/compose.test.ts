@@ -307,7 +307,7 @@ test('a panel that writes to something that is not a terminal, as the detached s
   intervals.mockRestore();
 });
 
-test('with a terminal on both sides the panel takes keys: r polls now, p pauses intake, q quits, and nothing else changes without one', async () => {
+test('with a terminal on both sides the panel takes keys: c polls now, p pauses intake, q quits, and nothing else changes without one', async () => {
   const { github, seen, deps } = fakes();
   const { EventEmitter } = await import('node:events');
   const stdin = Object.assign(new EventEmitter(), { isTTY: true, setRawMode: vi.fn(), resume: vi.fn(), pause: vi.fn() });
@@ -317,7 +317,7 @@ test('with a terminal on both sides the panel takes keys: r polls now, p pauses 
   expect(stdin.setRawMode).toHaveBeenLastCalledWith(true);
 
   const calls = github.calls;
-  stdin.emit('keypress', 'r', { name: 'r' });
+  stdin.emit('keypress', 'c', { name: 'c' });
   await vi.waitFor(() => expect(github.calls).toBeGreaterThan(calls)); // polled without waiting for the interval
   await app.engine.pollNow(); // joins that poll: the database is not closed under it
   stdin.emit('keypress', 'p', { name: 'p' });

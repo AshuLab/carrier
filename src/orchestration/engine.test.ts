@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm';
 import { epics } from '../storage/schema.ts';
 import type { QuotaSnapshot } from '../usage/types.ts';
 import { createEngine, type EngineSettings } from './engine.ts';
+import { DismissRefused } from './dismiss-refused.ts';
 import { ReloadRefused } from './reload-refused.ts';
 import type { RecoverRefused, RecoverRefusal } from './recover-refused.ts';
 import type { ResumeRefused, ResumeRefusal } from './resume-refused.ts';
@@ -5642,6 +5643,45 @@ test('an unexpected error in a recovery stops that epic in engine_error and the 
   await clock.advance(5 * MIN);
   expect(rows(engine.db).map((e) => [e.status, e.needsHumanKind, e.needsHumanReason])).toEqual([['needs_human', 'engine_error', 'boom'], ['running', null, null]]);
   expect(runner.tasks.map((t) => t.epic)).toEqual([2]);
+});
+
+// --- dismissEpic: a closed epic leaves the finished lists, and nothing else of it changes ---
+
+const dismissal = (engine: Awaited<ReturnType<typeof start>>, issue: number, repo = 'AshuLab/a') => {
+  try {
+    engine.dismissEpic(repo, issue);
+    return null;
+  } catch (e) {
+    expect(e).toBeInstanceOf(DismissRefused);
+    return [(e as DismissRefused).code, (e as DismissRefused).reason];
+  }
+};
+
+test('dismissEpic marks a merged or a cancelled epic as dismissed now, asking again keeps it so, and nothing else of the epic changes', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { status: 'merged', finishedAt: 1_000, prNumber: 7 });
+  seedEpic(engine.db, 2, { status: 'cancelled', finishedAt: 2_000, cancelReason: 'closed' });
+  const before = rows(engine.db);
+  expect(before.map((e) => e.dismissedAt)).toEqual([null, null]);
+  await clock.advance(5_000);
+  const at = clock.now();
+  expect(dismissal(engine, 1)).toBeNull();
+  expect(dismissal(engine, 2)).toBeNull();
+  expect(dismissal(engine, 1)).toBeNull();
+  expect(rows(engine.db)).toEqual(before.map((e) => ({ ...e, dismissedAt: at })));
+  expect(eventTypes(engine.db)).toEqual([]);
+});
+
+test('dismissEpic refuses an epic the engine does not know and one that is not closed, and touches nothing', async () => {
+  const engine = await start(1);
+  seedEpic(engine.db, 1, { status: 'running' });
+  seedEpic(engine.db, 2, { status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'x' });
+  seedEpic(engine.db, 3, { status: 'ready_for_test', finishedAt: 1_000 });
+  seedEpic(engine.db, 4, { status: 'queued', stage: null });
+  expect(dismissal(engine, 9)).toEqual(['epic.unknown', 'unknown epic']);
+  expect(dismissal(engine, 1, 'AshuLab/other')).toEqual(['epic.unknown', 'unknown epic']);
+  for (const issue of [1, 2, 3, 4]) expect(dismissal(engine, issue)).toEqual(['dismiss.notClosed', 'not closed']);
+  expect(rows(engine.db).map((e) => e.dismissedAt)).toEqual([null, null, null, null]);
 });
 
 // --- recoverEpic: the same recovery, asked for one epic (ADR 0044) ---

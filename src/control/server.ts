@@ -9,6 +9,7 @@ import { ConfigRefused } from '../config/engine-edit.ts';
 import { slugPattern } from '../config/extra-reviewer-key.ts';
 import { optionNamePattern } from '../config/providers.ts';
 import type { TextParams } from '../orchestration/text-params.ts';
+import { DismissRefused } from '../orchestration/dismiss-refused.ts';
 import { RecoverRefused } from '../orchestration/recover-refused.ts';
 import { ReloadRefused } from '../orchestration/reload-refused.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
@@ -96,6 +97,7 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('reload') }),
   z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional(), extraReviewers: extraReviewerOptions.optional(), lead: optionName.optional(), from: z.enum(['ship', 'review', 'fix']).optional(), extraRounds: extraRounds.optional() }),
   z.strictObject({ id, cmd: z.literal('recoverEpic'), repo, issue }),
+  z.strictObject({ id, cmd: z.literal('dismissEpic'), repo, issue }),
   setWatchedReposRequest,
   editBehaviorRequest,
   ...engineFileRequests,
@@ -105,9 +107,9 @@ export const request = z.union([
 export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
-export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'resumeFromStage' | 'resumeReviewerOptions' | 'recoverEpic' | 'reload' | 'config' | 'extraReviewers';
+export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'resumeFromStage' | 'resumeReviewerOptions' | 'recoverEpic' | 'dismissEpic' | 'reload' | 'config' | 'extraReviewers';
 /** What the hello announces. */
-export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'reload', 'config', 'extraReviewers'];
+export const capabilities: Capability[] = ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'resumeFromStage', 'resumeReviewerOptions', 'recoverEpic', 'dismissEpic', 'reload', 'config', 'extraReviewers'];
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: (Capability | ChatCapability)[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string; code?: string; params?: TextParams };
 
@@ -135,6 +137,8 @@ export type Controls = {
   resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string; extraReviewers?: Record<string, string>; lead?: string; from?: 'ship' | 'review' | 'fix'; extraRounds?: number }): Promise<void>;
   /** Continues one running epic whose agent is not alive and resolves once it was; rejects with RecoverRefused when it could not. It takes no state: the engine reads the epic's own. */
   recoverEpic(repo: string, issue: number): Promise<void>;
+  /** Takes a merged or cancelled epic out of the snapshot's finished list for good; throws DismissRefused for an unknown epic or one that is not closed. Nothing else of the epic is touched. */
+  dismissEpic(repo: string, issue: number): void;
   /** Reads the settings again and runs on them; throws ReloadRefused, with the settings as they were, when they are not valid. */
   reload(): void;
   /** Writes the watched repos of `engine.json` and makes the engine run on the file; throws a `ConfigRefused`, the file left as it was, for a list the engine would refuse. */
@@ -273,6 +277,17 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
           return refused(replyId, 'request.internal', 'internal error');
         },
       );
+  }
+  if (parsed.data.cmd === 'dismissEpic') {
+    const { id: replyId, repo, issue } = parsed.data;
+    try {
+      controls.dismissEpic(repo, issue);
+      return { id: replyId, ok: true };
+    } catch (error) {
+      if (error instanceof DismissRefused) return refused(replyId, error.code, error.reason, error.params);
+      log.error('dismissEpic failed', error);
+      return refused(replyId, 'request.internal', 'internal error');
+    }
   }
   if (parsed.data.cmd === 'reload') {
     try {

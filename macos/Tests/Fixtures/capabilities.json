@@ -11,6 +11,7 @@
     "resumeFromStage",
     "resumeReviewerOptions",
     "recoverEpic",
+    "dismissEpic",
     "reload",
     "config",
     "extraReviewers"

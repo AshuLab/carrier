@@ -6,16 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- The terminal panel (`carrier watch` and the foreground one) resumes a stopped epic with `r`: it asks once more (a second `r` confirms) and starts it again from ship on the same agents, as the Resume button of the Mac app does.
+- The merged and cancelled epics are one `CLOSED` section in the terminal panel, folded until you open it with `enter`, `→` or `f`, and `d` on one of them hides it for good, also in the Mac app, through a new `dismissEpic` request of the control socket.
+- A running agent that has written nothing for 5 minutes is marked `▲` in yellow on its card in the terminal panel, and in red after 15.
+
+### Changed
+
+- The terminal panel fits the height of the terminal and scrolls to keep the selected epic in view; a running epic takes two lines until you select it, a line under the header counts the running, queued, stopped and ready epics, and a status bar under a rule says what a key did.
+- In the terminal panel `c` checks GitHub now (it was `r`), and the rounds of an epic are drawn as `● ● ○ ○ ○`.
+- The terminal panel paints nothing when `NO_COLOR` is set to a non-empty value, and is drawn again at once when the terminal changes size.
+- A session's background processes are a button in the window header, beside Subagents, with a list of them under it (name, how long it has run, Stop and Stop all), instead of a card over the message box.
+- The header's terminal button is a square with a prompt, so it is not taken for the Processes button.
+- The sidebar's foot is two icon buttons, Settings at the left and Usage at the right, instead of two rows with words; their names show as tooltips.
+
 ### Fixed
 
 - Leaving a session no longer loses what you left in its box: the dropped files and pasted texts stay as chips and cards, and a message held while the agent was answering is still held when you come back.
 - New session keeps what you wrote (the text, pasted texts and dropped files) until you send it, instead of starting blank every time it opens.
-
-### Changed
-
-- A session's background processes are a button in the window header, beside Subagents, with a list of them under it (name, how long it has run, Stop and Stop all), instead of a card over the message box.
-- The header's terminal button is a square with a prompt, so it is not taken for the Processes button.
-- The sidebar's foot is two icon buttons, Settings at the left and Usage at the right, instead of two rows with words; their names show as tooltips.
 
 ## [0.21.0] - 2026-11-27
 

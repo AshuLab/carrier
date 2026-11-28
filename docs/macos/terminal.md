@@ -44,7 +44,7 @@ When a tab is split, `TerminalPaneHostView` dims unfocused panes when `dimInacti
 
 ## Session terminal drawer
 
-Open chat sessions show a terminal glass icon (`terminal`, `terminal.fill` while the drawer is open) in the toolbar, with no words (`ToolbarGlassIconButton`, `Carrier/Features/Epics/PanelToolbar.swift`).
+Open chat sessions show a terminal glass icon (`AppIcon.squareTerminal`, a square with a prompt, so it is not taken for the Processes button beside it) in the toolbar, with no words (`ToolbarGlassIconButton`, `Carrier/Features/Epics/PanelToolbar.swift`).
 Toggling it opens or hides `TerminalDrawerView` under `ConversationView`, persisted in `WindowShell.terminalDrawerOwners` for the window session and sized by `AppPreferences.terminalDrawerHeightKey` (`"terminal.drawerHeight"`), which is written when the edge is released and not at every tick of the drag (the drawer is drawn from a local height meanwhile).
 The drawer starts a `TerminalOwner.session` tab in the session's folder on first open, reuses the shared bottom-tab chrome with a collapse chevron on the right and collapses automatically when its last tab closes.
 Archiving or deleting a session closes and prunes its terminal tabs (`SessionActions`, `ChatSessionsPoller`).

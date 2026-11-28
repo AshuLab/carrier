@@ -29,10 +29,6 @@ struct ConversationBox: View {
             if model.agentWork.isEmpty == false {
                 BackgroundWorkCard(tasks: model.agentWork, stop: { Task { await model.stop() } }, stopTask: model.canStopTask ? { id in Task { await model.stopTask(id) } } : nil).transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            if let card = model.processesCard {
-                ProcessesCardView(card: card, stopAll: { Task { await model.stopProcesses() } }, stopOne: { id in Task { await model.stopTask(id) } })
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
             if model.folderGone { FolderGoneNotice().transition(.opacity) }
             else if model.asleep { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
             if let queued = model.queued {
@@ -43,7 +39,7 @@ struct ConversationBox: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             MessageBox(
-                text: $model.draft, placeholder: Copy.chatComposerPlaceholder(), minLines: 2,
+                text: $model.draft, attachments: $model.files, pastes: $model.pastes, placeholder: Copy.chatComposerPlaceholder(), minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, canSendWithText: true, busy: model.busy,
                 focus: $boxFocused, commands: model.shownCommands, dictationOwner: "session:\(model.sessionId)", dictateRequest: dictations,
                 meter: showsContextUsage ? AnyView(ContextUsageButton(context: contextUse(model.rows), account: model.agent, store: AppUsage.store, busy: model.busy)) : nil,

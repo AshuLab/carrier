@@ -134,8 +134,25 @@ public func choiceIcon(option: String, value: String) -> String? {
 private final class Drafts: @unchecked Sendable {
     private let lock = NSLock()
     private var texts: [String: String] = [:]
+    private var unsent: [String: Unsent] = [:]
     func get(_ id: String) -> String { lock.withLock { texts[id] ?? "" } }
     func set(_ id: String, _ text: String) { lock.withLock { texts[id] = text.isEmpty ? nil : text } }
+    func getUnsent(_ id: String) -> Unsent { lock.withLock { unsent[id] ?? Unsent() } }
+    func setUnsent(_ id: String, _ kept: Unsent) { lock.withLock { unsent[id] = kept == Unsent() ? nil : kept } }
+}
+
+/// What a session's box holds that is not the typed text, kept with it (in memory, like the text) so leaving the session does not lose it.
+public struct Unsent: Equatable, Sendable {
+    public var pastes: [String] = []
+    public var files: [AttachedFile] = []
+    /// The message held while the agent answers, which goes when the turn ends.
+    public var queued: String?
+
+    public init(pastes: [String] = [], files: [AttachedFile] = [], queued: String? = nil) {
+        self.pastes = pastes
+        self.files = files
+        self.queued = queued
+    }
 }
 private let drafts = Drafts()
 
@@ -151,6 +168,9 @@ public struct OptionsMemory: Sendable {
     /// What was typed in the session's box and not sent, so leaving the session (or the app) does not lose it.
     public var loadDraft: @Sendable (String) -> String
     public var saveDraft: @Sendable (String, String) -> Void
+    /// What the box holds besides the text (long pastes, attached files, the message held for the end of the turn), for the same reason.
+    public var loadUnsent: @Sendable (String) -> Unsent
+    public var saveUnsent: @Sendable (String, Unsent) -> Void
     /// Drops everything kept for a session that was deleted (not archived: an archived one can come back with its options).
     public var forget: @Sendable (String) -> Void
 
@@ -159,6 +179,7 @@ public struct OptionsMemory: Sendable {
         loadCommands: @escaping @Sendable (String) -> [ChatCommand] = { _ in [] }, saveCommands: @escaping @Sendable (String, [ChatCommand]) -> Void = { _, _ in },
         loadAgent: @escaping @Sendable (String) -> String = { _ in "" }, saveAgent: @escaping @Sendable (String, String) -> Void = { _, _ in },
         loadDraft: @escaping @Sendable (String) -> String = { _ in "" }, saveDraft: @escaping @Sendable (String, String) -> Void = { _, _ in },
+        loadUnsent: @escaping @Sendable (String) -> Unsent = { _ in Unsent() }, saveUnsent: @escaping @Sendable (String, Unsent) -> Void = { _, _ in },
         forget: @escaping @Sendable (String) -> Void = { _ in }
     ) {
         self.load = load
@@ -169,6 +190,8 @@ public struct OptionsMemory: Sendable {
         self.saveAgent = saveAgent
         self.loadDraft = loadDraft
         self.saveDraft = saveDraft
+        self.loadUnsent = loadUnsent
+        self.saveUnsent = saveUnsent
         self.forget = forget
     }
 
@@ -194,9 +217,12 @@ public struct OptionsMemory: Sendable {
             saveAgent: { id, agent in defaults.set(agent, forKey: SessionKey.agent.key(id)) },
             loadDraft: { id in drafts.get(id) },
             saveDraft: { id, text in drafts.set(id, text) },
+            loadUnsent: { id in drafts.getUnsent(id) },
+            saveUnsent: { id, unsent in drafts.setUnsent(id, unsent) },
             forget: { id in
                 for kind in SessionKey.allCases { defaults.removeObject(forKey: kind.key(id)) }
                 drafts.set(id, "")
+                drafts.setUnsent(id, Unsent())
             }
         )
     }

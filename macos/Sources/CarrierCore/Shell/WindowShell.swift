@@ -53,6 +53,8 @@ public enum ConversationAction: Equatable {
     case focusBox, stopAgent, jumpToLatest, toggleToolFolds, copyLastAnswer
     /// The Stop button in a subagent view's header: not a shortcut, the header is the window's and the conversation holds the host.
     case stopSubagent
+    /// The Stop of the Processes list in the window's header: one process, or all of them. Also the header's, so the conversation holds the host.
+    case stopProcess(String), stopProcesses
     /// The global shortcut: focus the message box and start or stop its dictation.
     case dictate
 }
@@ -90,7 +92,11 @@ public struct ArchiveRequest: Equatable {
             if selection == .newSession, navigating == false { newSessionOpened += 1 }
             subagents = []
             subagentHeader = nil
-            subagentsList = .empty
+            // what the open conversation pushed to the header stays when the same session is chosen again: the conversation is not made anew, so it would not push it again
+            if oldValue != selection {
+                subagentsList = .empty
+                processes = nil
+            }
             switch selection {
             case .sessions, .session, .newSession: open = .sessions
             case .terminals, .terminal: open = .terminal
@@ -140,6 +146,8 @@ public struct ArchiveRequest: Equatable {
     public var subagentHeader: SubagentHeader?
     /// The open session's subagents, set by the conversation, for the header's Subagents button; empty on any other page.
     public var subagentsList: SubagentsList = .empty
+    /// The open session's background processes, set by the conversation, for the header's Processes button; nil with none and on any other page.
+    public var processes: ProcessesCard?
     /// Counts the times New session was asked for, the + while its draft is already open included: the draft starts blank each time.
     public private(set) var newSessionOpened = 0
     /// The unfolded section; nil when all are folded.

@@ -19,6 +19,7 @@ struct PanelView: View {
     @State var windowSize = CGSize(width: 1100, height: 700)
     /// Whether the Subagents list popover is open in the toolbar.
     @State var subagentsOpen = false
+    @State var processesOpen = false
     /// The right panel's width: also the empty toolbar item that keeps the epic's buttons off it.
     static let inspectorWidth: CGFloat = 316
 
@@ -121,8 +122,8 @@ struct PanelView: View {
                 .onChange(of: shell.selection) { old, _ in
                     if case .session(let id) = old { model.leave(id) } else { model.refreshUnread() }
                 }
-                // the menu or the + while the draft is open: it starts blank again
-                .onChange(of: shell.newSessionOpened) { model.newSession.blank() }
+                // the menu or the + while the draft is open: it starts over, but what was written stays
+                .onChange(of: shell.newSessionOpened) { model.newSession.reopen() }
                 .onChange(of: terminalStore.standaloneTerminals().map(\.id)) { old, new in
                     // the selection leaves a closed terminal first, so the history can forget it
                     reconcileSelectedTerminal()
@@ -179,7 +180,7 @@ struct PanelView: View {
                         } else if let emptyPage {
                             EmptyStateView(state: emptyPage).inPageScroll()
                         } else if case .session(let id) = shell.selection {
-                            ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest, subagents: $shell.subagents, header: $shell.subagentHeader, subagentsList: $shell.subagentsList) { plan in
+                            ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest, subagents: $shell.subagents, header: $shell.subagentHeader, subagentsList: $shell.subagentsList, processes: $shell.processes) { plan in
                                 model.newSession.restore(plan)
                                 shell.selection = .newSession
                             }.id(id)
@@ -265,6 +266,9 @@ struct PanelView: View {
             }
             .onChange(of: model.shell.subagentsList.buttonState) { _, state in
                 if state == .hidden { subagentsOpen = false }
+            }
+            .onChange(of: model.shell.processes == nil) { _, gone in
+                if gone { processesOpen = false }
             }
         }
         .toolbar { panelToolbar }

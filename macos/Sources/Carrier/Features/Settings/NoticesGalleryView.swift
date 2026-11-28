@@ -54,16 +54,6 @@ struct NoticesGalleryView: View {
                                 BackgroundTask(id: "b2", kind: "shell", description: "pnpm test --watch", startedAt: Date().addingTimeInterval(-95)),
                             ], stop: {}, stopTask: { _ in })
                     }
-                    item(Copy.noticesGalleryCaptionProcesses()) {
-                        if let card = ProcessesCard(
-                            [
-                                BackgroundTask(id: "p1", kind: "local_bash", description: "pnpm dev", startedAt: Date().addingTimeInterval(-340), agentWork: false),
-                                BackgroundTask(id: "p2", kind: "local_bash", description: "pnpm test --watch", startedAt: Date().addingTimeInterval(-95), agentWork: false),
-                            ], canStop: true)
-                        {
-                            ProcessesCardView(card: card, stopAll: {}, stopOne: { _ in })
-                        }
-                    }
                     item(Copy.noticesGalleryCaptionUncommitted()) {
                         UncommittedNotice(title: Copy.noticesGallerySampleUncommittedTitle(), detail: Copy.noticesGallerySampleUncommittedDetail(), offersWorktree: true, useWorktree: {})
                     }

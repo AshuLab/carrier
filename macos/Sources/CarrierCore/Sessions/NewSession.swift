@@ -86,6 +86,9 @@ public struct WatchNote: Equatable {
     /// What Settings > Sessions says a new session opens in, read when the workspace answers.
     @ObservationIgnored let workIn: () -> WorkIn
     public var text = ""
+    /// The long texts pasted into the box and the files dropped on it: kept, with the text, until the message is sent (see `reopen`).
+    public var pastes: [PastedEntry] = []
+    public var files: [AttachedFile] = []
     public internal(set) var sending = false
     /// Why `open` was refused (or the host would not start), said in words in the draft; nil when it worked.
     public internal(set) var refusal: Refusal?

@@ -32,17 +32,18 @@ The mark also shows while the model works on a turn, beside the arc and the stop
 The hover card says what runs in the background in a line of its own, not in the tone of work, and VoiceOver reads the row with "N background processes".
 The rule is one place, `SessionRow.isWorking` and the status derived from it, so the sidebar, the Working group, the order and clock, the hover card and the Sessions home follow it together.
 
-**The conversation.** The processes are one grey notice card over the message box, in the family of the queued-message card (`NoticeCard`, grey: nothing is asked of the person): "2 processes still running", their names, Stop all (Stop when there is one) and a chevron that opens the card in place to a row for each process with its command, how long it has run and its own Stop.
-It has no ring, no glow and no shimmer, it stacks with the other notices as they do, and it is gone with the last process.
-It replaces the cyan card only for processes: the card for agent work stays as it is, and both can show together.
-Stop on the card stops a process through the host's `stopTask`, so a host that does not list that capability shows the card without Stop, and `interrupt` is never used for it (with no turn running it would stop agent work too).
+**The conversation.** The processes are a button in the window header, after the Subagents button (`ProcessesButton`: the prompt glyph and the count, grey and still because nothing is asked of the person), with a list under it (`ProcessesListPopover`) that has a row for each process with its command, how long it has run and its own Stop, and Stop all at the foot when there are several.
+It has no ring, no glow and no shimmer, it never opens by itself, and it is gone with the last process.
+It replaces the cyan card only for processes: the card for agent work stays as it is over the message box, and both can show together.
+Stop on the list stops a process through the host's `stopTask`, so a host that does not list that capability shows the list without Stop, and `interrupt` is never used for it (with no turn running it would stop agent work too).
+The header's own terminal button becomes a square with a prompt (`AppIcon.squareTerminal`) so the two are not confused.
 A process shows in the transcript as the call that started it, as today.
 
 **Archive and delete.** A session with only processes can be archived or deleted.
 The app asks first, saying what it stops ("This stops pnpm dev"), and the host stops each process through `stopTask` before it closes the session, logging and going on when one refuses.
 A session with agent work still refuses, as today, and the idle close still spares a session with any background task, since closing it ends the agent's process that owns them.
 
-What was cut: telling a process that ends from one that never does (there is nothing in the event to say it, and the problem is that it is not the model, not how long it lasts); a group of its own for sessions with processes (the session would be in two places and the group would hold sessions that need nothing); the mark after the title (it takes the title's width) and beside the time (it is the column Pin and Archive take); a blocklist of `local_bash` (a type added later would show as the model working again); a list of agent work kept in Swift beside the one in TypeScript (they drift); and, for the conversation, a pill in the header next to the terminal button (it is confused with the person's own shell), a tab in the terminal drawer (the drawer is shut most of the time and these are not terminals to type in) and the card of today made quieter (it still reads as something the model is doing).
+What was cut: telling a process that ends from one that never does (there is nothing in the event to say it, and the problem is that it is not the model, not how long it lasts); a group of its own for sessions with processes (the session would be in two places and the group would hold sessions that need nothing); the mark after the title (it takes the title's width) and beside the time (it is the column Pin and Archive take); a blocklist of `local_bash` (a type added later would show as the model working again); a list of agent work kept in Swift beside the one in TypeScript (they drift); and, for the conversation, a tab in the terminal drawer (the drawer is shut most of the time and these are not terminals to type in) and the card of today made quieter (it still reads as something the model is doing). A pill in the header was first cut because it is confused with the person's own shell, and later taken back: the card over the message box took the room the person writes in, and the terminal button's new look is what tells the two apart.
 Keeping the call that started the process alive in the transcript ("running · 14m · Stop") was drawn and is a possible addition, not part of this.
 
 ## Scope
@@ -52,9 +53,9 @@ Keeping the call that started the process alive in the transcript ("running · 1
 3. As Diego, I see that mark also while the model works a turn, beside the arc and the stopwatch of the turn.
 4. As Diego, I see a session with a subagent, a workflow, a teammate or a remote agent running as working, as before, and with the live card.
 5. As Diego, I see a task of a type the app does not know as a process.
-6. As Diego, I see one grey card over the message box that says how many processes are running and their names, with Stop all, and with no motion.
-7. As Diego, I open that card in place and see each process with its command and how long it has run, and I stop one of them or all of them from it.
-8. As Diego, I see the card go when the last process ends or is stopped, and the mark leave the row with it.
+6. As Diego, I see a still grey button in the window header that says how many processes are running, with no motion and nothing over the message box.
+7. As Diego, I open its list and see each process with its command and how long it has run, and I stop one of them or all of them from it.
+8. As Diego, I see the button go when the last process ends or is stopped, and the mark leave the row with it.
 9. As Diego, I archive or delete a session with only processes after the app tells me which ones it stops, and they are stopped; I am still refused for one with agent work.
 10. As Diego, I see on the hover card what runs in the background, and with VoiceOver I hear "N background processes" on the row.
 11. As Diego, with a process left running, the session is still not closed for being idle, and when the process ends and the agent wakes, the session works that turn as before.
@@ -88,9 +89,9 @@ public var processes: [BackgroundTask] { background.filter { $0.agentWork == fal
 `armIdle`, `interrupt` and `stopTask` keep treating every background task as they do, and `chat-host.md` says the new field and the new archive rule.
 
 **The app.** `archiveBlock` reads agent work; a new function says which processes an archive or a delete would stop, for the confirmation, in `CarrierCore` with the other session-menu rules.
-The processes card is its own view over the message box (`NoticeCard`, grey), fed by `ConversationModel` with the processes and with whether the host can `stopTask`; the cyan card is given agent work only.
+The processes button and its list are their own views in the window header, fed by `ConversationModel` with the processes and with whether the host can `stopTask`; the cyan card is given agent work only.
 New words go in `Localizable.xcstrings` in English and Spanish, as the background-work lines did.
-The UI guide (`docs/ui.md`), `docs/macos/sessions.md` and `docs/macos/chat.md` say the new row mark and the card, and the list fixture `chat-list.json` gets a session that has only processes; the view work follows `macos-ui-change`.
+The UI guide (`docs/ui.md`), `docs/macos/sessions.md` and `docs/macos/chat.md` say the new row mark and the header button, and the list fixture `chat-list.json` gets a session that has only processes; the view work follows `macos-ui-change`.
 
 **Testing seams**, the broadest one that still isolates each story:
 
@@ -98,7 +99,7 @@ The UI guide (`docs/ui.md`), `docs/macos/sessions.md` and `docs/macos/chat.md` s
 - Stories 9 and 11, the host: `src/chat/sessions.test.ts`, through `sessions.list`, `archive`, `delete` and the idle close on a session with a fake conversation (the tests for background work there), checking that processes alone do not refuse, that each one is stopped before the close, and that agent work refuses as it does.
 - Stories 1, 2, 3 and 5, the state: `macos/Tests/CarrierCoreTests` through `SessionRow` (`isWorking`, `status`, `workingSince`), the grouping of `SessionSections` and the decoding of a task with and without `agentWork`.
 - Stories 9 and 10, the words: `SessionMenuTests` (`archiveBlock` and the processes an archive stops), `SessionPeekTests` (the hover card's line) and the Spanish tests for the new copy.
-- Stories 6, 7 and 8, the card: what it shows (the names, whether Stop is offered, when it goes) is a function in `CarrierCore` tested through `ConversationModel`'s processes; how it looks has no unit test, and is checked against the fixture in the states of the UI guide (one process, several, open, model working too, no `stopTask`) as `macos-ui-change` asks.
+- Stories 6, 7 and 8, the button and its list: what it shows (the names, whether Stop is offered, when it goes) is a function in `CarrierCore` tested through `ConversationModel`'s processes; how it looks has no unit test, and is checked against the fixture in the states of the UI guide (one process, several, a long command, the list open, model working too, no `stopTask`) as `macos-ui-change` asks.
 - Story 2, the mark's place: the same fixture, with a row that has a third line and one that has not.
 
 ## Out of scope

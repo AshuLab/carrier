@@ -7751,74 +7751,6 @@
         }
       }
     },
-    "chatProcessesCollapsed": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Collapsed"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Contraído"
-          }
-        }
-      }
-    },
-    "chatProcessesExpanded": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Expanded"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Expandido"
-          }
-        }
-      }
-    },
-    "chatProcessesHintHide": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hides the processes"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oculta los procesos"
-          }
-        }
-      }
-    },
-    "chatProcessesHintShow": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shows the processes"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Muestra los procesos"
-          }
-        }
-      }
-    },
     "chatProcessesStopHelp %lld": {
       "extractionState": "manual",
       "localizations": {
@@ -35519,23 +35451,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "El host de chat es más antiguo que la app"
-          }
-        }
-      }
-    },
-    "noticesGalleryCaptionProcesses": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Background processes the agent left running"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Procesos en segundo plano que dejó el agente"
           }
         }
       }

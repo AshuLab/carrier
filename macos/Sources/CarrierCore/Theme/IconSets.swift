@@ -182,6 +182,7 @@ private func iconNames(_ icon: AppIcon) -> (tabler: String, lucide: String, symb
     case .sleep: ("outline/zzz", "moon", "moon.zzz.fill")
     case .sliders: ("outline/adjustments-horizontal", "sliders-horizontal", "slider.horizontal.3")
     case .sparkles: ("outline/sparkles", "sparkles", "sparkles")
+    case .squareTerminal: ("outline/terminal-2", "square-terminal", "apple.terminal")
     case .stack: ("outline/stack-2", "layers", "square.stack.3d.up")
     case .star: ("outline/star", "star", "star")
     case .starFilled: ("filled/star", "star+fill", "star.fill")

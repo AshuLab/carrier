@@ -67,6 +67,10 @@ extension PanelView {
                     ToolbarItem(placement: .primaryAction) { subagentsToolbarButton(shell) }
                         .sharedBackgroundVisibility(.hidden)
                 }
+                if let card = shell.processes {
+                    ToolbarItem(placement: .primaryAction) { processesToolbarButton(shell, card) }
+                        .sharedBackgroundVisibility(.hidden)
+                }
                 ToolbarItem(placement: .primaryAction) { SubagentStatePill(header: open) }
                     .sharedBackgroundVisibility(.hidden)
                 if open.canStop {
@@ -84,10 +88,14 @@ extension PanelView {
                     ToolbarItem(placement: .primaryAction) { subagentsToolbarButton(shell) }
                         .sharedBackgroundVisibility(.hidden)
                 }
+                if let card = shell.processes {
+                    ToolbarItem(placement: .primaryAction) { processesToolbarButton(shell, card) }
+                        .sharedBackgroundVisibility(.hidden)
+                }
             }
             ToolbarSpacer(.fixed, placement: .primaryAction)
             ToolbarItem(placement: .primaryAction) {
-                ToolbarGlassIconButton(icon: .terminal, active: drawerOpen, name: drawerOpen ? Copy.epicsToolbarHideTerminal() : Copy.epicsToolbarOpenTerminal(path: abbreviatedTerminalPath(session.folder))) {
+                ToolbarGlassIconButton(icon: .squareTerminal, active: drawerOpen, name: drawerOpen ? Copy.epicsToolbarHideTerminal() : Copy.epicsToolbarOpenTerminal(path: abbreviatedTerminalPath(session.folder))) {
                     toggleSessionTerminal(for: session)
                 }
                 .glassEffect(.regular, in: .capsule)
@@ -148,6 +156,19 @@ extension PanelView {
                 subagentsOpen = false
                 shell.jumpToSubagent(id)
             }
+        }
+    }
+
+    private func processesToolbarButton(_ shell: WindowShell, _ card: ProcessesCard) -> some View {
+        ProcessesButton(card: card, open: processesOpen) {
+            processesOpen.toggle()
+        }
+        .popover(isPresented: $processesOpen, arrowEdge: .bottom) {
+            ProcessesListPopover(
+                card: card,
+                stopAll: { shell.perform(.conversation(.stopProcesses)) },
+                stopOne: { id in shell.perform(.conversation(.stopProcess(id))) }
+            )
         }
     }
 }

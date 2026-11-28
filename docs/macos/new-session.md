@@ -2,7 +2,7 @@
 
 How a new session is planned in the draft and prepared by the chat host when the first message is sent; the conversation that follows is in [chat](chat.md#conversation).
 
-Nothing is cloned, created or written until the first message is sent, and the draft is blank every time New session opens (the menu, ⌘N, or the + while it is open) and after a send.
+Nothing is cloned, created or written until the first message is sent, and every time New session opens (the menu, ⌘N, or the + while it is open) it has no workspace, but what was written in it (the text, the long pasted texts and the dropped files) stays until it is sent, so leaving to another session and coming back loses nothing; after a send the draft is blank.
 Choosing a repository, a project or a folder only fills the plan.
 Sending makes one `open` and the chat host prepares the session in the background, in this order and only the steps the plan needs: `clone` (or `fetch` when the repository is already in the projects folder) or `project`; `worktree` or `checkout`; `agent`; `message`.
 When the folder is a project with actions on, each one is a step of its own: the after-clone ones right after the `clone`, the new-worktree ones after the `worktree` or `checkout` and before the `agent`, in the listed order ([project actions](../glossary.md)); with none on there is no such step and nothing is shown.
@@ -96,8 +96,9 @@ The fixtures carry the states: `/Users/dev/carrier` has `main` behind (2, then 1
 
 ## Sending and the preparation
 
-The draft is blank every time it opens (`NewSessionModel.blank`, run by `load` and, for the menu or the + while the draft is already open, by the window's `newSessionOpened` count): no workspace, no worktree choice or name, no text.
-The workspace chip has no ✕: another workspace is chosen from the chip itself (`clearWorkspace` is what the blank draft uses: the workspace and its branch, worktree choice and name go, the text stays), and after a send the draft is blank again, so the next send carries nothing of the last one; choosing a repository, a project or a folder only fills the plan.
+The workspace is blank every time the draft opens (`NewSessionModel.reopen`, run by `load` and, for the menu or the + while the draft is already open, by the window's `newSessionOpened` count): no workspace, no worktree choice or name.
+What was written stays (`text`, `pastes` and `files` of the model, which lives as long as the app); `blank`, run after a send, clears those too.
+The workspace chip has no ✕: another workspace is chosen from the chip itself (`clearWorkspace` is what `reopen` uses: the workspace and its branch, worktree choice and name go, the text stays), and after a send the draft is blank again, so the next send carries nothing of the last one; choosing a repository, a project or a folder only fills the plan.
 Opening the draft (`NewSessionModel.load`) starts the chat host when it is not running (`ChatHostStarter.ensureRunning`) and asks it again for the agents and the recent folders; sending (`NewSessionModel.send`) starts it too when it went away (`ChatHostStarter.ensureRunning`), makes one `open` that carries the plan (`SessionPlan`: the folder as a workspace, the agent, the options chosen, the first message, and the branch and worktree name for a worktree) and nothing else, and selects the session, which the host answers at once in the `preparing` state and shows in the sidebar as working.
 The app sends a plan only when the host's hello lists `plan`; against one that does not the draft says the host is older and to restart it (`NewSessionModel.hostOlder`, checked again at the send) and sends nothing, and the old `open` of a folder and a worktree is no longer used by the app.
 A refusal of `open` is said in the draft and the text stays.

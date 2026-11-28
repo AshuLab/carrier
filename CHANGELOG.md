@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Leaving a session no longer loses what you left in its box: the dropped files and pasted texts stay as chips and cards, and a message held while the agent was answering is still held when you come back.
+- New session keeps what you wrote (the text, pasted texts and dropped files) until you send it, instead of starting blank every time it opens.
+
 ### Changed
 
 - The sidebar's foot is two icon buttons, Settings at the left and Usage at the right, instead of two rows with words; their names show as tooltips.

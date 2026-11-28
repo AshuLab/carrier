@@ -37,7 +37,7 @@ func theMessageBoxBuildsInEveryStateOfADictationAtWideAndNarrowWidths(state: Dic
     #expect(dictation.session.state == state)
     for width in [320.0, 700.0] {
         let box = MessageBox(
-            text: .constant("uno dos"), placeholder: "Message the agent", canSend: true, canSendWithText: true, focus: .constant(false),
+            text: .constant("uno dos"), attachments: .constant([]), pastes: .constant([]), placeholder: "Message the agent", canSend: true, canSendWithText: true, focus: .constant(false),
             dictationOwner: "box", dictation: dictation, send: {}
         ) { Text("Claude Code · Sonnet") }
         let renderer = ImageRenderer(content: box.frame(width: width))
@@ -50,7 +50,7 @@ func theMessageBoxBuildsInEveryStateOfADictationAtWideAndNarrowWidths(state: Dic
     #expect(dictation.session.failure(for: "box")?.cause == "No input device")
     #expect(dictation.session.failure(for: "another")?.cause == nil)
     let box = MessageBox(
-        text: .constant(""), placeholder: "Message the agent", canSend: false, canSendWithText: true, focus: .constant(false),
+        text: .constant(""), attachments: .constant([]), pastes: .constant([]), placeholder: "Message the agent", canSend: false, canSendWithText: true, focus: .constant(false),
         dictationOwner: "box", dictation: dictation, send: {}
     ) { Text("Claude Code") }
     #expect(ImageRenderer(content: box.frame(width: 320)).cgImage != nil)
@@ -279,7 +279,7 @@ private let boxField = DictationField(owner: "box", text: { "" }, caret: { 0 }, 
     func show(request: Int) {
         host.rootView = AnyView(
             MessageBox(
-                text: .constant(""), placeholder: "", canSend: false, canSendWithText: true,
+                text: .constant(""), attachments: .constant([]), pastes: .constant([]), placeholder: "", canSend: false, canSendWithText: true,
                 focus: Binding(get: { false }, set: { if $0 { self.focused = true } }),
                 dictationOwner: "box", dictation: dictation, dictateRequest: request, send: {}
             ) { Text("Claude Code") }.frame(width: 600))

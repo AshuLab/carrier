@@ -99,7 +99,9 @@ extension ConversationModel {
             times = Dictionary(events.filter { $0.kind == "user" || $0.kind == "assistant" }.map { ("e\($0.id)", $0.at) }) { $1 }
             if followsOutput && atEnd { scrolls += 1 }
         }
-        if busy == false, let next = queued {
+        // a round that ends after its view went away (its task is cancelled) leaves the held message to the model of the session's next view,
+        // which loaded it from `memory`: both would send it
+        if busy == false, Task.isCancelled == false, let next = queued {
             queued = nil
             await deliver(next)
         }

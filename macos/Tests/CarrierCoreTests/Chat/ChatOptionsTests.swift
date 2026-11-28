@@ -260,6 +260,25 @@ private final class AgentBox: @unchecked Sendable {
     #expect(ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory).draft.isEmpty)
 }
 
+@MainActor @Test func theFilesThePastesAndTheHeldMessageAreStillThereWhenThePersonComesBackToTheSession() {
+    let box = UnsentBox()
+    let memory = OptionsMemory(load: { _ in [] }, save: { _, _ in }, loadUnsent: { box.stored[$0] ?? Unsent() }, saveUnsent: { box.stored[$0] = $1 })
+    let first = ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory)
+    first.files = [AttachedFile(path: "/c/pending/1/shot.png", kind: .image, size: 10)]
+    first.pastes = [PastedEntry(text: "a long log")]
+    first.queued = "hold on"
+    let back = ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory)
+    #expect(back.files.map(\.path) == ["/c/pending/1/shot.png"] && back.pastes.map(\.text) == ["a long log"] && back.queued == "hold on")
+    #expect(ConversationModel(host: OptionsHost(), sessionId: "other", log: { _ in }, memory: memory).files.isEmpty)
+    // sent or taken out of the box: nothing comes back
+    first.files = []
+    first.pastes = []
+    first.cancelQueued()
+    #expect(ConversationModel(host: OptionsHost(), sessionId: "s", log: { _ in }, memory: memory).queued == nil && box.stored["s"] == Unsent())
+}
+
+private final class UnsentBox: @unchecked Sendable { var stored: [String: Unsent] = [:] }
+
 // MARK: forgetting a deleted session
 
 private func keptKeys(_ defaults: UserDefaults, for id: String) -> Set<String> {
@@ -276,7 +295,10 @@ private func keptKeys(_ defaults: UserDefaults, for id: String) -> Set<String> {
         for id in ids { memory.saveDraft(id, "") }  // the drafts are process-global
     }
     let command = ChatCommand(id: "review", name: "review", description: "Review", argumentHint: nil)
+    let unsent = Unsent(pastes: ["a long log"], files: [AttachedFile(path: "/c/pending/1/shot.png", kind: .image, size: 10)], queued: "hold on")
+    defer { for id in ids { memory.saveUnsent(id, Unsent()) } }
     for id in ids {
+        memory.saveUnsent(id, unsent)
         memory.save(id, claude)
         memory.saveCommands(id, [command])
         memory.saveAgent(id, "claude")
@@ -288,6 +310,7 @@ private func keptKeys(_ defaults: UserDefaults, for id: String) -> Set<String> {
 
     #expect(keptKeys(defaults, for: "s1").isEmpty)
     #expect(memory.load("s1").isEmpty && memory.loadCommands("s1").isEmpty && memory.loadAgent("s1") == "" && memory.loadDraft("s1") == "")
+    #expect(memory.loadUnsent("s1") == Unsent() && memory.loadUnsent("s10") == unsent)
     #expect(memory.load("s10").count == claude.count && memory.loadCommands("s10").count == 1)
     #expect(memory.loadAgent("s10") == "claude" && memory.loadDraft("s10") == "half a thought")
 }

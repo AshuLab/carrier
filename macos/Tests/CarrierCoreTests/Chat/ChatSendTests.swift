@@ -154,6 +154,21 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     #expect(chat.queued == "third" && host.calls == ["send first"])
 }
 
+@MainActor @Test func aHeldMessageRecoveredFromMemoryIsSentOnceByTheModelThatLoadedIt() async {
+    var kept = Unsent(queued: "hold on")
+    let memory = OptionsMemory(load: { _ in [] }, save: { _, _ in }, loadUnsent: { _ in kept }, saveUnsent: { _, new in kept = new })
+    let host = FakeChat()
+    let chat = ConversationModel(host: host, sessionId: session, log: { _ in }, memory: memory, folderExists: { _ in true })
+    #expect(chat.queued == "hold on")
+    // the round of a view that went away ends after the new view's model was made: it leaves the message to that model
+    let gone = Task { @MainActor in await chat.poll() }
+    gone.cancel()
+    await gone.value
+    #expect(host.calls.isEmpty && chat.queued == "hold on" && kept.queued == "hold on")
+    await chat.poll()
+    #expect(host.calls == ["send hold on"] && chat.queued == nil && kept.queued == nil)
+}
+
 @MainActor @Test func theQueuedMessageIsSentWhenTheTurnEndsAndNotBefore() async {
     let host = FakeChat()
     let chat = model(host)

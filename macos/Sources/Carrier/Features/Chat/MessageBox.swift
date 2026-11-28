@@ -11,6 +11,10 @@ struct MessageBox<Selects: View>: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.textScale) private var textScale
     @Binding var text: String
+    /// The files dropped on the box, which go with the next message as paths under it, and the long texts pasted into it, which go in fenced
+    /// blocks under what is typed: the session's, so they are still there when the person comes back to it.
+    @Binding var attachments: [AttachedFile]
+    @Binding var pastes: [PastedEntry]
     var placeholder: String
     var minLines = 3
     var canSend: Bool
@@ -41,12 +45,8 @@ struct MessageBox<Selects: View>: View {
     @State private var closedFor: CommandToken?
     /// Where the caret is in the text.
     @State private var cursor = 0
-    /// The files dropped on the box, which go with the next message as paths under it.
-    @State private var attachments: [AttachedFile] = []
     /// The attachment being looked at in the preview.
     @State private var previewing: AttachedFile?
-    /// The long texts pasted into the box, which go with the next message in fenced blocks under what is typed.
-    @State private var pastes: [PastedEntry] = []
     /// Whether files are being dragged over the box.
     @State private var dropping = false
     /// Where the text a dictation is still hearing is; it is drawn in a colour with a touch of the accent and with a dotted underline.

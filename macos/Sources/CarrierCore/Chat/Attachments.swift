@@ -5,16 +5,16 @@ import Foundation
 // conversation reads back to show the files as chips under the bubble. The host moves each copy still in pending into the session when the
 // message goes, and rewrites its path (src/chat/attachments.ts).
 
-public enum AttachmentKind: Equatable { case image, pdf, folder, log, code, data, archive, other }
+public enum AttachmentKind: Equatable, Sendable { case image, pdf, folder, log, code, data, archive, other }
 
-public enum AttachmentProblem: Equatable {
+public enum AttachmentProblem: Equatable, Sendable {
     case missing
     case tooBig(Int64)
     /// A file of Carrier's own folder (the engine's state and the chat's database): not for an agent.
     case carrierOwn
 }
 
-public struct AttachedFile: Equatable, Identifiable {
+public struct AttachedFile: Equatable, Identifiable, Sendable {
     public let path: String
     public let kind: AttachmentKind
     /// Bytes of a file; nil for a folder.

@@ -912,11 +912,11 @@ private let review = BackgroundTask(id: "a1", kind: "local_agent", description: 
     await model.poll()
     // one process: its own words and Stop
     let one = model.processesCard
-    #expect(one?.title == "1 process still running" && one?.names == "pnpm build" && one?.stop == "Stop" && one?.stopsEach == true)
-    // several: the names on one line (a process the agent did not describe is named by its kind) and Stop all
+    #expect(one?.title == "1 process still running" && one?.stop == "Stop" && one?.stopsEach == true)
+    // several: Stop all
     host.background = [build, watch]
     await model.poll()
-    #expect(model.processesCard?.title == "2 processes still running" && model.processesCard?.names == "pnpm build, local_bash" && model.processesCard?.stop == "Stop all")
+    #expect(model.processesCard?.title == "2 processes still running" && model.processesCard?.stop == "Stop all")
     // agent work is the cyan card's: with a subagent too each card has its own tasks, and with only a subagent there is no grey card
     host.background = [build, review]
     await model.poll()
@@ -938,7 +938,7 @@ private let review = BackgroundTask(id: "a1", kind: "local_agent", description: 
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
     await model.poll()
     #expect(model.processesCard?.stop == nil && model.processesCard?.stopsEach == false && model.processesCard?.stopHelp == nil)
-    #expect(model.processesCard?.title == "2 processes still running" && model.processesCard?.names == "pnpm build, local_bash")
+    #expect(model.processesCard?.title == "2 processes still running")
 }
 
 @MainActor @Test func stopOnARowStopsThatProcessAndStopAllStopsEachOfThemWithoutAnInterrupt() async {

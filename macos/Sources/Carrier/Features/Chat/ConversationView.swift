@@ -43,16 +43,19 @@ struct ConversationView: View {
     @Binding private var subagents: [String]
     @Binding private var header: SubagentHeader?
     @Binding private var subagentsList: SubagentsList
+    /// The window's header says of the background processes what this is told (`WindowShell.processes`).
+    @Binding private var processes: ProcessesCard?
 
     init(
         sessionId: String, draft: NewSessionModel? = nil, request: ConversationRequest? = nil, subagents: Binding<[String]> = .constant([]),
-        header: Binding<SubagentHeader?> = .constant(nil), subagentsList: Binding<SubagentsList> = .constant(.empty), cancelled: @escaping (SessionPlan) -> Void = { _ in }
+        header: Binding<SubagentHeader?> = .constant(nil), subagentsList: Binding<SubagentsList> = .constant(.empty), processes: Binding<ProcessesCard?> = .constant(nil), cancelled: @escaping (SessionPlan) -> Void = { _ in }
     ) {
         self.draft = draft
         self.request = request
         _subagents = subagents
         _header = header
         _subagentsList = subagentsList
+        _processes = processes
         self.cancelled = cancelled
         // a model made at every pass over the parent's body is wasted work: the events count them
         Signposts.render.emitEvent("ConversationModel init")
@@ -95,6 +98,7 @@ struct ConversationView: View {
             }
             .onChange(of: model.openSubagent?.header) { _, shown in header = shown }
             .onChange(of: model.subagents, initial: true) { _, list in subagentsList = list }
+            .onChange(of: model.processesCard, initial: true) { _, card in processes = card }
     }
 
     private var conversation: some View {
@@ -225,6 +229,8 @@ struct ConversationView: View {
         case .dictate: dictations += 1
         case .stopAgent: if model.busy { Task { await model.stop() } }
         case .stopSubagent: Task { await model.stopOpenSubagent() }
+        case .stopProcess(let id): Task { await model.stopTask(id) }
+        case .stopProcesses: Task { await model.stopProcesses() }
         case .jumpToLatest: scroll.position.scrollTo(edge: .bottom)
         case .toggleToolFolds:
             flipped = togglingToolGroups(in: visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning), flipped: flipped)

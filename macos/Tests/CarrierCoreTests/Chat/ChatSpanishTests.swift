@@ -434,6 +434,4 @@ private func group(_ events: [ChatEvent]) -> ToolGroup {
     let several = ProcessesCard([build, watch], canStop: true, bundle: es.bundle, locale: es.locale)
     #expect(several?.title == "2 procesos siguen en marcha" && several?.stop == "Detener todo" && several?.stopHelp == "Detener todos los procesos")
     #expect(ProcessesCard([build], canStop: false, bundle: es.bundle, locale: es.locale)?.stop == nil)
-    #expect(Copy.chatProcessesHintShow(bundle: es.bundle, locale: es.locale) == "Muestra los procesos" && Copy.chatProcessesHintHide(bundle: es.bundle, locale: es.locale) == "Oculta los procesos")
-    #expect(Copy.chatProcessesExpanded(bundle: es.bundle, locale: es.locale) == "Expandido" && Copy.chatProcessesCollapsed(bundle: es.bundle, locale: es.locale) == "Contraído")
 }
